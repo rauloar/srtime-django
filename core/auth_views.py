@@ -4,6 +4,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.hashers import make_password, check_password
+from django.views.decorators.csrf import csrf_exempt
 from core.models import AuthUser
 import time
 
@@ -54,6 +55,7 @@ class PasswordUpdateSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, required=True)
 
 
+@csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def auth_login(request):
