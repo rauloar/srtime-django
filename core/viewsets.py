@@ -194,11 +194,21 @@ class SettingViewSet(viewsets.ModelViewSet):
     search_fields = ['key', 'value', 'description']
     ordering_fields = ['key']
     ordering = ['key']
+    lookup_field = 'key'  # Setting usa 'key' como PK, no 'id'
     
     def list(self, request, *args, **kwargs):
         """Devolver array directo (sin paginación) como FastAPI"""
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    def update(self, request, *args, **kwargs):
+        """Actualizar configuración individual por key"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
         return Response(serializer.data)
 
 

@@ -215,7 +215,7 @@ export const getAttendanceLogs = async (params: { device_id?: number; user_id?: 
 
 // Settings & Jobs
 export const getSettings = async () => (await api.get<Setting[]>('/settings/')).data;
-export const updateSetting = async (setting: Setting) => (await api.put<Setting>('/settings/', setting)).data;
+export const updateSetting = async (setting: Setting) => (await api.put<Setting>(`/settings/${setting.key}/`, setting)).data;
 export const getJob = async (jobId: string) => (await api.get<Job>(`/jobs/${jobId}`)).data;
 export const getJobLogs = async (jobId: string) => (await api.get<JobLog[]>(`/jobs/${jobId}/logs`)).data;
 
