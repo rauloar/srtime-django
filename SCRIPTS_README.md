@@ -2,6 +2,24 @@
 
 Scripts PowerShell para facilitar el inicio del servidor Django y frontend React.
 
+## ⚠️ IMPORTANTE: Primera Vez
+
+Si obtienes el error **"la ejecución de scripts está deshabilitada"**, tienes 2 opciones:
+
+### Opción 1: Script Automático (Recomendado)
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup-scripts.ps1
+```
+
+### Opción 2: Comando Manual
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force
+```
+
+Esto permite ejecutar scripts locales sin requerir firma digital. Es **seguro** y solo afecta a tu usuario.
+
+---
+
 ## 📋 Scripts Disponibles
 
 ### 🚀 `start-server.ps1`
@@ -108,10 +126,31 @@ cd C:\Proyectos\srtime-django
 
 ## 🐛 Troubleshooting
 
+### ⚠️ Error: "la ejecución de scripts está deshabilitada en este sistema"
+
+**Causa:** PowerShell bloquea scripts por seguridad.
+
+**Solución (RECOMENDADA - ejecutar una sola vez):**
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force
+```
+
+**Alternativa sin cambiar política:**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-server.ps1
+```
+
+**Verificar política actual:**
+```powershell
+Get-ExecutionPolicy -List
+```
+
+---
+
 ### Error: "No se puede cargar el archivo .ps1 porque la ejecución de scripts está deshabilitada"
 **Solución:**
 ```powershell
-Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force
 ```
 
 ### Error: "python: command not found"
