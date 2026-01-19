@@ -46,7 +46,8 @@ def load_zk_prod_data():
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT version();")
-            pg_version = cursor.fetchone()[0]
+            row = cursor.fetchone()
+            pg_version = str(row[0]) if row and row[0] is not None else "unknown"
             print(f"  ✓ Conectado: {pg_version[:50]}...")
     except Exception as e:
         print(f"  ✗ Error de conexión: {e}")
