@@ -1,0 +1,18 @@
+Fetching logs for TODAY: 2025-12-20...
+Connecting to 192.168.1.201:4370...
+Connected!
+Fetching attendance logs...
+Total logs on device: 47
+
+================================================================================
+Time                 | User ID    | Status (pyzk)   | Punch (pyzk)    | Raw String
+================================================================================
+2025-12-20 19:47:02  | 99999      | 0               | 0               | <Attendance>: 99999 : 2025-12-20 19:47:02 (0, 0)
+2025-12-20 19:47:07  | 99999      | 0               | 1               | <Attendance>: 99999 : 2025-12-20 19:47:07 (0, 1)
+2025-12-20 19:47:27  | 99999      | 0               | 2               | <Attendance>: 99999 : 2025-12-20 19:47:27 (0, 2)
+2025-12-20 19:47:45  | 99999      | 0               | 3               | <Attendance>: 99999 : 2025-12-20 19:47:45 (0, 3)
+2025-12-20 19:47:51  | 99999      | 0               | 4               | <Attendance>: 99999 : 2025-12-20 19:47:51 (0, 4)
+2025-12-20 19:47:58  | 99999      | 0               | 5               | <Attendance>: 99999 : 2025-12-20 19:47:58 (0, 5)
+================================================================================
+NOTE: 'Status (pyzk)' is usually expected to be the check-in/out state.
+NOTE: 'Punch (pyzk)' was previously thought to be Verify Mode, but User suspects it is State.
