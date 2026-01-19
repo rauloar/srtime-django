@@ -11,7 +11,8 @@ from .viewsets import (
     DailyAttendanceViewSet
 )
 from .auth_views import (
-    auth_login, auth_users_list, auth_user_delete, auth_user_password_update
+    auth_login, auth_users_list, auth_user_delete, auth_user_password_update,
+    server_info
 )
 from .views_attendance import calculate_attendance, daily_reports, calculate_single_day
 from .views_devices import (
@@ -20,6 +21,10 @@ from .views_devices import (
     all_devices_status
 )
 from .views_jobs import get_job, get_job_logs, get_device_jobs
+from .views_system import (
+    database_backup, list_backups, database_restore, 
+    database_test, database_import
+)
 
 router = DefaultRouter()
 
@@ -64,6 +69,7 @@ urlpatterns = [
     
     # Auth endpoints compatibles con frontend React
     path('auth/login', auth_login, name='auth_login'),
+    path('auth/server-info', server_info, name='server_info'),
     path('auth/users', auth_users_list, name='auth_users_list'),
     path('auth/users/<int:user_id>', auth_user_delete, name='auth_user_delete'),
     path('auth/users/<int:user_id>/password', auth_user_password_update, name='auth_user_password_update'),
@@ -87,6 +93,13 @@ urlpatterns = [
     # Job Endpoints
     path('jobs/<int:job_id>/', get_job, name='get_job'),
     path('jobs/<int:job_id>/logs/', get_job_logs, name='get_job_logs'),
+    
+    # System Database Endpoints
+    path('system/database/backup', database_backup, name='database_backup'),
+    path('system/database/backups', list_backups, name='list_backups'),
+    path('system/database/restore', database_restore, name='database_restore'),
+    path('system/database/test', database_test, name='database_test'),
+    path('system/database/import', database_import, name='database_import'),
     
     # Alias para endpoints compatibles con FastAPI (frontend espera estos paths)
     path('attendance/', AttendanceLogViewSet.as_view({'get': 'list'}), name='attendance_list_alias'),

@@ -5,6 +5,10 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.hashers import make_password, check_password
 from core.models import AuthUser
+import time
+
+# Tiempo de inicio del servidor (se establece al cargar el módulo)
+SERVER_START_TIME = str(int(time.time()))
 
 
 class LoginSerializer(serializers.Serializer):
@@ -99,6 +103,21 @@ def auth_login(request):
     }
     
     return Response(response_data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def server_info(request):
+    """
+    Endpoint para obtener información del servidor.
+    GET /api/v1/auth/server-info
+    Response: {"start_time": "1234567890", "version": "1.0.0"}
+    """
+    return Response({
+        'start_time': SERVER_START_TIME,
+        'version': '1.0.0',
+        'framework': 'Django 6.0.1'
+    }, status=status.HTTP_200_OK)
 
 
 @api_view(['GET', 'POST'])

@@ -37,6 +37,12 @@ class CompanyViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'code']
     ordering_fields = ['name', 'code']
     ordering = ['name']
+    
+    def list(self, request, *args, **kwargs):
+        """Devolver array directo (sin paginación) como FastAPI"""
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class PositionViewSet(viewsets.ModelViewSet):
@@ -47,6 +53,12 @@ class PositionViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'code', 'description']
     ordering_fields = ['name', 'code']
     ordering = ['name']
+    
+    def list(self, request, *args, **kwargs):
+        """Devolver array directo (sin paginación) como FastAPI"""
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class ZoneViewSet(viewsets.ModelViewSet):
@@ -57,6 +69,12 @@ class ZoneViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'code', 'description']
     ordering_fields = ['name', 'code']
     ordering = ['name']
+    
+    def list(self, request, *args, **kwargs):
+        """Devolver array directo (sin paginación) como FastAPI"""
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
@@ -114,6 +132,12 @@ class DeviceViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'ip', 'serialnumber', 'device_name', 'location']
     ordering_fields = ['name', 'ip', 'last_seen']
     ordering = ['name']
+    
+    def list(self, request, *args, **kwargs):
+        """Devolver array directo (sin paginación) como FastAPI"""
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class AttendanceLogViewSet(viewsets.ModelViewSet):
@@ -170,6 +194,12 @@ class SettingViewSet(viewsets.ModelViewSet):
     search_fields = ['key', 'value', 'description']
     ordering_fields = ['key']
     ordering = ['key']
+    
+    def list(self, request, *args, **kwargs):
+        """Devolver array directo (sin paginación) como FastAPI"""
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class JobViewSet(viewsets.ModelViewSet):
@@ -200,6 +230,12 @@ class TimetableViewSet(viewsets.ModelViewSet):
     search_fields = ['name']
     ordering_fields = ['name', 'on_duty_time', 'off_duty_time']
     ordering = ['name']
+    
+    def list(self, request, *args, **kwargs):
+        """Devolver array directo (sin paginación) como FastAPI"""
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class ShiftViewSet(viewsets.ModelViewSet):
@@ -210,6 +246,12 @@ class ShiftViewSet(viewsets.ModelViewSet):
     search_fields = ['name']
     ordering_fields = ['name']
     ordering = ['name']
+    
+    def list(self, request, *args, **kwargs):
+        """Devolver array directo (sin paginación) como FastAPI"""
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class ShiftTimetableViewSet(viewsets.ModelViewSet):
@@ -240,6 +282,12 @@ class EmployeeShiftViewSet(viewsets.ModelViewSet):
     search_fields = []
     ordering_fields = ['start_date', 'end_date']
     ordering = ['-start_date']
+    
+    def list(self, request, *args, **kwargs):
+        """Devolver array directo (sin paginación) como FastAPI"""
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class LeaveViewSet(viewsets.ModelViewSet):

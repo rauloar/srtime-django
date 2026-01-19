@@ -25,9 +25,10 @@ export const Settings: React.FC = () => {
     const fetchSettings = async () => {
         try {
             const data = await getSettings();
-            setSettings(data);
+            setSettings(data || []); // Asegurar que siempre sea array
         } catch (error) {
-            console.error(error);
+            console.error('Error fetching settings:', error);
+            setSettings([]); // Establecer array vacío en caso de error
         } finally {
             setLoading(false);
         }
@@ -36,9 +37,10 @@ export const Settings: React.FC = () => {
     const fetchBackups = async () => {
         try {
             const data = await listBackups();
-            setBackups(data.backups);
+            setBackups(data.backups || []);
         } catch (error) {
             console.error('Error fetching backups:', error);
+            setBackups([]); // No fallar si el endpoint no existe
         }
     };
 
@@ -111,11 +113,14 @@ export const Settings: React.FC = () => {
         }
     };
 
+    // Asegurar que settings siempre sea un array antes de agrupar
+    const safeSettings = Array.isArray(settings) ? settings : [];
+    
     const groupedSettings = {
-        'General': settings.filter(s => s.key.startsWith('app_') || s.key.startsWith('company_')),
-        'Asistencia': settings.filter(s => s.key.startsWith('att_')),
-        'Base de Datos': settings.filter(s => s.key.startsWith('db_')),
-        'Otros': settings.filter(s => !s.key.match(/^(app|company|att|db)_/))
+        'General': safeSettings.filter(s => s.key.startsWith('app_') || s.key.startsWith('company_')),
+        'Asistencia': safeSettings.filter(s => s.key.startsWith('att_')),
+        'Base de Datos': safeSettings.filter(s => s.key.startsWith('db_')),
+        'Otros': safeSettings.filter(s => !s.key.match(/^(app|company|att|db)_/))
     };
 
     return (

@@ -50,6 +50,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // Agregar token a headers para futuras peticiones
       api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+      
+      // Obtener y guardar el tiempo de inicio del servidor
+      try {
+        const serverInfo = await api.get('/auth/server-info');
+        sessionStorage.setItem('server_start_time', serverInfo.data.start_time);
+      } catch (err) {
+        console.warn('No se pudo obtener información del servidor');
+      }
     } catch (err: any) {
       let errorMsg = 'Error al iniciar sesión';
       
@@ -93,19 +101,43 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     delete api.defaults.headers.common['Authorization'];
   }, []);
 
-  // Cargar token al montar
+  // Cargar token al montar y validar sesión
   useEffect(() => {
     const savedToken = sessionStorage.getItem('auth_token');
     const savedUsername = sessionStorage.getItem('auth_username');
     const savedRole = sessionStorage.getItem('auth_role');
+    const serverStartTime = sessionStorage.getItem('server_start_time');
     
     if (savedToken) {
       setToken(savedToken);
       setUsername(savedUsername);
       setRole(savedRole);
       api.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
+      
+      // Verificar si el servidor se reinició
+      const checkServerStatus = async () => {
+        try {
+          const response = await api.get('/auth/server-info');
+          const currentServerTime = response.data.start_time;
+          
+          // Si el servidor se reinició, cerrar sesión
+          if (serverStartTime && serverStartTime !== currentServerTime) {
+            console.log('🔄 Servidor reiniciado - Cerrando sesión...');
+            logout();
+          } else {
+            // Guardar el tiempo de inicio del servidor actual
+            sessionStorage.setItem('server_start_time', currentServerTime);
+          }
+        } catch (err) {
+          // Si no puede conectar con el servidor, cerrar sesión
+          console.log('❌ No se puede verificar el servidor - Cerrando sesión...');
+          logout();
+        }
+      };
+      
+      checkServerStatus();
     }
-  }, []);
+  }, [logout]);
 
   const value: AuthContextType = {
     token,

@@ -1,0 +1,3435 @@
+[
+{
+  "model": "auth.user",
+  "pk": 1,
+  "fields": {
+    "password": "pbkdf2_sha256$1200000$z45x5kUmGXz3sqHZ7MaZSO$i3XFQ/4rECtqT9WaY4jR6XyQqaCiEJTLOQWPikOz020=",
+    "last_login": null,
+    "is_superuser": true,
+    "username": "admin",
+    "first_name": "",
+    "last_name": "",
+    "email": "admin@srtimeweb.com",
+    "is_staff": true,
+    "is_active": true,
+    "date_joined": "2026-01-14T15:20:33.847Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "core.authuser",
+  "pk": 1,
+  "fields": {
+    "username": "admin",
+    "password_hash": "pbkdf2_sha256$1200000$MJxjafHyQenu4KcuMYcoWW$MwYiQIRi/y1Qk62F055y+BsK4FfP2gNwh6cmqA+eEjs=",
+    "role": "admin",
+    "employee": null,
+    "active": true,
+    "created_at": "2026-01-14T16:49:42.336Z"
+  }
+},
+{
+  "model": "core.company",
+  "pk": 1,
+  "fields": {
+    "name": "SR Time Demo Corp",
+    "code": "SR001",
+    "address": "123 Tech Park",
+    "website": "www.srtime.com",
+    "logo_path": null
+  }
+},
+{
+  "model": "core.position",
+  "pk": 1,
+  "fields": {
+    "name": "Gerente",
+    "code": null,
+    "description": null
+  }
+},
+{
+  "model": "core.position",
+  "pk": 2,
+  "fields": {
+    "name": "Analista",
+    "code": null,
+    "description": null
+  }
+},
+{
+  "model": "core.position",
+  "pk": 3,
+  "fields": {
+    "name": "Técnico",
+    "code": null,
+    "description": null
+  }
+},
+{
+  "model": "core.position",
+  "pk": 4,
+  "fields": {
+    "name": "Asistente",
+    "code": null,
+    "description": null
+  }
+},
+{
+  "model": "core.zone",
+  "pk": 1,
+  "fields": {
+    "name": "Administración",
+    "code": null,
+    "description": null
+  }
+},
+{
+  "model": "core.zone",
+  "pk": 2,
+  "fields": {
+    "name": "Producción",
+    "code": null,
+    "description": null
+  }
+},
+{
+  "model": "core.zone",
+  "pk": 3,
+  "fields": {
+    "name": "Ventas",
+    "code": null,
+    "description": null
+  }
+},
+{
+  "model": "core.department",
+  "pk": 1,
+  "fields": {
+    "name": "Recursos Humanos",
+    "code": "REC",
+    "company": null,
+    "parent": null
+  }
+},
+{
+  "model": "core.department",
+  "pk": 2,
+  "fields": {
+    "name": "Desarrollo",
+    "code": "DES",
+    "company": null,
+    "parent": null
+  }
+},
+{
+  "model": "core.department",
+  "pk": 3,
+  "fields": {
+    "name": "Ventas",
+    "code": "VEN",
+    "company": null,
+    "parent": null
+  }
+},
+{
+  "model": "core.department",
+  "pk": 4,
+  "fields": {
+    "name": "Soporte",
+    "code": "SOP",
+    "company": null,
+    "parent": null
+  }
+},
+{
+  "model": "core.employee",
+  "pk": 1,
+  "fields": {
+    "user_id": "1000",
+    "name": "Juan Perez",
+    "department": 1,
+    "position": 1,
+    "email": "juan@demo.com",
+    "phone": "+57 300 521 9790",
+    "mobile_phone": "+57 310 649 9611",
+    "hire_date": null,
+    "address": null,
+    "city": null,
+    "country": "Colombia",
+    "photo_path": null,
+    "gender": null,
+    "birthday": "1990-02-02",
+    "ssn": null,
+    "active": true
+  }
+},
+{
+  "model": "core.employee",
+  "pk": 2,
+  "fields": {
+    "user_id": "1001",
+    "name": "Maria Garcia",
+    "department": 1,
+    "position": 4,
+    "email": "maria@demo.com",
+    "phone": "+57 300 175 9059",
+    "mobile_phone": "+57 310 341 1181",
+    "hire_date": null,
+    "address": null,
+    "city": null,
+    "country": "Colombia",
+    "photo_path": null,
+    "gender": null,
+    "birthday": "1991-11-22",
+    "ssn": null,
+    "active": true
+  }
+},
+{
+  "model": "core.employee",
+  "pk": 3,
+  "fields": {
+    "user_id": "1002",
+    "name": "Carlos Lopez",
+    "department": 4,
+    "position": 2,
+    "email": "carlos@demo.com",
+    "phone": "+57 300 630 2357",
+    "mobile_phone": "+57 310 450 6828",
+    "hire_date": null,
+    "address": null,
+    "city": null,
+    "country": "Colombia",
+    "photo_path": null,
+    "gender": null,
+    "birthday": "1992-03-23",
+    "ssn": null,
+    "active": true
+  }
+},
+{
+  "model": "core.employee",
+  "pk": 4,
+  "fields": {
+    "user_id": "1003",
+    "name": "Ana Martinez",
+    "department": 2,
+    "position": 4,
+    "email": "ana@demo.com",
+    "phone": "+57 300 941 5382",
+    "mobile_phone": "+57 310 989 3744",
+    "hire_date": null,
+    "address": null,
+    "city": null,
+    "country": "Colombia",
+    "photo_path": null,
+    "gender": null,
+    "birthday": "1993-05-05",
+    "ssn": null,
+    "active": true
+  }
+},
+{
+  "model": "core.employee",
+  "pk": 5,
+  "fields": {
+    "user_id": "1004",
+    "name": "Luis Rodriguez",
+    "department": 4,
+    "position": 3,
+    "email": "luis@demo.com",
+    "phone": "+57 300 304 9472",
+    "mobile_phone": "+57 310 875 6251",
+    "hire_date": null,
+    "address": null,
+    "city": null,
+    "country": "Colombia",
+    "photo_path": null,
+    "gender": null,
+    "birthday": "1994-12-25",
+    "ssn": null,
+    "active": true
+  }
+},
+{
+  "model": "core.device",
+  "pk": 1,
+  "fields": {
+    "name": "Puerta Principal",
+    "ip": "192.168.1.201",
+    "port": 4370,
+    "password": 0,
+    "zone": null,
+    "location": null,
+    "zone_rel": 2,
+    "enabled": true,
+    "serialnumber": "SN882233",
+    "device_name": "iClock S880",
+    "platform": null,
+    "firmware_version": null,
+    "mac": null,
+    "last_seen": null,
+    "last_error": null,
+    "user_count": 0,
+    "face_count": 0,
+    "fp_count": 0,
+    "transaction_count": 0,
+    "created_at": "2026-01-14T20:58:02.632Z"
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 1,
+  "fields": {
+    "device": 1,
+    "user_id": "1000",
+    "timestamp": "2026-01-07T11:16:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 2,
+  "fields": {
+    "device": 1,
+    "user_id": "1000",
+    "timestamp": "2026-01-07T20:08:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 3,
+  "fields": {
+    "device": 1,
+    "user_id": "1000",
+    "timestamp": "2026-01-08T11:17:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 4,
+  "fields": {
+    "device": 1,
+    "user_id": "1000",
+    "timestamp": "2026-01-08T20:09:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 5,
+  "fields": {
+    "device": 1,
+    "user_id": "1000",
+    "timestamp": "2026-01-09T11:02:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 6,
+  "fields": {
+    "device": 1,
+    "user_id": "1000",
+    "timestamp": "2026-01-09T20:14:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 7,
+  "fields": {
+    "device": 1,
+    "user_id": "1000",
+    "timestamp": "2026-01-10T11:06:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 8,
+  "fields": {
+    "device": 1,
+    "user_id": "1000",
+    "timestamp": "2026-01-10T20:23:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 9,
+  "fields": {
+    "device": 1,
+    "user_id": "1000",
+    "timestamp": "2026-01-11T11:30:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 10,
+  "fields": {
+    "device": 1,
+    "user_id": "1000",
+    "timestamp": "2026-01-11T20:21:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 11,
+  "fields": {
+    "device": 1,
+    "user_id": "1000",
+    "timestamp": "2026-01-12T11:14:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 12,
+  "fields": {
+    "device": 1,
+    "user_id": "1000",
+    "timestamp": "2026-01-12T20:08:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 13,
+  "fields": {
+    "device": 1,
+    "user_id": "1000",
+    "timestamp": "2026-01-13T11:03:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 14,
+  "fields": {
+    "device": 1,
+    "user_id": "1000",
+    "timestamp": "2026-01-13T20:15:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 15,
+  "fields": {
+    "device": 1,
+    "user_id": "1001",
+    "timestamp": "2026-01-07T11:12:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 16,
+  "fields": {
+    "device": 1,
+    "user_id": "1001",
+    "timestamp": "2026-01-07T20:19:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 17,
+  "fields": {
+    "device": 1,
+    "user_id": "1001",
+    "timestamp": "2026-01-08T11:09:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 18,
+  "fields": {
+    "device": 1,
+    "user_id": "1001",
+    "timestamp": "2026-01-08T20:15:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 19,
+  "fields": {
+    "device": 1,
+    "user_id": "1001",
+    "timestamp": "2026-01-09T11:09:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 20,
+  "fields": {
+    "device": 1,
+    "user_id": "1001",
+    "timestamp": "2026-01-09T20:02:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 21,
+  "fields": {
+    "device": 1,
+    "user_id": "1001",
+    "timestamp": "2026-01-10T11:18:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 22,
+  "fields": {
+    "device": 1,
+    "user_id": "1001",
+    "timestamp": "2026-01-10T20:04:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 23,
+  "fields": {
+    "device": 1,
+    "user_id": "1001",
+    "timestamp": "2026-01-11T11:26:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 24,
+  "fields": {
+    "device": 1,
+    "user_id": "1001",
+    "timestamp": "2026-01-11T20:27:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 25,
+  "fields": {
+    "device": 1,
+    "user_id": "1001",
+    "timestamp": "2026-01-12T11:15:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 26,
+  "fields": {
+    "device": 1,
+    "user_id": "1001",
+    "timestamp": "2026-01-12T20:11:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 27,
+  "fields": {
+    "device": 1,
+    "user_id": "1001",
+    "timestamp": "2026-01-13T11:15:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 28,
+  "fields": {
+    "device": 1,
+    "user_id": "1001",
+    "timestamp": "2026-01-13T20:03:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 29,
+  "fields": {
+    "device": 1,
+    "user_id": "1002",
+    "timestamp": "2026-01-07T11:07:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 30,
+  "fields": {
+    "device": 1,
+    "user_id": "1002",
+    "timestamp": "2026-01-07T20:13:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 31,
+  "fields": {
+    "device": 1,
+    "user_id": "1002",
+    "timestamp": "2026-01-08T11:11:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 32,
+  "fields": {
+    "device": 1,
+    "user_id": "1002",
+    "timestamp": "2026-01-08T20:27:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 33,
+  "fields": {
+    "device": 1,
+    "user_id": "1002",
+    "timestamp": "2026-01-09T11:10:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 34,
+  "fields": {
+    "device": 1,
+    "user_id": "1002",
+    "timestamp": "2026-01-09T20:02:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 35,
+  "fields": {
+    "device": 1,
+    "user_id": "1002",
+    "timestamp": "2026-01-10T11:00:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 36,
+  "fields": {
+    "device": 1,
+    "user_id": "1002",
+    "timestamp": "2026-01-10T20:05:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 37,
+  "fields": {
+    "device": 1,
+    "user_id": "1002",
+    "timestamp": "2026-01-11T11:08:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 38,
+  "fields": {
+    "device": 1,
+    "user_id": "1002",
+    "timestamp": "2026-01-11T20:20:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 39,
+  "fields": {
+    "device": 1,
+    "user_id": "1002",
+    "timestamp": "2026-01-12T11:22:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 40,
+  "fields": {
+    "device": 1,
+    "user_id": "1002",
+    "timestamp": "2026-01-12T20:09:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 41,
+  "fields": {
+    "device": 1,
+    "user_id": "1002",
+    "timestamp": "2026-01-13T11:07:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 42,
+  "fields": {
+    "device": 1,
+    "user_id": "1002",
+    "timestamp": "2026-01-13T20:20:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 43,
+  "fields": {
+    "device": 1,
+    "user_id": "1003",
+    "timestamp": "2026-01-07T11:03:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 44,
+  "fields": {
+    "device": 1,
+    "user_id": "1003",
+    "timestamp": "2026-01-07T20:08:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 45,
+  "fields": {
+    "device": 1,
+    "user_id": "1003",
+    "timestamp": "2026-01-08T11:25:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 46,
+  "fields": {
+    "device": 1,
+    "user_id": "1003",
+    "timestamp": "2026-01-08T20:30:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 47,
+  "fields": {
+    "device": 1,
+    "user_id": "1003",
+    "timestamp": "2026-01-09T11:07:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 48,
+  "fields": {
+    "device": 1,
+    "user_id": "1003",
+    "timestamp": "2026-01-09T20:08:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 49,
+  "fields": {
+    "device": 1,
+    "user_id": "1003",
+    "timestamp": "2026-01-10T11:21:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 50,
+  "fields": {
+    "device": 1,
+    "user_id": "1003",
+    "timestamp": "2026-01-10T20:23:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 51,
+  "fields": {
+    "device": 1,
+    "user_id": "1003",
+    "timestamp": "2026-01-11T11:10:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 52,
+  "fields": {
+    "device": 1,
+    "user_id": "1003",
+    "timestamp": "2026-01-11T20:15:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 53,
+  "fields": {
+    "device": 1,
+    "user_id": "1003",
+    "timestamp": "2026-01-12T11:20:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 54,
+  "fields": {
+    "device": 1,
+    "user_id": "1003",
+    "timestamp": "2026-01-12T20:14:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 55,
+  "fields": {
+    "device": 1,
+    "user_id": "1003",
+    "timestamp": "2026-01-13T11:11:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 56,
+  "fields": {
+    "device": 1,
+    "user_id": "1003",
+    "timestamp": "2026-01-13T20:19:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 57,
+  "fields": {
+    "device": 1,
+    "user_id": "1004",
+    "timestamp": "2026-01-07T11:25:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 58,
+  "fields": {
+    "device": 1,
+    "user_id": "1004",
+    "timestamp": "2026-01-07T20:07:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 59,
+  "fields": {
+    "device": 1,
+    "user_id": "1004",
+    "timestamp": "2026-01-08T11:30:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 60,
+  "fields": {
+    "device": 1,
+    "user_id": "1004",
+    "timestamp": "2026-01-08T20:02:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 61,
+  "fields": {
+    "device": 1,
+    "user_id": "1004",
+    "timestamp": "2026-01-09T11:03:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 62,
+  "fields": {
+    "device": 1,
+    "user_id": "1004",
+    "timestamp": "2026-01-09T20:21:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 63,
+  "fields": {
+    "device": 1,
+    "user_id": "1004",
+    "timestamp": "2026-01-10T11:21:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 64,
+  "fields": {
+    "device": 1,
+    "user_id": "1004",
+    "timestamp": "2026-01-10T20:30:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 65,
+  "fields": {
+    "device": 1,
+    "user_id": "1004",
+    "timestamp": "2026-01-11T11:04:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 66,
+  "fields": {
+    "device": 1,
+    "user_id": "1004",
+    "timestamp": "2026-01-11T20:26:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 67,
+  "fields": {
+    "device": 1,
+    "user_id": "1004",
+    "timestamp": "2026-01-12T11:08:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 68,
+  "fields": {
+    "device": 1,
+    "user_id": "1004",
+    "timestamp": "2026-01-12T20:04:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 69,
+  "fields": {
+    "device": 1,
+    "user_id": "1004",
+    "timestamp": "2026-01-13T11:17:00Z",
+    "status": 0,
+    "punch": 0,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.attendancelog",
+  "pk": 70,
+  "fields": {
+    "device": 1,
+    "user_id": "1004",
+    "timestamp": "2026-01-13T20:11:00Z",
+    "status": 0,
+    "punch": 1,
+    "verify_mode": 1,
+    "workstate": null,
+    "workcode": null,
+    "punch_source": null,
+    "raw_json": null
+  }
+},
+{
+  "model": "core.user",
+  "pk": 1,
+  "fields": {
+    "device": 1,
+    "uid": 1,
+    "name": "Juan Perez",
+    "privilege": 0,
+    "password": null,
+    "group_id": null,
+    "user_id": "1000",
+    "card": "556600",
+    "face_count": 0,
+    "finger_count": 0,
+    "updated_at": "2026-01-14T20:58:02.636Z"
+  }
+},
+{
+  "model": "core.user",
+  "pk": 2,
+  "fields": {
+    "device": 1,
+    "uid": 2,
+    "name": "Maria Garcia",
+    "privilege": 0,
+    "password": null,
+    "group_id": null,
+    "user_id": "1001",
+    "card": "556601",
+    "face_count": 0,
+    "finger_count": 0,
+    "updated_at": "2026-01-14T20:58:02.642Z"
+  }
+},
+{
+  "model": "core.user",
+  "pk": 3,
+  "fields": {
+    "device": 1,
+    "uid": 3,
+    "name": "Carlos Lopez",
+    "privilege": 0,
+    "password": null,
+    "group_id": null,
+    "user_id": "1002",
+    "card": "556602",
+    "face_count": 0,
+    "finger_count": 0,
+    "updated_at": "2026-01-14T20:58:02.644Z"
+  }
+},
+{
+  "model": "core.user",
+  "pk": 4,
+  "fields": {
+    "device": 1,
+    "uid": 4,
+    "name": "Ana Martinez",
+    "privilege": 0,
+    "password": null,
+    "group_id": null,
+    "user_id": "1003",
+    "card": "556603",
+    "face_count": 0,
+    "finger_count": 0,
+    "updated_at": "2026-01-14T20:58:02.647Z"
+  }
+},
+{
+  "model": "core.user",
+  "pk": 5,
+  "fields": {
+    "device": 1,
+    "uid": 5,
+    "name": "Luis Rodriguez",
+    "privilege": 0,
+    "password": null,
+    "group_id": null,
+    "user_id": "1004",
+    "card": "556604",
+    "face_count": 0,
+    "finger_count": 0,
+    "updated_at": "2026-01-14T20:58:02.649Z"
+  }
+},
+{
+  "model": "core.setting",
+  "pk": "app_name",
+  "fields": {
+    "value": "SRTime System",
+    "description": "Nombre de la aplicación"
+  }
+},
+{
+  "model": "core.setting",
+  "pk": "app_timezone",
+  "fields": {
+    "value": "America/Asuncion",
+    "description": "Zona horaria"
+  }
+},
+{
+  "model": "core.setting",
+  "pk": "att_early_leave_tolerance",
+  "fields": {
+    "value": "15",
+    "description": "Tolerancia de salida temprana (minutos)"
+  }
+},
+{
+  "model": "core.setting",
+  "pk": "att_late_tolerance",
+  "fields": {
+    "value": "15",
+    "description": "Tolerancia de llegada tarde (minutos)"
+  }
+},
+{
+  "model": "core.setting",
+  "pk": "company_name",
+  "fields": {
+    "value": "Mi Empresa",
+    "description": "Nombre de la empresa"
+  }
+},
+{
+  "model": "core.setting",
+  "pk": "db_auto_backup",
+  "fields": {
+    "value": "true",
+    "description": "Respaldo automático diario"
+  }
+},
+{
+  "model": "core.job",
+  "pk": "5cf2a388-ffe0-4225-b1c7-de96dca0fcb3",
+  "fields": {
+    "type": "test_connection",
+    "device": 1,
+    "status": "completed",
+    "progress": 100,
+    "started_at": "2026-01-14T21:31:46.305Z",
+    "finished_at": "2026-01-14T21:31:47.449Z",
+    "error": null,
+    "created_at": "2026-01-14T21:31:46.267Z"
+  }
+},
+{
+  "model": "core.job",
+  "pk": "e34fc774-2cfb-4801-8c1e-2bbed2d78e54",
+  "fields": {
+    "type": "test_connection",
+    "device": 1,
+    "status": "completed",
+    "progress": 100,
+    "started_at": "2026-01-19T16:46:34.195Z",
+    "finished_at": "2026-01-19T16:46:35.361Z",
+    "error": null,
+    "created_at": "2026-01-19T16:46:34.150Z"
+  }
+},
+{
+  "model": "core.joblog",
+  "pk": 1,
+  "fields": {
+    "job": "5cf2a388-ffe0-4225-b1c7-de96dca0fcb3",
+    "device_id": null,
+    "level": "INFO",
+    "message": "Iniciando prueba de conexión...",
+    "timestamp": "2026-01-14T21:31:46.308Z"
+  }
+},
+{
+  "model": "core.joblog",
+  "pk": 2,
+  "fields": {
+    "job": "5cf2a388-ffe0-4225-b1c7-de96dca0fcb3",
+    "device_id": null,
+    "level": "INFO",
+    "message": "Conectando a 192.168.1.201:4370...",
+    "timestamp": "2026-01-14T21:31:46.312Z"
+  }
+},
+{
+  "model": "core.joblog",
+  "pk": 3,
+  "fields": {
+    "job": "5cf2a388-ffe0-4225-b1c7-de96dca0fcb3",
+    "device_id": null,
+    "level": "INFO",
+    "message": "Conexión exitosa: Connection successful",
+    "timestamp": "2026-01-14T21:31:47.444Z"
+  }
+},
+{
+  "model": "core.joblog",
+  "pk": 4,
+  "fields": {
+    "job": "5cf2a388-ffe0-4225-b1c7-de96dca0fcb3",
+    "device_id": null,
+    "level": "INFO",
+    "message": "Firmware: Ver 6.60 Jun  3 2014",
+    "timestamp": "2026-01-14T21:31:47.446Z"
+  }
+},
+{
+  "model": "core.joblog",
+  "pk": 5,
+  "fields": {
+    "job": "5cf2a388-ffe0-4225-b1c7-de96dca0fcb3",
+    "device_id": null,
+    "level": "INFO",
+    "message": "Serial: 6614143900089",
+    "timestamp": "2026-01-14T21:31:47.447Z"
+  }
+},
+{
+  "model": "core.joblog",
+  "pk": 6,
+  "fields": {
+    "job": "5cf2a388-ffe0-4225-b1c7-de96dca0fcb3",
+    "device_id": null,
+    "level": "INFO",
+    "message": "Platform: ZEM600_TFT",
+    "timestamp": "2026-01-14T21:31:47.448Z"
+  }
+},
+{
+  "model": "core.joblog",
+  "pk": 7,
+  "fields": {
+    "job": "e34fc774-2cfb-4801-8c1e-2bbed2d78e54",
+    "device_id": null,
+    "level": "INFO",
+    "message": "Iniciando prueba de conexión...",
+    "timestamp": "2026-01-19T16:46:34.197Z"
+  }
+},
+{
+  "model": "core.joblog",
+  "pk": 8,
+  "fields": {
+    "job": "e34fc774-2cfb-4801-8c1e-2bbed2d78e54",
+    "device_id": null,
+    "level": "INFO",
+    "message": "Conectando a 192.168.1.201:4370...",
+    "timestamp": "2026-01-19T16:46:34.205Z"
+  }
+},
+{
+  "model": "core.joblog",
+  "pk": 9,
+  "fields": {
+    "job": "e34fc774-2cfb-4801-8c1e-2bbed2d78e54",
+    "device_id": null,
+    "level": "INFO",
+    "message": "Conexión exitosa: Connection successful",
+    "timestamp": "2026-01-19T16:46:35.356Z"
+  }
+},
+{
+  "model": "core.joblog",
+  "pk": 10,
+  "fields": {
+    "job": "e34fc774-2cfb-4801-8c1e-2bbed2d78e54",
+    "device_id": null,
+    "level": "INFO",
+    "message": "Firmware: Ver 6.60 Jun  3 2014",
+    "timestamp": "2026-01-19T16:46:35.359Z"
+  }
+},
+{
+  "model": "core.joblog",
+  "pk": 11,
+  "fields": {
+    "job": "e34fc774-2cfb-4801-8c1e-2bbed2d78e54",
+    "device_id": null,
+    "level": "INFO",
+    "message": "Serial: 6614143900089",
+    "timestamp": "2026-01-19T16:46:35.360Z"
+  }
+},
+{
+  "model": "core.joblog",
+  "pk": 12,
+  "fields": {
+    "job": "e34fc774-2cfb-4801-8c1e-2bbed2d78e54",
+    "device_id": null,
+    "level": "INFO",
+    "message": "Platform: ZEM600_TFT",
+    "timestamp": "2026-01-19T16:46:35.360Z"
+  }
+},
+{
+  "model": "core.timetable",
+  "pk": 1,
+  "fields": {
+    "name": "Tm_Morn_06-14",
+    "on_duty_time": "06:00",
+    "off_duty_time": "14:00",
+    "late_allow_minutes": 15,
+    "early_leave_allow_minutes": 15,
+    "check_in_start": "05:00",
+    "check_in_end": "10:00",
+    "check_out_start": "10:00",
+    "check_out_end": "18:00",
+    "break_minutes": 0,
+    "rounding_rule": "none",
+    "required_minutes": 0,
+    "work_days": 1,
+    "is_flexible": false
+  }
+},
+{
+  "model": "core.timetable",
+  "pk": 2,
+  "fields": {
+    "name": "Tm_Aft_14-22",
+    "on_duty_time": "14:00",
+    "off_duty_time": "22:00",
+    "late_allow_minutes": 15,
+    "early_leave_allow_minutes": 15,
+    "check_in_start": "13:00",
+    "check_in_end": "18:00",
+    "check_out_start": "18:00",
+    "check_out_end": "23:59",
+    "break_minutes": 0,
+    "rounding_rule": "none",
+    "required_minutes": 0,
+    "work_days": 1,
+    "is_flexible": false
+  }
+},
+{
+  "model": "core.timetable",
+  "pk": 3,
+  "fields": {
+    "name": "Tm_Night_22-06",
+    "on_duty_time": "22:00",
+    "off_duty_time": "06:00",
+    "late_allow_minutes": 15,
+    "early_leave_allow_minutes": 15,
+    "check_in_start": "20:00",
+    "check_in_end": "23:59",
+    "check_out_start": "03:00",
+    "check_out_end": "09:00",
+    "break_minutes": 0,
+    "rounding_rule": "none",
+    "required_minutes": 0,
+    "work_days": 1,
+    "is_flexible": false
+  }
+},
+{
+  "model": "core.timetable",
+  "pk": 4,
+  "fields": {
+    "name": "Tm_Flex",
+    "on_duty_time": "09:00",
+    "off_duty_time": "18:00",
+    "late_allow_minutes": 15,
+    "early_leave_allow_minutes": 15,
+    "check_in_start": "00:00",
+    "check_in_end": "23:59",
+    "check_out_start": "00:00",
+    "check_out_end": "23:59",
+    "break_minutes": 0,
+    "rounding_rule": "none",
+    "required_minutes": 0,
+    "work_days": 1,
+    "is_flexible": true
+  }
+},
+{
+  "model": "core.shift",
+  "pk": 1,
+  "fields": {
+    "name": "Shift_Morning"
+  }
+},
+{
+  "model": "core.shift",
+  "pk": 2,
+  "fields": {
+    "name": "Shift_Afternoon"
+  }
+},
+{
+  "model": "core.shift",
+  "pk": 3,
+  "fields": {
+    "name": "Shift_Night"
+  }
+},
+{
+  "model": "core.shift",
+  "pk": 4,
+  "fields": {
+    "name": "Shift_Flex"
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 1,
+  "fields": {
+    "shift": 1,
+    "timetable": 1,
+    "day_index": 0
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 2,
+  "fields": {
+    "shift": 1,
+    "timetable": 1,
+    "day_index": 1
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 3,
+  "fields": {
+    "shift": 1,
+    "timetable": 1,
+    "day_index": 2
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 4,
+  "fields": {
+    "shift": 1,
+    "timetable": 1,
+    "day_index": 3
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 5,
+  "fields": {
+    "shift": 1,
+    "timetable": 1,
+    "day_index": 4
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 6,
+  "fields": {
+    "shift": 1,
+    "timetable": 1,
+    "day_index": 5
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 7,
+  "fields": {
+    "shift": 1,
+    "timetable": 1,
+    "day_index": 6
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 8,
+  "fields": {
+    "shift": 2,
+    "timetable": 2,
+    "day_index": 0
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 9,
+  "fields": {
+    "shift": 2,
+    "timetable": 2,
+    "day_index": 1
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 10,
+  "fields": {
+    "shift": 2,
+    "timetable": 2,
+    "day_index": 2
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 11,
+  "fields": {
+    "shift": 2,
+    "timetable": 2,
+    "day_index": 3
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 12,
+  "fields": {
+    "shift": 2,
+    "timetable": 2,
+    "day_index": 4
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 13,
+  "fields": {
+    "shift": 2,
+    "timetable": 2,
+    "day_index": 5
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 14,
+  "fields": {
+    "shift": 2,
+    "timetable": 2,
+    "day_index": 6
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 15,
+  "fields": {
+    "shift": 3,
+    "timetable": 3,
+    "day_index": 0
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 16,
+  "fields": {
+    "shift": 3,
+    "timetable": 3,
+    "day_index": 1
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 17,
+  "fields": {
+    "shift": 3,
+    "timetable": 3,
+    "day_index": 2
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 18,
+  "fields": {
+    "shift": 3,
+    "timetable": 3,
+    "day_index": 3
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 19,
+  "fields": {
+    "shift": 3,
+    "timetable": 3,
+    "day_index": 4
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 20,
+  "fields": {
+    "shift": 3,
+    "timetable": 3,
+    "day_index": 5
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 21,
+  "fields": {
+    "shift": 3,
+    "timetable": 3,
+    "day_index": 6
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 22,
+  "fields": {
+    "shift": 4,
+    "timetable": 4,
+    "day_index": 0
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 23,
+  "fields": {
+    "shift": 4,
+    "timetable": 4,
+    "day_index": 1
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 24,
+  "fields": {
+    "shift": 4,
+    "timetable": 4,
+    "day_index": 2
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 25,
+  "fields": {
+    "shift": 4,
+    "timetable": 4,
+    "day_index": 3
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 26,
+  "fields": {
+    "shift": 4,
+    "timetable": 4,
+    "day_index": 4
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 27,
+  "fields": {
+    "shift": 4,
+    "timetable": 4,
+    "day_index": 5
+  }
+},
+{
+  "model": "core.shifttimetable",
+  "pk": 28,
+  "fields": {
+    "shift": 4,
+    "timetable": 4,
+    "day_index": 6
+  }
+},
+{
+  "model": "core.employeeshift",
+  "pk": 1,
+  "fields": {
+    "scope": "EMPLOYEE",
+    "employee": 1,
+    "department": null,
+    "shift": 2,
+    "start_date": "2026-01-14",
+    "end_date": null
+  }
+},
+{
+  "model": "core.employeeshift",
+  "pk": 2,
+  "fields": {
+    "scope": "EMPLOYEE",
+    "employee": 2,
+    "department": null,
+    "shift": 4,
+    "start_date": "2026-01-14",
+    "end_date": null
+  }
+},
+{
+  "model": "core.employeeshift",
+  "pk": 3,
+  "fields": {
+    "scope": "EMPLOYEE",
+    "employee": 3,
+    "department": null,
+    "shift": 4,
+    "start_date": "2026-01-14",
+    "end_date": null
+  }
+},
+{
+  "model": "core.employeeshift",
+  "pk": 4,
+  "fields": {
+    "scope": "EMPLOYEE",
+    "employee": 4,
+    "department": null,
+    "shift": 2,
+    "start_date": "2026-01-14",
+    "end_date": null
+  }
+},
+{
+  "model": "core.employeeshift",
+  "pk": 5,
+  "fields": {
+    "scope": "EMPLOYEE",
+    "employee": 5,
+    "department": null,
+    "shift": 2,
+    "start_date": "2026-01-14",
+    "end_date": null
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 1,
+  "fields": {
+    "employee": 4,
+    "date": "2026-01-08",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 2,
+  "fields": {
+    "employee": 4,
+    "date": "2026-01-09",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 3,
+  "fields": {
+    "employee": 4,
+    "date": "2026-01-10",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 4,
+  "fields": {
+    "employee": 4,
+    "date": "2026-01-11",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 5,
+  "fields": {
+    "employee": 4,
+    "date": "2026-01-12",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 6,
+  "fields": {
+    "employee": 4,
+    "date": "2026-01-13",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 7,
+  "fields": {
+    "employee": 4,
+    "date": "2026-01-14",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 8,
+  "fields": {
+    "employee": 3,
+    "date": "2026-01-08",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 9,
+  "fields": {
+    "employee": 3,
+    "date": "2026-01-09",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 10,
+  "fields": {
+    "employee": 3,
+    "date": "2026-01-10",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 11,
+  "fields": {
+    "employee": 3,
+    "date": "2026-01-11",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 12,
+  "fields": {
+    "employee": 3,
+    "date": "2026-01-12",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 13,
+  "fields": {
+    "employee": 3,
+    "date": "2026-01-13",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 14,
+  "fields": {
+    "employee": 3,
+    "date": "2026-01-14",
+    "timetable": 4,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "09:00",
+    "off_duty": "18:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FLEX",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 15,
+  "fields": {
+    "employee": 1,
+    "date": "2026-01-08",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 16,
+  "fields": {
+    "employee": 1,
+    "date": "2026-01-09",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 17,
+  "fields": {
+    "employee": 1,
+    "date": "2026-01-10",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 18,
+  "fields": {
+    "employee": 1,
+    "date": "2026-01-11",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 19,
+  "fields": {
+    "employee": 1,
+    "date": "2026-01-12",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 20,
+  "fields": {
+    "employee": 1,
+    "date": "2026-01-13",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 21,
+  "fields": {
+    "employee": 1,
+    "date": "2026-01-14",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 22,
+  "fields": {
+    "employee": 5,
+    "date": "2026-01-08",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 23,
+  "fields": {
+    "employee": 5,
+    "date": "2026-01-09",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 24,
+  "fields": {
+    "employee": 5,
+    "date": "2026-01-10",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 25,
+  "fields": {
+    "employee": 5,
+    "date": "2026-01-11",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 26,
+  "fields": {
+    "employee": 5,
+    "date": "2026-01-12",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 27,
+  "fields": {
+    "employee": 5,
+    "date": "2026-01-13",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 28,
+  "fields": {
+    "employee": 5,
+    "date": "2026-01-14",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 29,
+  "fields": {
+    "employee": 2,
+    "date": "2026-01-08",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 30,
+  "fields": {
+    "employee": 2,
+    "date": "2026-01-09",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 31,
+  "fields": {
+    "employee": 2,
+    "date": "2026-01-10",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 32,
+  "fields": {
+    "employee": 2,
+    "date": "2026-01-11",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 33,
+  "fields": {
+    "employee": 2,
+    "date": "2026-01-12",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 34,
+  "fields": {
+    "employee": 2,
+    "date": "2026-01-13",
+    "timetable": null,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": null,
+    "off_duty": null,
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "NONE",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 35,
+  "fields": {
+    "employee": 2,
+    "date": "2026-01-14",
+    "timetable": 4,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "09:00",
+    "off_duty": "18:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FLEX",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 36,
+  "fields": {
+    "employee": 4,
+    "date": "2026-01-15",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 37,
+  "fields": {
+    "employee": 4,
+    "date": "2026-01-16",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 38,
+  "fields": {
+    "employee": 4,
+    "date": "2026-01-17",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 39,
+  "fields": {
+    "employee": 4,
+    "date": "2026-01-18",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 40,
+  "fields": {
+    "employee": 4,
+    "date": "2026-01-19",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 41,
+  "fields": {
+    "employee": 3,
+    "date": "2026-01-15",
+    "timetable": 4,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "09:00",
+    "off_duty": "18:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FLEX",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 42,
+  "fields": {
+    "employee": 3,
+    "date": "2026-01-16",
+    "timetable": 4,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "09:00",
+    "off_duty": "18:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FLEX",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 43,
+  "fields": {
+    "employee": 3,
+    "date": "2026-01-17",
+    "timetable": 4,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "09:00",
+    "off_duty": "18:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FLEX",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 44,
+  "fields": {
+    "employee": 3,
+    "date": "2026-01-18",
+    "timetable": 4,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "09:00",
+    "off_duty": "18:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FLEX",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 45,
+  "fields": {
+    "employee": 3,
+    "date": "2026-01-19",
+    "timetable": 4,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "09:00",
+    "off_duty": "18:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FLEX",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 46,
+  "fields": {
+    "employee": 1,
+    "date": "2026-01-15",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 47,
+  "fields": {
+    "employee": 1,
+    "date": "2026-01-16",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 48,
+  "fields": {
+    "employee": 1,
+    "date": "2026-01-17",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 49,
+  "fields": {
+    "employee": 1,
+    "date": "2026-01-18",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 50,
+  "fields": {
+    "employee": 1,
+    "date": "2026-01-19",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 51,
+  "fields": {
+    "employee": 5,
+    "date": "2026-01-15",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 52,
+  "fields": {
+    "employee": 5,
+    "date": "2026-01-16",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 53,
+  "fields": {
+    "employee": 5,
+    "date": "2026-01-17",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 54,
+  "fields": {
+    "employee": 5,
+    "date": "2026-01-18",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 55,
+  "fields": {
+    "employee": 5,
+    "date": "2026-01-19",
+    "timetable": 2,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "14:00",
+    "off_duty": "22:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FIXED",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 56,
+  "fields": {
+    "employee": 2,
+    "date": "2026-01-15",
+    "timetable": 4,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "09:00",
+    "off_duty": "18:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FLEX",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 57,
+  "fields": {
+    "employee": 2,
+    "date": "2026-01-16",
+    "timetable": 4,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "09:00",
+    "off_duty": "18:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FLEX",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 58,
+  "fields": {
+    "employee": 2,
+    "date": "2026-01-17",
+    "timetable": 4,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "09:00",
+    "off_duty": "18:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FLEX",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 59,
+  "fields": {
+    "employee": 2,
+    "date": "2026-01-18",
+    "timetable": 4,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "09:00",
+    "off_duty": "18:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FLEX",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+},
+{
+  "model": "core.dailyattendance",
+  "pk": 60,
+  "fields": {
+    "employee": 2,
+    "date": "2026-01-19",
+    "timetable": 4,
+    "check_in": null,
+    "check_out": null,
+    "on_duty": "09:00",
+    "off_duty": "18:00",
+    "late_minutes": 0,
+    "early_minutes": 0,
+    "worked_minutes": 0,
+    "overtime_minutes": 0,
+    "status": "Absent",
+    "exception_reason": null,
+    "schedule_type": "FLEX",
+    "source_logs_count": 0,
+    "is_absent": true
+  }
+}
+]
