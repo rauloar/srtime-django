@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { Folder, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Folder, Plus, Edit2, Trash2, ChevronRight } from 'lucide-react';
 import { getDepartments, createDepartment, updateDepartment, deleteDepartment, getEmployees, type Department, type Employee } from '../../api';
 import { DataGrid, type Column } from '../../components/ui/DataGrid';
 import { PageToolbar } from '../../components/ui/PageToolbar';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { sortDepartmentsTree, type DepartmentNode } from '../../utils/treeUtils';
 
 export const Departments: React.FC = () => {
-    const [departments, setDepartments] = useState<Department[]>([]);
+    const [departments, setDepartments] = useState<DepartmentNode[]>([]);
+    const [originalDepts, setOriginalDepts] = useState<Department[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingDept, setEditingDept] = useState<Department | null>(null);
+    const [editingDept, setEditingDept] = useState<DepartmentNode | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
     // Confirm Dialog State
@@ -24,7 +26,8 @@ export const Departments: React.FC = () => {
                 getDepartments(),
                 getEmployees(0, 1000) // Fetch strict list for validation
             ]);
-            setDepartments(depts);
+            setOriginalDepts(depts);
+            setDepartments(sortDepartmentsTree(depts));
             setEmployees(emps);
         } catch (error) {
             console.error(error);
@@ -55,6 +58,13 @@ export const Departments: React.FC = () => {
             alert(`No se puede eliminar: El departamento tiene ${count} empleados asignados. Transfiéralos primero.`);
             return;
         }
+        // Check children
+        const hasChildren = departments.some(d => d.parent_id === id);
+        if (hasChildren) {
+            alert(`No se puede eliminar: El departamento tiene sub-departamentos. Elimínelos o muévalos primero.`);
+            return;
+        }
+
         setDeptToDelete(id);
         setConfirmOpen(true);
     };
@@ -72,7 +82,8 @@ export const Departments: React.FC = () => {
 
     const getParentName = (id?: number) => {
         if (!id) return '-';
-        const d = departments.find(d => d.id === id);
+        // Use originalDepts for lookup
+        const d = originalDepts.find(d => d.id === id);
         return d ? d.name : id;
     };
 
@@ -81,12 +92,13 @@ export const Departments: React.FC = () => {
         (d.code && d.code.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
-    const columns: Column<Department>[] = [
+    const columns: Column<DepartmentNode>[] = [
         {
             field: 'name',
             header: 'Nombre Departamento',
             render: (dept) => (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: `${dept.level * 20}px` }}>
+                    {dept.level > 0 && <ChevronRight size={14} color="#aaa" />}
                     <Folder size={16} color="var(--primary)" />
                     <span style={{ fontWeight: 500 }}>{dept.name}</span>
                 </div>
@@ -174,10 +186,10 @@ export const Departments: React.FC = () => {
 };
 
 const DepartmentModal: React.FC<{
-    department: Department | null,
+    department: DepartmentNode | null,
     onClose: () => void,
     onSave: (d: Department) => void,
-    departments: Department[]
+    departments: DepartmentNode[]
 }> = ({ department, onClose, onSave, departments }) => {
     const [name, setName] = useState(department?.name || '');
     const [code, setCode] = useState(department?.code || '');
@@ -186,7 +198,7 @@ const DepartmentModal: React.FC<{
     return (
         <div style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+            backgroundColor: 'var(--modal-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
         }}>
             <div className="card" style={{ width: '400px', padding: '20px' }}>
                 <h3>{department ? 'Editar Departamento' : 'Nuevo Departamento'}</h3>
@@ -210,7 +222,11 @@ const DepartmentModal: React.FC<{
                         >
                             <option value="">-- Ninguno (Raíz) --</option>
                             {departments.filter(d => d.id !== department?.id).map(d => (
-                                <option key={d.id} value={d.id}>{d.name}</option>
+                                <option key={d.id} value={d.id}>
+                                    {/* Show tree hierarchy in select */}
+                                    {/* Using non-breaking spaces for indentation in standard select */}
+                                    {'\u00A0\u00A0'.repeat(d.level) + d.name}
+                                </option>
                             ))}
                         </select>
                     </div>

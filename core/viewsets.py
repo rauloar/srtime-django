@@ -1,14 +1,19 @@
 from rest_framework import viewsets, filters
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.permissions import IsAuthenticated
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from .models import (
-    AuthUser, Company, Position, Zone, Department, Employee,
+    Company, Position, Zone, Department, Employee,
     Device, AttendanceLog, ImportBatch, User, BiometricTemplate,
     Setting, Job, JobLog, Timetable, Shift, ShiftTimetable,
     ScheduleOverride, EmployeeShift, Leave, Holiday, DailyAttendance
 )
 from .serializers import (
-    AuthUserSerializer, CompanySerializer, PositionSerializer,
+    CompanySerializer, PositionSerializer,
     ZoneSerializer, DepartmentSerializer, EmployeeSerializer,
     DeviceSerializer, AttendanceLogSerializer, ImportBatchSerializer,
     UserSerializer, BiometricTemplateSerializer, SettingSerializer,
@@ -19,14 +24,7 @@ from .serializers import (
 )
 
 
-class AuthUserViewSet(viewsets.ModelViewSet):
-    queryset = AuthUser.objects.all()
-    serializer_class = AuthUserSerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['role', 'active', 'employee']
-    search_fields = ['username']
-    ordering_fields = ['username', 'created_at']
-    ordering = ['-created_at']
+
 
 
 class CompanyViewSet(viewsets.ModelViewSet):
@@ -248,6 +246,7 @@ class TimetableViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+@method_decorator(csrf_exempt, name='timetables')
 class ShiftViewSet(viewsets.ModelViewSet):
     queryset = Shift.objects.all()
     serializer_class = ShiftSerializer
@@ -256,6 +255,46 @@ class ShiftViewSet(viewsets.ModelViewSet):
     search_fields = ['name']
     ordering_fields = ['name']
     ordering = ['name']
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=True, methods=['get', 'post'])
+    def timetables(self, request, pk=None):
+        """
+        GET: List shift cycle items
+        POST: Configure shift cycle (replace all)
+        """
+        shift = self.get_object()
+        
+        if request.method == 'GET':
+            items = ShiftTimetable.objects.filter(shift=shift).order_by('day_index')
+            serializer = ShiftTimetableSerializer(items, many=True)
+            return Response(serializer.data)
+            
+        elif request.method == 'POST':
+            # Expect list of {timetable_id: int, day_index: int}
+            data = request.data
+            if not isinstance(data, list):
+                return Response({"error": "Expected a list of items"}, status=400)
+                
+            # Clear existing
+            ShiftTimetable.objects.filter(shift=shift).delete()
+            
+            created_items = []
+            for item in data:
+                tt_id = item.get('timetable_id')
+                day_idx = item.get('day_index')
+                
+                if tt_id is not None and day_idx is not None:
+                    st = ShiftTimetable.objects.create(
+                        shift=shift,
+                        timetable_id=tt_id,
+                        day_index=day_idx
+                    )
+                    created_items.append(st)
+            
+            serializer = ShiftTimetableSerializer(created_items, many=True)
+            return Response(serializer.data)
     
     def list(self, request, *args, **kwargs):
         """Devolver array directo (sin paginación) como FastAPI"""

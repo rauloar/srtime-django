@@ -88,7 +88,7 @@ def api_v1_info(request):
         'message': 'SRTimeWeb API v1',
         'endpoints_count': 24,
         'models': [
-            'AuthUser', 'Company', 'Position', 'Zone', 'Department', 'Employee',
+            'Company', 'Position', 'Zone', 'Department', 'Employee',
             'Device', 'AttendanceLog', 'ImportBatch', 'User', 'BiometricTemplate',
             'Setting', 'Job', 'JobLog', 'Timetable', 'Shift', 'ShiftTimetable',
             'ScheduleOverride', 'EmployeeShift', 'Leave', 'Holiday', 'DailyAttendance'

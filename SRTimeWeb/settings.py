@@ -30,7 +30,8 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-me')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True') == 'True'  # Cambiar a True para desarrollo
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+CUSTOM_PORT = os.getenv('DJANGO_PORT', '9000')
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', f'localhost,127.0.0.1,127.0.0.1:{CUSTOM_PORT},localhost:{CUSTOM_PORT}').split(',')
 
 
 # Application definition
@@ -158,13 +159,29 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# ==============================================================================
-# CORS CONFIGURATION
-# ==============================================================================
 
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173,http://localhost:9000,http://127.0.0.1:9000').split(',')
+# ======================================================================
+# CORS CONFIGURATION: Permitir origen dinámico, localhost y loopback
+# ======================================================================
+
+# Permitir todos los orígenes en desarrollo (¡restringir en producción!)
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+
+# Permitir explícitamente localhost, loopback y cualquier host dinámico (http/https)
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https?://localhost(:[0-9]+)?$",
+    r"^https?://127\.0\.0\.1(:[0-9]+)?$",
+    r"^https?://([a-zA-Z0-9\-\.]+)(:[0-9]+)?$",  # cualquier host dinámico
+]
+
+# CSRF debe confiar en los mismos orígenes
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost",
+    f"http://localhost:{CUSTOM_PORT}",
+    "http://127.0.0.1",
+    f"http://127.0.0.1:{CUSTOM_PORT}",
+]
 
 # ==============================================================================
 # REST FRAMEWORK CONFIGURATION

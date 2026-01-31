@@ -18,7 +18,6 @@ const MENU_STRUCTURE: { [key: string]: { title: string, items: MenuItem[] } } = 
         title: 'Dispositivo',
         items: [
             { label: 'Terminales', path: '/devices' }, // Root of devices
-            { label: 'Funciones Adicionales', path: '/devices/funciones-adicionales' },
         ]
     },
     'attendance': {

@@ -1,6 +1,6 @@
 import React from 'react';
-import { 
-    RefreshCw, Database, Download, Fingerprint 
+import {
+    RefreshCw, Database, Download, Fingerprint
 } from 'lucide-react';
 
 // ============ COMMAND CARD (Generic) ============
@@ -14,12 +14,12 @@ interface CommandCardProps {
     warning?: string; // Optional warning message
 }
 
-export const CommandCard = ({ 
-    icon, 
-    title, 
-    description, 
-    action, 
-    variant = 'primary', 
+export const CommandCard = ({
+    icon,
+    title,
+    description,
+    action,
+    variant = 'primary',
     loading,
     warning
 }: CommandCardProps) => {
@@ -40,9 +40,9 @@ export const CommandCard = ({
     };
 
     return (
-        <div 
-            className="card" 
-            style={{ 
+        <div
+            className="card"
+            style={{
                 padding: '20px',
                 display: 'flex',
                 flexDirection: 'column',
@@ -68,7 +68,7 @@ export const CommandCard = ({
                     ⚠️ {warning}
                 </div>
             )}
-            
+
             <div style={{ fontSize: '48px', marginBottom: '15px', color: 'var(--accent)' }}>
                 {icon}
             </div>
@@ -78,8 +78,8 @@ export const CommandCard = ({
             <p style={{ color: '#8b949e', fontSize: '13px', marginBottom: '20px', flexGrow: 1 }}>
                 {description}
             </p>
-            <button 
-                onClick={action} 
+            <button
+                onClick={action}
                 disabled={loading}
                 className={getButtonClass()}
                 style={{ width: '100%' }}
@@ -107,7 +107,7 @@ interface ProgressBarProps {
 const ProgressBar = ({ label, used, total }: ProgressBarProps) => {
     const percentage = total > 0 ? (used / total) * 100 : 0;
     const color = percentage > 90 ? '#da3633' : percentage > 70 ? '#d29922' : '#2ea043';
-    
+
     return (
         <div style={{ marginBottom: '15px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '5px' }}>
@@ -115,9 +115,9 @@ const ProgressBar = ({ label, used, total }: ProgressBarProps) => {
                 <span style={{ color: '#8b949e' }}>{used}/{total} ({percentage.toFixed(1)}%)</span>
             </div>
             <div style={{ background: '#21262d', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
-                <div style={{ 
-                    width: `${percentage}%`, 
-                    height: '100%', 
+                <div style={{
+                    width: `${percentage}%`,
+                    height: '100%',
                     background: color,
                     transition: 'width 0.3s'
                 }} />
@@ -135,7 +135,7 @@ interface MemoryCardProps {
 
 export const MemoryCard = ({ memoryInfo, onLoad, loading }: MemoryCardProps) => {
     return (
-        <div className="card" style={{ 
+        <div className="card" style={{
             padding: '20px',
             display: 'flex',
             flexDirection: 'column',
@@ -146,7 +146,7 @@ export const MemoryCard = ({ memoryInfo, onLoad, loading }: MemoryCardProps) => 
                 <Database size={24} color="var(--accent)" />
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>Información de Memoria</h3>
             </div>
-            
+
             {!memoryInfo ? (
                 <>
                     <p style={{ color: '#8b949e', fontSize: '13px', marginBottom: '20px', flexGrow: 1 }}>
@@ -169,20 +169,20 @@ export const MemoryCard = ({ memoryInfo, onLoad, loading }: MemoryCardProps) => 
             ) : (
                 <>
                     <div style={{ flexGrow: 1 }}>
-                        <ProgressBar 
-                            label="Usuarios" 
-                            used={memoryInfo.users} 
-                            total={memoryInfo.users_cap} 
+                        <ProgressBar
+                            label="Usuarios"
+                            used={memoryInfo.users}
+                            total={memoryInfo.users_cap}
                         />
-                        <ProgressBar 
-                            label="Huellas" 
-                            used={memoryInfo.fingers} 
-                            total={memoryInfo.fingers_cap} 
+                        <ProgressBar
+                            label="Huellas"
+                            used={memoryInfo.fingers}
+                            total={memoryInfo.fingers_cap}
                         />
-                        <ProgressBar 
-                            label="Registros" 
-                            used={memoryInfo.records} 
-                            total={memoryInfo.records_cap} 
+                        <ProgressBar
+                            label="Registros"
+                            used={memoryInfo.records}
+                            total={memoryInfo.records_cap}
                         />
                     </div>
                     <button onClick={onLoad} disabled={loading} style={{ width: '100%' }}>
@@ -213,7 +213,7 @@ interface RecentLogsCardProps {
 
 export const RecentLogsCard = ({ logs, onLoad, loading }: RecentLogsCardProps) => {
     return (
-        <div className="card" style={{ 
+        <div className="card" style={{
             padding: '20px',
             display: 'flex',
             flexDirection: 'column',
@@ -226,20 +226,20 @@ export const RecentLogsCard = ({ logs, onLoad, loading }: RecentLogsCardProps) =
                 <div>
                     <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>Últimas Fichadas</h3>
                 </div>
-                <button 
-                    onClick={onLoad} 
+                <button
+                    onClick={onLoad}
                     disabled={loading}
                     style={{ padding: '5px 10px', minWidth: 'auto' }}
                 >
                     <RefreshCw size={16} className={loading ? 'spin' : ''} />
                 </button>
             </div>
-            
+
             <p style={{ color: '#8b949e', fontSize: '13px', marginBottom: '20px', textAlign: 'center' }}>
                 Registros de asistencia disponibles
             </p>
-            
-            <div style={{ 
+
+            <div style={{
                 textAlign: 'center',
                 flexGrow: 1,
                 display: 'flex',
@@ -253,7 +253,7 @@ export const RecentLogsCard = ({ logs, onLoad, loading }: RecentLogsCardProps) =
                     color: 'var(--accent)',
                     marginBottom: '10px'
                 }}>
-                    {logs.length}
+                    {logs?.length || 0}
                 </div>
                 <p style={{ margin: 0, color: '#8b949e', fontSize: '12px' }}>
                     registros disponibles
@@ -272,7 +272,7 @@ interface TemplatesCardProps {
 
 export const TemplatesCard = ({ templates, onLoad, loading }: TemplatesCardProps) => {
     return (
-        <div className="card" style={{ 
+        <div className="card" style={{
             padding: '20px',
             display: 'flex',
             flexDirection: 'column',
@@ -283,55 +283,76 @@ export const TemplatesCard = ({ templates, onLoad, loading }: TemplatesCardProps
                 <Fingerprint size={24} color="var(--accent)" />
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>Templates de Huellas</h3>
             </div>
-            
+
             <p style={{ color: '#8b949e', fontSize: '13px', marginBottom: '15px', flexGrow: templates === null ? 1 : 0 }}>
-                Descargar y visualizar templates biométricos
+                Guardar templates biométricos en base de datos
             </p>
-            
+
             {templates === null ? (
                 <button onClick={onLoad} disabled={loading} style={{ width: '100%' }}>
                     {loading ? (
                         <>
                             <RefreshCw size={16} className="spin" style={{ marginRight: '8px' }} />
-                            Cargando...
+                            Guardando...
                         </>
                     ) : (
                         <>
                             <Download size={16} style={{ marginRight: '8px' }} />
-                            Descargar Templates
+                            Guardar Templates en BD
                         </>
                     )}
                 </button>
             ) : (
                 <>
-                    <div style={{ 
-                        textAlign: 'center', 
-                        padding: '20px',
+                    <div style={{
                         background: '#0d1117',
                         borderRadius: '6px',
                         marginBottom: '15px',
                         flexGrow: 1,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'center'
+                        padding: '15px'
                     }}>
-                        <div style={{ fontSize: '48px', fontWeight: 'bold', color: 'var(--accent)', marginBottom: '10px' }}>
-                            {templates.length}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', textAlign: 'center' }}>
+                            <div>
+                                <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--status-ok)' }}>
+                                    {(templates as any).saved || 0}
+                                </div>
+                                <div style={{ color: '#8b949e', fontSize: '11px', marginTop: '4px' }}>
+                                    Guardados
+                                </div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--status-warning)' }}>
+                                    {(templates as any).skipped || 0}
+                                </div>
+                                <div style={{ color: '#8b949e', fontSize: '11px', marginTop: '4px' }}>
+                                    Omitidos
+                                </div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: '32px', fontWeight: 'bold', color: 'var(--status-error)' }}>
+                                    {(templates as any).errors || 0}
+                                </div>
+                                <div style={{ color: '#8b949e', fontSize: '11px', marginTop: '4px' }}>
+                                    Errores
+                                </div>
+                            </div>
                         </div>
-                        <div style={{ color: '#8b949e', fontSize: '13px' }}>
-                            Templates descargados
+                        <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #21262d', textAlign: 'center' }}>
+                            <div style={{ fontSize: '14px', color: '#8b949e' }}>
+                                Total: <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{(templates as any).total || 0}</span> templates procesados
+                            </div>
                         </div>
                     </div>
                     <button onClick={onLoad} disabled={loading} style={{ width: '100%' }}>
                         {loading ? (
                             <>
                                 <RefreshCw size={16} className="spin" style={{ marginRight: '8px' }} />
-                                Actualizando...
+                                Guardando...
                             </>
                         ) : (
                             <>
                                 <RefreshCw size={16} style={{ marginRight: '8px' }} />
-                                Actualizar
+                                Guardar Nuevamente
                             </>
                         )}
                     </button>

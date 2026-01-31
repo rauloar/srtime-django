@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .viewsets import (
-    AuthUserViewSet, CompanyViewSet, PositionViewSet,
+    CompanyViewSet, PositionViewSet,
     ZoneViewSet, DepartmentViewSet, EmployeeViewSet,
     DeviceViewSet, AttendanceLogViewSet, ImportBatchViewSet,
     UserViewSet, BiometricTemplateViewSet, SettingViewSet,
@@ -18,7 +18,9 @@ from .views_attendance import calculate_attendance, daily_reports, calculate_sin
 from .views_devices import (
     test_connection, test_connection_sync, import_attendance,
     clear_attendance, download_users, sync_users, clear_all_data,
-    all_devices_status
+    all_devices_status, restart_device, poweroff_device, sync_time,
+    test_voice, get_memory_info, get_recent_attendance, get_device_templates,
+    get_device_info, get_device_users
 )
 from .views_jobs import get_job, get_job_logs, get_device_jobs
 from .views_system import (
@@ -28,8 +30,7 @@ from .views_system import (
 
 router = DefaultRouter()
 
-# Autenticación y usuarios
-router.register(r'auth-users', AuthUserViewSet, basename='authuser')
+
 
 # Catálogos organizacionales
 router.register(r'companies', CompanyViewSet, basename='company')
@@ -89,6 +90,27 @@ urlpatterns = [
     path('devices/<int:device_id>/sync-users/', sync_users, name='sync_users'),
     path('devices/<int:device_id>/clear-all-data/', clear_all_data, name='clear_all_data'),
     path('devices/<int:device_id>/jobs/', get_device_jobs, name='device_jobs'),
+
+    # Alias FastAPI-style endpoints for frontend compatibility
+    path('devices/<int:device_id>/attendance/import', import_attendance, name='import_attendance_alias'),
+    path('devices/<int:device_id>/attendance/clear', clear_attendance, name='clear_attendance_alias'),
+    path('devices/<int:device_id>/users/download', download_users, name='download_users_alias'),
+    path('devices/<int:device_id>/users/sync', sync_users, name='sync_users_alias'),
+    path('devices/<int:device_id>/clear_all_data', clear_all_data, name='clear_all_data_alias'),
+    path('devices/<int:device_id>/test_connection', test_connection, name='test_connection_alias'),
+    path('devices/<int:device_id>/test_connection', test_connection, name='test_connection_alias'),
+    path('devices/<int:device_id>/test_connection_sync', test_connection_sync, name='test_connection_sync_alias'),
+    
+    # New Device Operations
+    path('devices/<int:device_id>/restart', restart_device, name='restart_device'),
+    path('devices/<int:device_id>/poweroff', poweroff_device, name='poweroff_device'),
+    path('devices/<int:device_id>/sync-time', sync_time, name='sync_time'),
+    path('devices/<int:device_id>/test-voice', test_voice, name='test_voice'),
+    path('devices/<int:device_id>/memory', get_memory_info, name='get_memory_info'),
+    path('devices/<int:device_id>/attendance/recent', get_recent_attendance, name='get_recent_attendance'),
+    path('devices/<int:device_id>/templates', get_device_templates, name='get_device_templates'),
+    path('devices/<int:device_id>/users/', get_device_users, name='get_device_users'),
+    path('devices/<int:device_id>/info/', get_device_info, name='get_device_info'),
     
     # Job Endpoints
     path('jobs/<int:job_id>/', get_job, name='get_job'),

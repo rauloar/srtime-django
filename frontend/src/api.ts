@@ -12,13 +12,23 @@ const API_URL = (() => {
         return 'http://127.0.0.1:9000/api/v1';
     }
 
-    // Prod fallback: mismo host, puerto 8000
-    const hostname = window.location.hostname;
-    return `http://${hostname}:9000/api/v1`;
+    // Prod fallback: mismo host/puerto (embedded)
+    return '/api/v1';
 })();
 
 export const api = axios.create({
     baseURL: API_URL,
+});
+
+// Add request interceptor to inject Authorization header
+api.interceptors.request.use((config) => {
+    const token = sessionStorage.getItem('auth_token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+}, (error) => {
+    return Promise.reject(error);
 });
 
 export interface Device {
@@ -106,19 +116,25 @@ export interface Setting {
     description?: string;
 }
 
-export const getDevices = async () => (await api.get<Device[]>('/devices/')).data;
+export const getDevices = async () => {
+    const response = await api.get('/devices/');
+    if (Array.isArray(response.data)) return response.data;
+    // @ts-ignore
+    return response.data.results || [];
+};
 export const getDevice = async (id: number) => (await api.get<Device>(`/devices/${id}`)).data;
 export const createDevice = async (device: Device) => (await api.post<Device>('/devices/', device)).data;
 export const getAllDevicesConnectionStatus = async () => (await api.get<DevicesConnectionStatusResponse>('/devices/connection-status/all')).data;
 
 // Async Job Endpoints
-export const testConnection = async (id: number) => (await api.post<JobResponse>(`/devices/${id}/test-connection`)).data;
-export const importAttendance = async (id: number) => (await api.post<JobResponse>(`/devices/${id}/attendance/import`)).data;
-export const clearAttendance = async (id: number) => (await api.post<JobResponse>(`/devices/${id}/clear-attendance`)).data;
-export const downloadUsers = async (id: number) => (await api.post<JobResponse>(`/devices/${id}/users/download`)).data;
+export const testConnection = async (id: number) => (await api.post<JobResponse>(`/devices/${id}/test-connection/`)).data;
+export const importAttendance = async (id: number) => (await api.post<JobResponse>(`/devices/${id}/import-attendance/`)).data;
+export const clearAttendance = async (id: number) => (await api.post<JobResponse>(`/devices/${id}/clear-attendance/`)).data;
+export const downloadUsers = async (id: number) => (await api.post<JobResponse>(`/devices/${id}/download-users/`)).data;
+export const syncUsers = async (id: number, employeeIds?: number[]) => (await api.post<JobResponse>(`/devices/${id}/sync-users/`, { employee_ids: employeeIds })).data;
 
 // New Additional Functions Endpoints
-export const checkDeviceOnline = async (id: number) => (await api.get<CheckOnlineResponse>(`/devices/${id}/test-connection-sync`)).data;
+export const checkDeviceOnline = async (id: number) => (await api.get<CheckOnlineResponse>(`/devices/${id}/test-connection-sync/`)).data;
 export const restartDevice = async (id: number) => (await api.post<CommandResponse>(`/devices/${id}/restart`)).data;
 export const poweroffDevice = async (id: number) => (await api.post<CommandResponse>(`/devices/${id}/poweroff`)).data;
 export const syncTime = async (id: number) => (await api.post<CommandResponse>(`/devices/${id}/sync-time`)).data;
@@ -126,7 +142,7 @@ export const testVoice = async (id: number, voiceIndex: number = 0) => (await ap
 export const getMemoryInfo = async (id: number) => (await api.get<MemoryInfo>(`/devices/${id}/memory`)).data;
 export const clearAllData = async (id: number) => (await api.post<JobResponse>(`/devices/${id}/clear-all-data`)).data;
 export const getRecentAttendance = async (id: number, limit: number = 50) => (await api.get<RecentAttendanceResponse>(`/devices/${id}/attendance/recent?limit=${limit}`)).data;
-export const getDeviceTemplates = async (id: number) => (await api.get<TemplatesResponse>(`/devices/${id}/templates`)).data;
+export const getDeviceTemplates = async (id: number) => (await api.post<TemplatesResponse>(`/devices/${id}/templates`)).data;
 
 // Response Types for New Endpoints
 export interface DeviceConnectionStatus {
@@ -193,8 +209,8 @@ export interface TemplatesResponse {
 
 // Still Sync (mostly)
 // Still Sync (mostly)
-export const getDeviceInfo = async (id: number) => (await api.get<TestResponse>(`/devices/${id}/info`)).data;
-export const getDeviceUsers = async (id: number) => (await api.get<DeviceUser[]>(`/devices/${id}/users`)).data;
+export const getDeviceInfo = async (id: number) => (await api.get<TestResponse>(`/devices/${id}/info/`)).data;
+export const getDeviceUsers = async (id: number) => (await api.get<DeviceUser[]>(`/devices/${id}/users/`)).data;
 
 export interface DeviceUser {
     id: number;
@@ -219,6 +235,44 @@ export const updateSetting = async (setting: Setting) => (await api.put<Setting>
 export const getJob = async (jobId: string) => (await api.get<Job>(`/jobs/${jobId}`)).data;
 export const getJobLogs = async (jobId: string) => (await api.get<JobLog[]>(`/jobs/${jobId}/logs`)).data;
 
+// Organization Module
+export interface Company {
+    id: number;
+    name: string;
+    code?: string;
+    address?: string;
+    website?: string;
+    logo_path?: string;
+}
+
+export const getCompany = async () => (await api.get<Company[]>('/companies/')).data;
+export const updateCompany = async (company: Company) => (await api.put<Company>(`/companies/${company.id}/`, company)).data;
+
+export interface Position {
+    id?: number;
+    name: string;
+    code?: string;
+    description?: string;
+}
+
+export const getPositions = async () => (await api.get<Position[]>('/positions/')).data;
+export const createPosition = async (pos: Position) => (await api.post<Position>('/positions/', pos)).data;
+export const updatePosition = async (id: number, pos: Position) => (await api.put<Position>(`/positions/${id}/`, pos)).data;
+export const deletePosition = async (id: number) => (await api.delete(`/positions/${id}/`)).data;
+
+export interface Zone {
+    id?: number;
+    name: string;
+    code?: string;
+    description?: string;
+}
+
+export const getZones = async () => (await api.get<Zone[]>('/zones/')).data;
+export const createZone = async (z: Zone) => (await api.post<Zone>('/zones/', z)).data;
+export const updateZone = async (id: number, z: Zone) => (await api.put<Zone>(`/zones/${id}/`, z)).data;
+export const deleteZone = async (id: number) => (await api.delete(`/zones/${id}/`)).data;
+
+
 // Personnel
 export interface Department {
     id?: number;
@@ -239,7 +293,7 @@ export interface Employee {
     address?: string;
     city?: string;
     country?: string;  // País
-    
+
     // Personal Data
     gender?: string;
     birthday?: string;  // Fecha de Nacimiento
@@ -309,9 +363,9 @@ export const createTimetable = async (tt: Timetable) => (await api.post<Timetabl
 export const updateTimetable = async (id: number, tt: Timetable) => (await api.put<Timetable>(`/schedules/timetables/${id}`, tt)).data;
 export const deleteTimetable = async (id: number) => (await api.delete(`/schedules/timetables/${id}`)).data;
 
-export const getShifts = async () => (await api.get<Shift[]>('/schedules/shifts/')).data;
-export const createShift = async (shift: Shift) => (await api.post<Shift>('/schedules/shifts/', shift)).data;
-export const deleteShift = async (id: number) => (await api.delete(`/schedules/shifts/${id}`)).data;
+export const getShifts = async () => (await api.get<Shift[]>('/shifts/')).data;
+export const createShift = async (shift: Shift) => (await api.post<Shift>('/shifts/', shift)).data;
+export const deleteShift = async (id: number) => (await api.delete(`/shifts/${id}/`)).data;
 
 // Assignments & Cycle
 export interface ShiftCycleItem {
@@ -321,11 +375,11 @@ export interface ShiftCycleItem {
 }
 
 export const configureShiftCycle = async (shiftId: number, items: { timetable_id: number; day_index: number }[]) => {
-    return (await api.post(`/schedules/shifts/${shiftId}/timetables`, items)).data;
+    return (await api.post(`/shifts/${shiftId}/timetables/`, items)).data;
 };
 
 export const getShiftCycle = async (shiftId: number) => {
-    return (await api.get<ShiftCycleItem[]>(`/schedules/shifts/${shiftId}/timetables`)).data;
+    return (await api.get<ShiftCycleItem[]>(`/shifts/${shiftId}/timetables/`)).data;
 };
 
 export interface AssignShiftRequest {
@@ -338,7 +392,15 @@ export interface AssignShiftRequest {
 }
 
 export const assignShift = async (data: AssignShiftRequest) => {
-    return (await api.post('/schedules/assign/', data)).data;
+    const payload = {
+        employee: data.employee_id,
+        department: data.department_id,
+        shift: data.shift_id,
+        start_date: data.start_date,
+        end_date: data.end_date,
+        scope: data.scope
+    };
+    return (await api.post('/employee-shifts/', payload)).data;
 };
 
 export interface ShiftAssignment {
@@ -355,7 +417,7 @@ export interface ShiftAssignment {
 export const getAssignments = async (startDate: string, endDate: string, departmentId?: number) => {
     const params: any = { start_date: startDate, end_date: endDate };
     if (departmentId) params.department_id = departmentId;
-    return (await api.get<ShiftAssignment[]>('/schedules/assignments/', { params })).data;
+    return (await api.get<ShiftAssignment[]>('/employee-shifts/', { params })).data;
 };
 
 // Calculation & Reports
@@ -421,10 +483,13 @@ export const deleteAbsence = async (id: number) => (await api.delete(`/attendanc
 export interface AuthUser {
     id: number;
     username: string;
-    role: string;
-    active: boolean;
-    employee_id?: number | null;
-    created_at?: string;
+    is_active: boolean;
+    is_staff: boolean;
+    is_superuser: boolean;
+    email: string;
+    first_name: string;
+    last_name: string;
+    date_joined: string;
 }
 
 export interface LoginResponse {

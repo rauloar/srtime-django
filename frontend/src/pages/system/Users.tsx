@@ -82,7 +82,7 @@ export const Users: React.FC = () => {
 
             <div className="card" style={{ padding: '0' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                    <thead style={{ backgroundColor: '#f9fafc', color: '#5c6b77', textAlign: 'left' }}>
+                    <thead style={{ backgroundColor: 'var(--sidebar-bg)', color: 'var(--text-secondary)', textAlign: 'left' }}>
                         <tr>
                             <th style={{ padding: '10px 15px', borderBottom: '1px solid var(--border-color)' }}>ID</th>
                             <th style={{ padding: '10px 15px', borderBottom: '1px solid var(--border-color)' }}>Usuario</th>
@@ -101,14 +101,17 @@ export const Users: React.FC = () => {
                                             <User size={16} color="#888" /> {user.username}
                                         </td>
                                         <td style={{ padding: '10px 15px' }}>
-                                            {user.role === 'admin' ?
-                                                <span className="status-badge status-ok"><Shield size={10} style={{ marginRight: 4 }} /> Admin</span> :
-                                                <span className="status-badge">{user.role}</span>
-                                            }
+                                            {user.is_superuser ? (
+                                                <span className="status-badge status-ok"><Shield size={10} style={{ marginRight: 4 }} /> Superuser</span>
+                                            ) : user.is_staff ? (
+                                                <span className="status-badge status-ok"><Shield size={10} style={{ marginRight: 4 }} /> Staff</span>
+                                            ) : (
+                                                <span className="status-badge">Usuario</span>
+                                            )}
                                         </td>
                                         <td style={{ padding: '10px 15px' }}>
-                                            <span style={{ color: user.active ? 'var(--status-ok)' : 'var(--status-error)' }}>
-                                                {user.active ? 'Activo' : 'Inactivo'}
+                                            <span style={{ color: user.is_active ? 'var(--status-ok)' : 'var(--status-error)' }}>
+                                                {user.is_active ? 'Activo' : 'Inactivo'}
                                             </span>
                                         </td>
                                         <td style={{ padding: '10px 15px', textAlign: 'right' }}>
@@ -130,7 +133,7 @@ export const Users: React.FC = () => {
             </div>
 
             {passwordModalUser && (
-                <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
+                <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'var(--modal-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
                     <div className="card" style={{ width: '400px', padding: '20px', background: 'var(--card-bg)', color: 'var(--text-primary)', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
                         <h3 style={{ marginBottom: '12px' }}>Cambiar contraseña</h3>
                         <p style={{ marginTop: 0, marginBottom: '12px', color: 'var(--text-muted)' }}>Usuario: <strong>{passwordModalUser.username}</strong></p>

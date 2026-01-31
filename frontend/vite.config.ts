@@ -9,4 +9,8 @@ export default defineConfig({
     strictPort: true, // No cambiar de puerto si está ocupado
     host: '0.0.0.0', // Escuchar en todas las interfaces
   },
+  build: {
+    outDir: '../static',
+    emptyOutDir: true,
+  },
 })

@@ -61,7 +61,7 @@ export const Settings: React.FC = () => {
         if (!confirm(`¿Está seguro de restaurar la base de datos desde ${filename}? Esta acción sobrescribirá todos los datos actuales.`)) {
             return;
         }
-        
+
         setOperationLoading(true);
         try {
             const result = await restoreDatabase(filename);
@@ -115,7 +115,7 @@ export const Settings: React.FC = () => {
 
     // Asegurar que settings siempre sea un array antes de agrupar
     const safeSettings = Array.isArray(settings) ? settings : [];
-    
+
     const groupedSettings = {
         'General': safeSettings.filter(s => s.key.startsWith('app_') || s.key.startsWith('company_')),
         'Asistencia': safeSettings.filter(s => s.key.startsWith('att_')),
@@ -162,7 +162,7 @@ export const Settings: React.FC = () => {
                         )
                     ))}
                     {settings.length === 0 && <p className="text-muted">No se encontraron configuraciones.</p>}
-                    
+
                     {/* Herramientas de Base de Datos - Solo Admin */}
                     {role === 'admin' && (
                         <div className="card">
@@ -205,11 +205,11 @@ export const Settings: React.FC = () => {
 
                                 {/* Resultado del test */}
                                 {testResult && (
-                                    <div style={{ 
-                                        padding: '12px', 
-                                        backgroundColor: '#f0f9ff', 
+                                    <div style={{
+                                        padding: '12px',
+                                        backgroundColor: 'var(--bg-highlight)',
                                         borderRadius: '6px',
-                                        border: '1px solid #3b82f6'
+                                        border: '1px solid var(--primary)'
                                     }}>
                                         <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>
                                             Estado de la Base de Datos
@@ -241,7 +241,7 @@ export const Settings: React.FC = () => {
                                         </h4>
                                         <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                                             {backups.map((backup) => (
-                                                <div 
+                                                <div
                                                     key={backup.filename}
                                                     style={{
                                                         display: 'flex',

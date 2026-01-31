@@ -1,29 +1,6 @@
+
 from django.db import models
 from django.utils import timezone
-
-
-class AuthUser(models.Model):
-    """Usuario de autenticación del sistema"""
-    ROLE_CHOICES = [
-        ('admin', 'Administrador'),
-        ('viewer', 'Visualizador'),
-    ]
-    
-    username = models.CharField(max_length=50, unique=True, db_index=True)
-    password_hash = models.CharField(max_length=200)
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='admin')
-    employee = models.ForeignKey('Employee', on_delete=models.SET_NULL, null=True, blank=True, related_name='auth_user')
-    active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = 'auth_users'
-        verbose_name = 'Usuario de Autenticación'
-        verbose_name_plural = 'Usuarios de Autenticación'
-        ordering = ['-created_at']
-
-    def __str__(self):
-        return self.username
 
 
 class Company(models.Model):
@@ -283,6 +260,9 @@ class BiometricTemplate(models.Model):
         verbose_name = 'Template Biométrico'
         verbose_name_plural = 'Templates Biométricos'
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'type', 'index'], name='uix_bio_template')
+        ]
 
     def __str__(self):
         return f"{self.get_type_display()} - {self.user}"

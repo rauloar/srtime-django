@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { 
-    getDevice, 
-    getDeviceInfo, 
-    getDeviceUsers, 
-    importAttendance, 
+import {
+    getDevice,
+    getDeviceInfo,
+    getDeviceUsers,
+    importAttendance,
     downloadUsers,
+    syncUsers,
     restartDevice,
     poweroffDevice,
     syncTime,
@@ -16,9 +17,10 @@ import {
     getRecentAttendance,
     getDeviceTemplates
 } from '../api';
-import { Download, RefreshCw, Cpu, Users, Fingerprint, Activity, FileText, Clock, Smile, CreditCard, Key, Power, Volume2, Trash2, AlertTriangle } from 'lucide-react';
-import type { Device, TestResponse, JobResponse, DeviceUser, MemoryInfo, RecentAttendanceRecord, TemplateItem } from '../api';
+import { Download, RefreshCw, Cpu, Users, Fingerprint, Activity, FileText, Clock, Smile, CreditCard, Key, Power, Volume2, Trash2, AlertTriangle, Upload } from 'lucide-react';
+import type { Device, TestResponse, JobResponse, DeviceUser, MemoryInfo, RecentAttendanceRecord } from '../api';
 import { JobProgressModal } from '../components/ui/JobProgressModal';
+import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { useToast } from '../hooks/useToast';
 import { CommandCard, MemoryCard, RecentLogsCard, TemplatesCard } from '../components/device/FunctionCards';
 
@@ -34,6 +36,7 @@ export function DeviceDetail() {
     const [refreshing, setRefreshing] = useState(false);
     const [importing, setImporting] = useState(false);
     const [downloadingUsers, setDownloadingUsers] = useState(false);
+    const [uploadingUsers, setUploadingUsers] = useState(false);
     const [activeTab, setActiveTab] = useState<'info' | 'users' | 'funciones'>('info');
 
     // Additional Functions States
@@ -41,13 +44,22 @@ export function DeviceDetail() {
     const [loadingMemory, setLoadingMemory] = useState(false);
     const [recentLogs, setRecentLogs] = useState<RecentAttendanceRecord[]>([]);
     const [loadingRecentLogs, setLoadingRecentLogs] = useState(false);
-    const [templates, setTemplates] = useState<TemplateItem[] | null>(null);
+    const [templates, setTemplates] = useState<any | null>(null);
     const [loadingTemplates, setLoadingTemplates] = useState(false);
     const [processingCommand, setProcessingCommand] = useState(false);
 
     // Progress Modal State
     const [activeJobId, setActiveJobId] = useState<string>('');
     const [isProgressOpen, setIsProgressOpen] = useState(false);
+
+    // Confirmation Modal State
+    const [confirmationModal, setConfirmationModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        variant: 'danger' | 'warning';
+        onConfirm: () => void;
+    }>({ isOpen: false, title: '', message: '', variant: 'warning', onConfirm: () => { } });
 
     useEffect(() => {
         if (deviceId) {
@@ -75,7 +87,7 @@ export function DeviceDetail() {
             await new Promise(r => setTimeout(r, 500));
             await loadData();
         } catch (e) {
-            alert('Error al obtener información del dispositivo');
+            toast.warning('⚠️ No se pudo conectar al dispositivo. Intentar conectar más tarde');
         } finally {
             setRefreshing(false);
         }
@@ -111,6 +123,21 @@ export function DeviceDetail() {
         }
     };
 
+    const handleSyncUsers = async () => {
+        setUploadingUsers(true);
+        try {
+            const res: JobResponse = await syncUsers(deviceId);
+            if (res.job_id) {
+                setActiveJobId(res.job_id);
+                setIsProgressOpen(true);
+            }
+        } catch (e) {
+            alert('No se pudo iniciar la sincronización de usuarios');
+        } finally {
+            setUploadingUsers(false);
+        }
+    };
+
     const loadUsers = async () => {
         try {
             const u = await getDeviceUsers(deviceId);
@@ -123,38 +150,32 @@ export function DeviceDetail() {
     // ========== ADDITIONAL FUNCTION HANDLERS ==========
 
     const handleRestart = async () => {
-        const confirmed = window.confirm('¿Estás seguro de reiniciar el dispositivo?');
-        if (!confirmed) return;
-        
         setProcessingCommand(true);
         try {
             const res = await restartDevice(deviceId);
             if (res.success) {
                 toast.success('Dispositivo reiniciado correctamente');
             } else {
-                toast.error(res.message);
+                toast.warning('⚠️ No se pudo conectar al dispositivo. Intentar conectar más tarde');
             }
         } catch (e) {
-            toast.error('Error al reiniciar dispositivo');
+            toast.warning('⚠️ No se pudo conectar al dispositivo. Intentar conectar más tarde');
         } finally {
             setProcessingCommand(false);
         }
     };
 
     const handlePoweroff = async () => {
-        const confirmed = window.confirm('⚠️ ¿Estás seguro de apagar el dispositivo?\n\nTendrá que encenderlo manualmente.');
-        if (!confirmed) return;
-        
         setProcessingCommand(true);
         try {
             const res = await poweroffDevice(deviceId);
             if (res.success) {
                 toast.success('Dispositivo apagado correctamente');
             } else {
-                toast.error(res.message);
+                toast.warning('⚠️ No se pudo conectar al dispositivo. Intentar conectar más tarde');
             }
         } catch (e) {
-            toast.error('Error al apagar dispositivo');
+            toast.warning('⚠️ No se pudo conectar al dispositivo. Intentar conectar más tarde');
         } finally {
             setProcessingCommand(false);
         }
@@ -167,10 +188,10 @@ export function DeviceDetail() {
             if (res.success) {
                 toast.success('Hora sincronizada correctamente');
             } else {
-                toast.error(res.message);
+                toast.warning('⚠️ No se pudo conectar al dispositivo. Intentar conectar más tarde');
             }
         } catch (e) {
-            toast.error('Error al sincronizar hora');
+            toast.warning('⚠️ No se pudo conectar al dispositivo. Intentar conectar más tarde');
         } finally {
             setProcessingCommand(false);
         }
@@ -183,10 +204,10 @@ export function DeviceDetail() {
             if (res.success) {
                 toast.success('Prueba de voz enviada');
             } else {
-                toast.error(res.message);
+                toast.warning('⚠️ No se pudo conectar al dispositivo. Intentar conectar más tarde');
             }
         } catch (e) {
-            toast.error('Error en prueba de voz');
+            toast.warning('⚠️ No se pudo conectar al dispositivo. Intentar conectar más tarde');
         } finally {
             setProcessingCommand(false);
         }
@@ -199,19 +220,16 @@ export function DeviceDetail() {
             if (res.success) {
                 setMemoryInfo(res);
             } else {
-                toast.error(res.message);
+                toast.warning('⚠️ No se pudo conectar al dispositivo. Intentar conectar más tarde');
             }
         } catch (e) {
-            toast.error('Error al cargar información de memoria');
+            toast.warning('⚠️ No se pudo conectar al dispositivo. Intentar conectar más tarde');
         } finally {
             setLoadingMemory(false);
         }
     };
 
     const handleClearAttendance = async () => {
-        const confirmed = window.confirm('¿Limpiar solo los logs de asistencia?\n\nLos usuarios se mantendrán.');
-        if (!confirmed) return;
-        
         try {
             const res: JobResponse = await clearAttendance(deviceId);
             if (res.job_id) {
@@ -232,13 +250,13 @@ export function DeviceDetail() {
             '¿Estás COMPLETAMENTE seguro?'
         );
         if (!confirmed) return;
-        
+
         const doubleCheck = prompt('Escribe "BORRAR TODO" para confirmar (SIN comillas):');
         if (doubleCheck !== 'BORRAR TODO') {
             toast.warning('Acción cancelada');
             return;
         }
-        
+
         try {
             const res: JobResponse = await clearAllData(deviceId);
             if (res.job_id) {
@@ -271,12 +289,13 @@ export function DeviceDetail() {
         try {
             const res = await getDeviceTemplates(deviceId);
             if (res.success) {
-                setTemplates(res.templates);
+                setTemplates(res); // Save full response with saved/skipped/errors
+                toast.success(res.message);
             } else {
-                toast.error(res.message);
+                toast.warning('⚠️ No se pudo conectar al dispositivo. Intentar conectar más tarde');
             }
         } catch (e) {
-            toast.error('Error al descargar templates');
+            toast.warning('⚠️ No se pudo conectar al dispositivo. Intentar conectar más tarde');
         } finally {
             setLoadingTemplates(false);
         }
@@ -325,6 +344,10 @@ export function DeviceDetail() {
                     <button onClick={handleDownloadUsers} disabled={downloadingUsers}>
                         <Users size={16} style={{ marginRight: '8px' }} />
                         {downloadingUsers ? 'Iniciando...' : 'Bajar Usuarios'}
+                    </button>
+                    <button onClick={handleSyncUsers} disabled={uploadingUsers}>
+                        <Upload size={16} style={{ marginRight: '8px' }} />
+                        {uploadingUsers ? 'Iniciando...' : 'Subir Usuarios'}
                     </button>
                     <button className="primary" onClick={handleImport} disabled={importing}>
                         <Download size={16} style={{ marginRight: '8px' }} />
@@ -465,89 +488,144 @@ export function DeviceDetail() {
             )}
 
             {activeTab === 'funciones' && (
-                <div style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
-                    gap: '20px',
-                    marginBottom: '20px'
-                }}>
-                    {/* ========== GRUPO 1: COMANDOS BÁSICOS ========== */}
-                    <CommandCard 
-                        icon={<RefreshCw size={32} />}
-                        title="Reiniciar Dispositivo"
-                        description="Reinicia la terminal remotamente"
-                        action={handleRestart}
-                        variant="primary"
-                        loading={processingCommand}
-                    />
-                    
-                    <CommandCard 
-                        icon={<Power size={32} />}
-                        title="Apagar Dispositivo"
-                        description="Apaga la terminal (requiere encendido manual)"
-                        action={handlePoweroff}
-                        variant="danger"
-                        loading={processingCommand}
-                    />
-                    
-                    <CommandCard 
-                        icon={<Clock size={32} />}
-                        title="Sincronizar Hora"
-                        description="Sincroniza el reloj con el servidor"
-                        action={handleSyncTime}
-                        variant="primary"
-                        loading={processingCommand}
-                    />
-                    
-                    <CommandCard 
-                        icon={<Volume2 size={32} />}
-                        title="Test de Voz"
-                        description="Reproduce un mensaje de prueba"
-                        action={() => handleTestVoice(0)}
-                        variant="primary"
-                        loading={processingCommand}
-                    />
+                <>
+                    {/* Device Status Info */}
+                    <div className="card" style={{ marginBottom: '20px', padding: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <Cpu size={20} />
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 600, fontSize: '16px' }}>📱 {device?.name}</div>
+                                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                                    <span>IP: {device?.ip}:{device?.port}</span>
+                                    <span style={{ margin: '0 12px' }}>•</span>
+                                    <span>S/N: {device?.serialnumber || 'N/A'}</span>
+                                </div>
+                            </div>
+                            {/* Si el dispositivo existe en BD, está activo */}
+                            <span className="status-badge status-ok">
+                                ✅ Activo
+                            </span>
+                        </div>
+                    </div>
 
-                    {/* ========== GRUPO 2: MEMORIA ========== */}
-                    <MemoryCard 
-                        memoryInfo={memoryInfo}
-                        onLoad={handleLoadMemory}
-                        loading={loadingMemory}
-                    />
+                    {/* Functions always available if device exists */}
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                        gap: '20px',
+                        marginBottom: '20px'
+                    }}>
+                        {/* ========== GRUPO 1: COMANDOS BÁSICOS ========== */}
+                        <CommandCard
+                            icon={<RefreshCw size={32} />}
+                            title="Reiniciar Dispositivo"
+                            description="Reinicia la terminal remotamente"
+                            action={handleRestart}
+                            variant="primary"
+                            loading={processingCommand}
+                        />
 
-                    {/* ========== GRUPO 3: LIMPIEZA ========== */}
-                    <CommandCard 
-                        icon={<Trash2 size={32} />}
-                        title="Limpiar Logs"
-                        description="Elimina solo registros de asistencia"
-                        action={handleClearAttendance}
-                        variant="warning"
-                        warning="Operación sensible - Afecta datos históricos"
-                    />
+                        <CommandCard
+                            icon={<Power size={32} />}
+                            title="Apagar Dispositivo"
+                            description="Apaga la terminal (requiere encendido manual)"
+                            action={() => {
+                                setConfirmationModal({
+                                    isOpen: true,
+                                    title: 'Apagar Dispositivo',
+                                    message: 'El dispositivo se apagará y deberás encenderlo manualmente. ¿Deseas continuar?',
+                                    variant: 'danger',
+                                    onConfirm: handlePoweroff
+                                });
+                            }}
+                            variant="danger"
+                            loading={processingCommand}
+                        />
 
-                    <CommandCard 
-                        icon={<AlertTriangle size={32} />}
-                        title="Borrar Todo"
-                        description="Borra usuarios, huellas y logs"
-                        action={handleClearAllData}
-                        variant="danger"
-                        warning="Crítico - Operación irreversible. Se borrará TODO"
-                    />
+                        <CommandCard
+                            icon={<Clock size={32} />}
+                            title="Sincronizar Hora"
+                            description="Sincroniza el reloj con el servidor"
+                            action={handleSyncTime}
+                            variant="primary"
+                            loading={processingCommand}
+                        />
 
-                    {/* ========== GRUPO 4: MONITOREO ========== */}
-                    <RecentLogsCard 
-                        logs={recentLogs}
-                        onLoad={handleLoadRecentLogs}
-                        loading={loadingRecentLogs}
-                    />
+                        <CommandCard
+                            icon={<Volume2 size={32} />}
+                            title="Test de Voz"
+                            description="Reproduce un mensaje de prueba"
+                            action={() => handleTestVoice(0)}
+                            variant="primary"
+                            loading={processingCommand}
+                        />
 
-                    <TemplatesCard 
-                        templates={templates}
-                        onLoad={handleLoadTemplates}
-                        loading={loadingTemplates}
-                    />
-                </div>
+                        {/* ========== GRUPO 2: MEMORIA ========== */}
+                        <MemoryCard
+                            memoryInfo={memoryInfo}
+                            onLoad={handleLoadMemory}
+                            loading={loadingMemory}
+                        />
+
+                        {/* ========== GRUPO 3: LIMPIEZA ========== */}
+                        <CommandCard
+                            icon={<Trash2 size={32} />}
+                            title="Limpiar Logs"
+                            description="Elimina solo registros de asistencia"
+                            action={() => {
+                                setConfirmationModal({
+                                    isOpen: true,
+                                    title: 'Limpiar Logs de Asistencia',
+                                    message: 'Se eliminarán todos los registros de asistencia del dispositivo. Los usuarios y huellas se mantendrán intactos.',
+                                    variant: 'warning',
+                                    onConfirm: handleClearAttendance
+                                });
+                            }}
+                            variant="warning"
+                            warning="Operación sensible - Afecta datos históricos"
+                        />
+
+                        <CommandCard
+                            icon={<AlertTriangle size={32} />}
+                            title="Borrar Todo"
+                            description="Borra usuarios, huellas y logs"
+                            action={() => {
+                                setConfirmationModal({
+                                    isOpen: true,
+                                    title: '⚠️ PELIGRO CRÍTICO',
+                                    message: 'Esta acción borrará TODO del dispositivo: \n\n• Todos los usuarios\n• Todas las huellas\n• Todos los registros\n\nEsta operación es irreversible. ¿Estás COMPLETAMENTE seguro?',
+                                    variant: 'danger',
+                                    onConfirm: handleClearAllData
+                                });
+                            }}
+                            variant="danger"
+                            warning="Crítico - Operación irreversible. Se borrará TODO"
+                        />
+
+                        {/* ========== GRUPO 4: MONITOREO ========== */}
+                        <RecentLogsCard
+                            logs={recentLogs}
+                            onLoad={handleLoadRecentLogs}
+                            loading={loadingRecentLogs}
+                        />
+
+                        <TemplatesCard
+                            templates={templates}
+                            onLoad={handleLoadTemplates}
+                            loading={loadingTemplates}
+                        />
+                    </div>
+                </>
             )}
+
+            <ConfirmationModal
+                isOpen={confirmationModal.isOpen}
+                title={confirmationModal.title}
+                message={confirmationModal.message}
+                variant={confirmationModal.variant}
+                onConfirm={confirmationModal.onConfirm}
+                onCancel={() => setConfirmationModal({ ...confirmationModal, isOpen: false })}
+            />
 
             <JobProgressModal
                 jobId={activeJobId}

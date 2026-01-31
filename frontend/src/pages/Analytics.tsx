@@ -25,7 +25,7 @@ export const Analytics: React.FC = () => {
                 setStats(prev => ({
                     ...prev,
                     devicesTotal: devs.length,
-                    devicesOnline: devs.filter(d => d.last_seen).length, // simplified logic
+                    devicesOnline: devs.filter((d: any) => d.last_seen).length, // simplified logic
                     todayAtt: todayLogs.length
                 }));
             } catch (e) {

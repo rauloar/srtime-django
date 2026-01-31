@@ -5,7 +5,6 @@ import { Analytics } from './pages/Analytics';
 import { Users } from './pages/Users';
 import { DeviceDetail } from './pages/DeviceDetail';
 import { DeviceList } from './pages/DeviceList';
-import { AdditionalFunctions } from './pages/AdditionalFunctions';
 import { Departments } from './pages/personnel/Departments';
 import { Employees } from './pages/personnel/Employees';
 import { Settings } from './pages/system/Settings';
@@ -69,7 +68,6 @@ function AppContent() {
           <Route path="devices" element={<DeviceList />} />
           <Route path="devices/:id" element={<DeviceDetail />} />
           <Route path="devices/:id/users" element={<Users />} />
-          <Route path="devices/funciones-adicionales" element={<AdditionalFunctions />} />
 
           {/* Personnel Mdule */}
           <Route path="personnel" element={<Navigate to="/personnel/employees" replace />} />

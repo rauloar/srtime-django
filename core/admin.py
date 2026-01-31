@@ -1,18 +1,12 @@
 from django.contrib import admin
 from .models import (
-    AuthUser, Company, Position, Zone, Department, Employee,
+    Company, Position, Zone, Department, Employee,
     Device, AttendanceLog, ImportBatch, User, BiometricTemplate,
     Setting, Job, JobLog, Timetable, Shift, ShiftTimetable,
     ScheduleOverride, EmployeeShift, Leave, Holiday, DailyAttendance
 )
 
 
-@admin.register(AuthUser)
-class AuthUserAdmin(admin.ModelAdmin):
-    list_display = ['username', 'role', 'employee', 'active', 'created_at']
-    list_filter = ['role', 'active']
-    search_fields = ['username']
-    ordering = ['-created_at']
 
 
 @admin.register(Company)

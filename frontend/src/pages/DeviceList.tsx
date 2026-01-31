@@ -102,7 +102,7 @@ export const DeviceList: React.FC = () => {
                                 {connStatus.connected ? '🟢 CONECTADA' : '🔴 DESCONECTADA'}
                             </span>
                         ) : (
-                            <span className="status-badge" style={{ fontSize: '11px', opacity: 0.5, backgroundColor: '#e0e0e0' }}>
+                            <span className="status-badge" style={{ fontSize: '11px', opacity: 0.5, backgroundColor: 'var(--status-offline)' }}>
                                 ○ NO VERIFICADA
                             </span>
                         )}
@@ -143,27 +143,27 @@ export const DeviceList: React.FC = () => {
                         <span style={{ fontSize: '13px', color: '#888' }}>Gestión de terminales de asistencia</span>
                     </div>
                     <div className="page-toolbar-actions">
-                        <button 
-                            className="flex-row gap-2" 
-                            onClick={fetchDevices} 
+                        <button
+                            className="flex-row gap-2"
+                            onClick={fetchDevices}
                             style={{ height: '36px' }}
                             disabled={loading}
                         >
-                            <RefreshCw size={14} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} /> 
+                            <RefreshCw size={14} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
                             Refrescar Lista
                         </button>
-                        <button 
-                            className="flex-row gap-2" 
-                            onClick={checkDevicesConnection} 
+                        <button
+                            className="flex-row gap-2"
+                            onClick={checkDevicesConnection}
                             style={{ height: '36px' }}
                             disabled={checkingConnections || devices.length === 0}
                         >
-                            <RefreshCw size={14} style={{ animation: checkingConnections ? 'spin 1s linear infinite' : 'none' }} /> 
+                            <RefreshCw size={14} style={{ animation: checkingConnections ? 'spin 1s linear infinite' : 'none' }} />
                             {checkingConnections ? 'Verificando...' : 'Verificar Conexión'}
                         </button>
-                        <button 
-                            className="primary flex-row gap-2" 
-                            onClick={() => setIsModalOpen(true)} 
+                        <button
+                            className="primary flex-row gap-2"
+                            onClick={() => setIsModalOpen(true)}
                             style={{ height: '36px' }}
                             disabled={loading}
                         >

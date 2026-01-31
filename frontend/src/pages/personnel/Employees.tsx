@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Plus, Edit2, Trash2, Download, Upload } from 'lucide-react';
-import { getEmployees, createEmployee, updateEmployee, deleteEmployee, getDepartments, importEmployees, type Employee, type Department } from '../../api';
+import { getEmployees, createEmployee, updateEmployee, deleteEmployee, getDepartments, importEmployees, type Employee } from '../../api';
+import { sortDepartmentsTree, type DepartmentNode } from '../../utils/treeUtils';
 import * as XLSX from 'xlsx';
 import { DataGrid, type Column } from '../../components/ui/DataGrid';
 import { PageToolbar } from '../../components/ui/PageToolbar';
@@ -8,7 +9,7 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 
 export const Employees: React.FC = () => {
     const [employees, setEmployees] = useState<Employee[]>([]);
-    const [departments, setDepartments] = useState<Department[]>([]);
+    const [departments, setDepartments] = useState<DepartmentNode[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
@@ -24,7 +25,7 @@ export const Employees: React.FC = () => {
         try {
             const [empData, deptData] = await Promise.all([getEmployees(0, 2000), getDepartments()]);
             setEmployees(empData);
-            setDepartments(deptData);
+            setDepartments(sortDepartmentsTree(deptData));
         } catch (error) {
             console.error(error);
         } finally {
@@ -69,7 +70,7 @@ export const Employees: React.FC = () => {
             "Email", "Teléfono", "Celular", "Dirección", "Ciudad", "País",
             "DNI", "Fecha Nacimiento", "Género"
         ];
-        
+
         const rows = employees.map(e => [
             e.user_id,
             e.name || "",
@@ -86,7 +87,7 @@ export const Employees: React.FC = () => {
             e.birthday || "",
             e.gender || ""
         ]);
-        
+
         return { headers, rows };
     };
 
@@ -132,11 +133,11 @@ export const Employees: React.FC = () => {
         setLoading(true);
         try {
             const result = await importEmployees(file);
-            
+
             let message = `Importación completada:\n`;
             message += `✓ Procesados: ${result.total}\n`;
             message += `✓ Exitosos: ${result.success}\n`;
-            
+
             if (result.errors.length > 0) {
                 message += `✗ Errores: ${result.errors.length}\n\n`;
                 message += `Detalles de errores:\n`;
@@ -145,9 +146,9 @@ export const Employees: React.FC = () => {
                     message += `\n... y ${result.errors.length - 10} errores más`;
                 }
             }
-            
+
             alert(message);
-            
+
             // Recargar empleados
             await fetchData();
         } catch (error: any) {
@@ -290,19 +291,19 @@ export const Employees: React.FC = () => {
 
 const EmployeeModal: React.FC<{
     employee: Employee | null,
-    departments: Department[],
+    departments: DepartmentNode[],
     onClose: () => void,
     onSave: (e: Employee) => void
 }> = ({ employee, departments, onClose, onSave }) => {
     const [activeTab, setActiveTab] = useState<'basic' | 'contact' | 'personal'>('basic');
-    
+
     // Datos Básicos
     const [userId, setUserId] = useState(employee?.user_id || '');
     const [name, setName] = useState(employee?.name || '');
     const [card, setCard] = useState(employee?.card || '');
     const [deptId, setDeptId] = useState<number | undefined>(employee?.department_id);
     const [privilege, setPrivilege] = useState(employee?.privilege || 0);
-    
+
     // Datos de Contacto
     const [email, setEmail] = useState(employee?.email || '');
     const [phone, setPhone] = useState(employee?.phone || '');
@@ -310,7 +311,7 @@ const EmployeeModal: React.FC<{
     const [address, setAddress] = useState(employee?.address || '');
     const [city, setCity] = useState(employee?.city || '');
     const [country, setCountry] = useState(employee?.country || '');
-    
+
     // Datos Personales
     const [gender, setGender] = useState(employee?.gender || '');
     const [birthday, setBirthday] = useState(employee?.birthday || '');
@@ -405,7 +406,9 @@ const EmployeeModal: React.FC<{
                             <select value={deptId || ''} onChange={e => setDeptId(e.target.value ? Number(e.target.value) : undefined)}>
                                 <option value="">-- Seleccionar --</option>
                                 {departments.map(d => (
-                                    <option key={d.id} value={d.id}>{d.name}</option>
+                                    <option key={d.id} value={d.id}>
+                                        {'\u00A0\u00A0'.repeat(d.level) + d.name}
+                                    </option>
                                 ))}
                             </select>
                         </div>

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import (
-    AuthUser, Company, Position, Zone, Department, Employee,
+    Company, Position, Zone, Department, Employee,
     Device, AttendanceLog, ImportBatch, User, BiometricTemplate,
     Setting, Job, JobLog, Timetable, Shift, ShiftTimetable,
     ScheduleOverride, EmployeeShift, Leave, Holiday, DailyAttendance
@@ -169,10 +169,4 @@ class DailyAttendanceSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class AuthUserSerializer(serializers.ModelSerializer):
-    employee_name = serializers.CharField(source='employee.name', read_only=True)
-    
-    class Meta:
-        model = AuthUser
-        fields = ['id', 'username', 'role', 'employee', 'employee_name', 'active', 'created_at']
-        read_only_fields = ['id', 'created_at']
+
