@@ -495,57 +495,269 @@ class Holiday(models.Model):
 
 
 class DailyAttendance(models.Model):
-    """Asistencia diaria calculada"""
+    """
+    Asistencia diaria calculada.
+    
+    FORENSIC TRACEABILITY:
+    This model now supports full audit trail for legal defensibility:
+    - engine_version: Which version of the engine performed this calculation
+    - policy_snapshot: Exact policy parameters used
+    - calculation_fingerprint: Hash to detect input changes
+    - calculation_state: Whether this is current or superseded
+    - supersedes/superseded_by: Lineage for recalculations
+    
+    CRITICAL RULES:
+    - NEVER modify a record with state=CALCULATED
+    - Recalculations CREATE new records and mark old as SUPERSEDED
+    - The unique constraint allows multiple records per employee/date for lineage
+    """
+    
+    # State choices for calculation lifecycle
+    CALCULATION_STATE_CHOICES = [
+        ('PENDING', 'Pendiente'),
+        ('CALCULATED', 'Calculado'),
+        ('SUPERSEDED', 'Reemplazado'),
+    ]
+    
+    CALCULATION_MODE_CHOICES = [
+        ('FLEXIBLE', 'Jornada Flexible'),
+        ('STRUCTURED', 'Horario Fijo'),
+        ('UNKNOWN', 'Desconocido'),
+    ]
+    
     STATUS_CHOICES = [
         ('Normal', 'Normal'),
         ('Late', 'Tardío'),
         ('Early', 'Salida anticipada'),
         ('Absent', 'Ausente'),
         ('Leave', 'Licencia'),
+        ('Worked', 'Trabajado'),
+        ('Incomplete', 'Incompleto'),
+        ('Excessive', 'Excesivo'),
+        ('HolidayWorked', 'Trabajo en Feriado'),
+        ('RestDay', 'Día de Descanso'),
     ]
 
     SCHEDULE_TYPE_CHOICES = [
         ('FIXED', 'Fijo'),
         ('FLEX', 'Flexible'),
         ('OVERRIDE', 'Excepción'),
+        ('DEPT', 'Departamento'),
         ('NONE', 'Ninguno'),
     ]
 
+    # === IDENTITY ===
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='daily_attendance')
     date = models.DateField(db_index=True, verbose_name='Fecha')
     timetable = models.ForeignKey(Timetable, on_delete=models.SET_NULL, null=True, blank=True, related_name='daily_attendance')
     
+    # === TIMESTAMPS ===
     check_in = models.DateTimeField(null=True, blank=True, verbose_name='Entrada')
     check_out = models.DateTimeField(null=True, blank=True, verbose_name='Salida')
     
+    # === SCHEDULE CONTEXT ===
     on_duty = models.CharField(max_length=10, null=True, blank=True, verbose_name='Hora Esperada Entrada')
     off_duty = models.CharField(max_length=10, null=True, blank=True, verbose_name='Hora Esperada Salida')
     
+    # === TIME METRICS ===
     late_minutes = models.IntegerField(default=0, verbose_name='Minutos de Tardanza')
     early_minutes = models.IntegerField(default=0, verbose_name='Minutos de Salida Temprana')
     worked_minutes = models.IntegerField(default=0, verbose_name='Minutos Trabajados')
     overtime_minutes = models.IntegerField(default=0, verbose_name='Minutos Extra')
+    break_minutes = models.IntegerField(default=0, verbose_name='Minutos de Descanso')
+    net_worked_minutes = models.IntegerField(default=0, verbose_name='Minutos Netos Trabajados')
+    regular_minutes = models.IntegerField(default=0, verbose_name='Minutos Regulares')
+    night_minutes = models.IntegerField(default=0, verbose_name='Minutos Nocturnos')
     
+    # === STATUS ===
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Absent', verbose_name='Estado')
     exception_reason = models.CharField(max_length=100, null=True, blank=True, verbose_name='Razón de Excepción')
     
+    # === AUDIT METADATA ===
     schedule_type = models.CharField(max_length=20, choices=SCHEDULE_TYPE_CHOICES, default='FIXED', verbose_name='Tipo de Horario')
     source_logs_count = models.IntegerField(default=0, verbose_name='Cantidad de Logs Origen')
     is_absent = models.BooleanField(default=True, verbose_name='Ausente')
+    
+    # === FORENSIC TRACEABILITY (NEW) ===
+    
+    # Engine version that performed this calculation
+    engine_version = models.CharField(
+        max_length=50,
+        default='1.0.0',
+        verbose_name='Versión del Motor',
+        help_text='Versión del motor que realizó este cálculo'
+    )
+    
+    # Calculation mode used
+    calculation_mode = models.CharField(
+        max_length=20,
+        choices=CALCULATION_MODE_CHOICES,
+        default='UNKNOWN',
+        verbose_name='Modo de Cálculo'
+    )
+    
+    # Reference to policy snapshot used
+    policy_snapshot = models.ForeignKey(
+        'PolicySnapshot',
+        on_delete=models.PROTECT,  # Prevent deletion of used policies
+        null=True,
+        blank=True,
+        related_name='daily_attendances',
+        verbose_name='Snapshot de Política'
+    )
+    
+    # Deterministic fingerprint of inputs
+    calculation_fingerprint = models.CharField(
+        max_length=64,
+        blank=True,
+        null=True,
+        db_index=True,
+        verbose_name='Fingerprint del Cálculo',
+        help_text='Hash SHA256 de los inputs del cálculo'
+    )
+    
+    # Calculation lifecycle state
+    calculation_state = models.CharField(
+        max_length=20,
+        choices=CALCULATION_STATE_CHOICES,
+        default='PENDING',
+        db_index=True,
+        verbose_name='Estado del Cálculo'
+    )
+    
+    # Timestamp of when calculation was performed
+    calculated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Fecha de Cálculo'
+    )
+    
+    # Recalculation lineage
+    supersedes = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='superseded_by_set',
+        verbose_name='Reemplaza a',
+        help_text='Registro anterior que este reemplaza'
+    )
+    
+    superseded_by = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='supersedes_set',
+        verbose_name='Reemplazado por',
+        help_text='Registro más nuevo que reemplazó este'
+    )
+    
+    recalculation_reason = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name='Motivo de Recálculo'
+    )
+    
+    # Review flags
+    requires_review = models.BooleanField(
+        default=False,
+        verbose_name='Requiere Revisión'
+    )
+    
+    reviewed_by = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_attendance',
+        verbose_name='Revisado por'
+    )
+    
+    reviewed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Fecha de Revisión'
+    )
 
     class Meta:
         db_table = 'att_daily_attendance'
         verbose_name = 'Asistencia Diaria'
         verbose_name_plural = 'Asistencias Diarias'
-        constraints = [
-            models.UniqueConstraint(fields=['employee', 'date'], name='uix_daily_att')
-        ]
+        # NOTE: Removed unique constraint to allow lineage
+        # The "current" record is the one with calculation_state != SUPERSEDED
         indexes = [
             models.Index(fields=['date', 'employee']),
             models.Index(fields=['status']),
             models.Index(fields=['date']),
+            models.Index(fields=['calculation_state']),
+            models.Index(fields=['employee', 'date', 'calculation_state']),
         ]
         ordering = ['-date', 'employee']
 
     def __str__(self):
-        return f"{self.employee.name} - {self.date} - {self.get_status_display()}"
+        state_marker = " [SUPERSEDED]" if self.calculation_state == 'SUPERSEDED' else ""
+        return f"{self.employee.name} - {self.date} - {self.status}{state_marker}"
+    
+    # === HELPER PROPERTIES ===
+    
+    @property
+    def is_superseded(self) -> bool:
+        """Check if this record has been superseded by a newer calculation."""
+        return self.calculation_state == 'SUPERSEDED' or self.superseded_by is not None
+    
+    @property
+    def is_current(self) -> bool:
+        """Check if this is the current (non-superseded) record."""
+        return self.calculation_state != 'SUPERSEDED' and self.superseded_by is None
+    
+    def get_latest_version(self):
+        """
+        Get the latest version in the lineage chain.
+        
+        Returns self if this is the current version.
+        """
+        current = self
+        visited = set()
+        
+        while current.superseded_by and current.id not in visited:
+            visited.add(current.id)
+            current = current.superseded_by
+        
+        return current
+    
+    def get_original_version(self):
+        """
+        Get the original (first) version in the lineage chain.
+        
+        Returns self if this is the original.
+        """
+        current = self
+        visited = set()
+        
+        while current.supersedes and current.id not in visited:
+            visited.add(current.id)
+            current = current.supersedes
+        
+        return current
+    
+    def get_lineage_count(self) -> int:
+        """Count how many recalculations exist in this lineage."""
+        original = self.get_original_version()
+        count = 0
+        current = original
+        visited = set()
+        
+        while current and current.id not in visited:
+            visited.add(current.id)
+            count += 1
+            current = current.superseded_by
+        
+        return count
+
+
+# Import PolicySnapshot and CalculationAuditLog from models_audit
+# This keeps them in the same namespace for migrations
+from .models_audit import PolicySnapshot, CalculationAuditLog
+
