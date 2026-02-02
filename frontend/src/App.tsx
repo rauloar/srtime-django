@@ -8,19 +8,20 @@ import { DeviceList } from './pages/DeviceList';
 import { Departments } from './pages/personnel/Departments';
 import { Employees } from './pages/personnel/Employees';
 import { Settings } from './pages/system/Settings';
-import { Users as SystemUsers } from './pages/system/Users';
+// import { Users as SystemUsers } from './pages/system/Users';  // DEV: Auth disabled
 import { Logs } from './pages/Logs';
-import { Login } from './pages/auth/Login';
+// import { Login } from './pages/auth/Login';  // DEV: Auth disabled
 import { PrivateRoute } from './components/auth/PrivateRoute';
 import { Company } from './pages/organization/Company';
 import { Positions } from './pages/organization/Positions';
 import { Zones } from './pages/organization/Zones';
-import { Timetables } from './pages/attendance/Timetables';
-import { Shifts } from './pages/attendance/Shifts';
-import { EmployeeSchedule } from './pages/attendance/EmployeeSchedule';
-import { Calculation } from './pages/attendance/Calculation';
-import { Reports } from './pages/attendance/Reports';
-import { Absences } from './pages/attendance/Absences';
+import { Timetables } from './pages/asistencia/Timetables';
+import { Shifts } from './pages/asistencia/Shifts';
+import { EmployeeSchedule } from './pages/asistencia/EmployeeSchedule';
+import { Calculation } from './pages/asistencia/Calculation';
+import { Reports } from './pages/asistencia/Reports';
+import { Absences } from './pages/asistencia/Absences';
+import { DayViewPage } from './pages/asistencia/DayViewPage'; // Kept as is, was already there
 import { ToastProvider } from './contexts/ToastContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { AppProvider } from './contexts/AppContext';
@@ -51,7 +52,8 @@ function AppContent() {
         </div>
       )}
       <Routes>
-        <Route path="/login" element={<Login />} />
+        {/* DEV: Auth disabled */}
+        {/* <Route path="/login" element={<Login />} /> */}
 
         <Route path="/" element={
           <PrivateRoute>
@@ -84,6 +86,11 @@ function AppContent() {
           <Route path="attendance/calculation" element={<Calculation />} />
           <Route path="attendance/reports" element={<Reports />} />
 
+          {/* Asistencia Module (NEW - Phase 1) */}
+          <Route path="asistencia">
+            <Route path="empleado/:employeeId/dia/:date" element={<DayViewPage />} />
+          </Route>
+
           {/* Organization Module (Access/Structure) */}
           <Route path="access" element={<Navigate to="/access/company" replace />} />
           <Route path="access/company" element={<Company />} />
@@ -94,7 +101,8 @@ function AppContent() {
           {/* System Module */}
           <Route path="system" element={<Navigate to="/system/settings" replace />} />
           <Route path="system/settings" element={<Settings />} />
-          <Route path="system/users" element={<SystemUsers />} />
+          {/* DEV: Auth disabled */}
+          {/* <Route path="system/users" element={<SystemUsers />} /> */}
         </Route>
       </Routes>
     </>

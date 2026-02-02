@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Plus, Edit2, Trash2, Download, Upload } from 'lucide-react';
-import { getEmployees, createEmployee, updateEmployee, deleteEmployee, getDepartments, importEmployees, type Employee } from '../../api';
+import React, { useEffect, useState } from 'react';
+import { Plus, Edit2, Trash2, Download } from 'lucide-react';
+import { getEmployees, createEmployee, updateEmployee, deleteEmployee, getDepartments, type Employee } from '../../api';
 import { sortDepartmentsTree, type DepartmentNode } from '../../utils/treeUtils';
 import * as XLSX from 'xlsx';
 import { DataGrid, type Column } from '../../components/ui/DataGrid';
@@ -14,7 +14,7 @@ export const Employees: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    // const fileInputRef = useRef<HTMLInputElement>(null);  // Removed: import functionality disabled
 
     // Confirm Dialog
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -114,53 +114,7 @@ export const Employees: React.FC = () => {
         XLSX.writeFile(workbook, "empleados.xlsx");
     };
 
-    const handleImport = () => {
-        fileInputRef.current?.click();
-    };
-
-    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        // Validar extensión
-        const validExtensions = ['.csv', '.xlsx', '.xls'];
-        const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-        if (!validExtensions.includes(fileExtension)) {
-            alert('Formato no válido. Use CSV o Excel (.xlsx, .xls)');
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const result = await importEmployees(file);
-
-            let message = `Importación completada:\n`;
-            message += `✓ Procesados: ${result.total}\n`;
-            message += `✓ Exitosos: ${result.success}\n`;
-
-            if (result.errors.length > 0) {
-                message += `✗ Errores: ${result.errors.length}\n\n`;
-                message += `Detalles de errores:\n`;
-                message += result.errors.slice(0, 10).join('\n');
-                if (result.errors.length > 10) {
-                    message += `\n... y ${result.errors.length - 10} errores más`;
-                }
-            }
-
-            alert(message);
-
-            // Recargar empleados
-            await fetchData();
-        } catch (error: any) {
-            alert(`Error al importar: ${error.response?.data?.detail || error.message}`);
-        } finally {
-            setLoading(false);
-            // Resetear el input file
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
-        }
-    };
+    // Import functionality disabled in DEV mode
 
     const getDeptName = (id?: number) => {
         const d = departments.find(d => d.id === id);
@@ -234,9 +188,6 @@ export const Employees: React.FC = () => {
                 searchPlaceholder="Buscar por ID o Nombre..."
                 actions={
                     <>
-                        <button className="secondary flex-row gap-2" onClick={handleImport}>
-                            <Upload size={16} /> Importar
-                        </button>
                         <button className="secondary flex-row gap-2" onClick={handleExportCSV}>
                             <Download size={16} /> CSV
                         </button>
@@ -248,15 +199,6 @@ export const Employees: React.FC = () => {
                         </button>
                     </>
                 }
-            />
-
-            {/* Input file oculto para importación */}
-            <input
-                type="file"
-                ref={fileInputRef}
-                style={{ display: 'none' }}
-                accept=".csv,.xlsx,.xls"
-                onChange={handleFileChange}
             />
 
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>

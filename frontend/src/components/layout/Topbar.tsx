@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../hooks/useToast';
 import { useApp } from '../../hooks/useApp';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { SearchBar } from './SearchBar';
 
 interface TopbarProps {
     onMenuCheck?: () => void;
@@ -58,6 +59,17 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuCheck }) => {
                     <TabLink to="/attendance" icon={<Clock size={18} />} label="Asistencia" />
                     <TabLink to="/system" icon={<Settings size={18} />} label="Sistema" />
                 </nav>
+
+                {/* SearchBar - centered */}
+                <div style={{
+                    flex: 1,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    maxWidth: '400px',
+                    margin: '0 20px'
+                }}>
+                    <SearchBar />
+                </div>
 
                 {/* User & Logout */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginLeft: 'auto' }}>

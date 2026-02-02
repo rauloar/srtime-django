@@ -314,6 +314,7 @@ export const updateDepartment = async (id: number, dept: Department) => (await a
 export const deleteDepartment = async (id: number) => (await api.delete(`/departments/${id}`)).data;
 
 export const getEmployees = async (skip = 0, limit = 100) => (await api.get<Employee[]>('/employees/', { params: { skip, limit } })).data;
+export const searchEmployees = async (query: string) => (await api.get<Employee[]>('/employees/', { params: { search: query } })).data;
 export const getEmployee = async (id: number) => (await api.get<Employee>(`/employees/${id}`)).data;
 export const createEmployee = async (emp: Employee) => (await api.post<Employee>('/employees/', emp)).data;
 export const updateEmployee = async (id: number, emp: Employee) => (await api.put<Employee>(`/employees/${id}`, emp)).data;
@@ -436,6 +437,7 @@ export interface DailyAttendance {
     overtime_minutes: number; // Added
     status: string;
     exception_reason?: string;
+    employee_name?: string; // Derived from serializer
 
     // Audit
     schedule_type?: string;
@@ -454,7 +456,7 @@ export const calculateAttendance = async (startDate: string, endDate: string, de
 export const getDailyReports = async (fromDate: string, toDate: string, departmentId?: number) => {
     const params: any = { from_date: fromDate, to_date: toDate };
     if (departmentId) params.department_id = departmentId;
-    return (await api.get<DailyAttendance[]>('/attendance/reports/daily', { params })).data;
+    return (await api.get<DailyAttendance[]>('/attendance/reports/daily/', { params })).data;
 };
 
 // Absences
@@ -542,3 +544,27 @@ export const importDatabase = async (file: File) => {
         headers: { 'Content-Type': 'multipart/form-data' }
     })).data;
 };
+
+// Attendance - Day View
+export interface TimelineBlock {
+    type: string;
+    start_time: string;
+    end_time: string;
+    duration_minutes: number;
+}
+
+export interface TimelineData {
+    blocks: TimelineBlock[];
+}
+
+export interface ExplanationData {
+    summary: string;
+    anomalies: string[];
+    recommendations: string[];
+}
+
+export const getTimeline = async (employeeId: string, date: string) =>
+    (await api.get<TimelineData>(`/attendance/${employeeId}/timeline/${date}/`)).data;
+
+export const getExplanation = async (employeeId: string, date: string) =>
+    (await api.get<ExplanationData>(`/attendance/${employeeId}/explanation/${date}/`)).data;

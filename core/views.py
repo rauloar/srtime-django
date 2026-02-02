@@ -6,11 +6,11 @@ from rest_framework import status
 @api_view(['GET'])
 def api_root(request):
     """
-    Raíz de la API SRTimeWeb.
+    Raíz de la API config.
     Proporciona información general sobre los endpoints disponibles.
     """
     return Response({
-        'message': 'Bienvenido a SRTimeWeb API',
+        'message': 'Bienvenido a config API',
         'version': '1.0.0',
         'documentation': 'http://127.0.0.1:9000/admin/',
         'admin': {

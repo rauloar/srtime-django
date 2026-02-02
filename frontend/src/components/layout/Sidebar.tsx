@@ -7,50 +7,37 @@ interface MenuItem {
 }
 
 const MENU_STRUCTURE: { [key: string]: { title: string, items: MenuItem[] } } = {
-    'personnel': {
-        title: 'Personal',
-        items: [
-            { label: 'Departamentos', path: '/personnel/departments' },
-            { label: 'Empleados', path: '/personnel/employees' },
-        ]
-    },
-    'devices': {
-        title: 'Dispositivo',
-        items: [
-            { label: 'Terminales', path: '/devices' }, // Root of devices
-        ]
+    'dashboard': {
+        title: 'Principal',
+        items: []
     },
     'attendance': {
         title: 'Asistencia',
         items: [
-            { label: 'Horarios', path: '/attendance/timetables' },
-            { label: 'Turnos', path: '/attendance/shifts' },
+            { label: 'Reporte Diario', path: '/attendance' }, // Defaults to daily
             { label: 'Calendario', path: '/attendance/schedule' },
             { label: 'Marcaciones', path: '/attendance/logs' },
-            { label: 'Cálculo', path: '/attendance/calculation' },
-            { label: 'Reportes', path: '/attendance/reports' },
             { label: 'Ausencias', path: '/attendance/absences' },
+            // Removed technical: Timetables, Shifts, Calculation
         ]
     },
-    'access': {
-        title: 'Organización',
+    'personnel': {
+        title: 'Empleados',
         items: [
-            { label: 'Empresa', path: '/access/company' },
-            { label: 'Departamentos', path: '/access/departments' },
-            { label: 'Cargos', path: '/access/positions' },
-            { label: 'Zonas', path: '/access/zones' },
+            { label: 'Lista Empleados', path: '/personnel/employees' },
+            { label: 'Departamentos', path: '/personnel/departments' },
+            // Simplified structure
         ]
     },
-    'system': {
-        title: 'Sistema',
+    'system': { // Maps to "Configuración" conceptually
+        title: 'Configuración',
         items: [
-            { label: 'Usuarios Sistema', path: '/system/users' },
-            { label: 'Configuración', path: '/system/settings' },
+            // { label: 'Usuarios', path: '/system/users' },  // DEV: Auth disabled
+            { label: 'Ajustes', path: '/system/settings' },
+            { label: 'Terminales', path: '/devices' }, // Devices moved here
+            { label: 'Turnos', path: '/attendance/shifts' }, // Technical config here
+            { label: 'Horarios', path: '/attendance/timetables' }, // Technical config here
         ]
-    },
-    'dashboard': {
-        title: 'Módulos',
-        items: []
     }
 };
 
@@ -59,7 +46,11 @@ export const Sidebar: React.FC = () => {
 
     // Determine active module from path
     const pathSegments = location.pathname.split('/').filter(Boolean);
-    const activeModule = pathSegments[0] || 'dashboard';
+    let activeModule = pathSegments[0] || 'dashboard';
+
+    // Map legacy/other paths to the 4 main sections
+    if (activeModule === 'devices') activeModule = 'system';
+    if (activeModule === 'access') activeModule = 'system';
 
     const menu = MENU_STRUCTURE[activeModule];
 
@@ -82,7 +73,7 @@ export const Sidebar: React.FC = () => {
                 borderBottom: '1px solid var(--border-color)',
                 marginBottom: '10px'
             }}>
-                {menu.title}
+                {menu.title} <span style={{ fontSize: '10px', color: 'red' }}>DEBUG v2.0</span>
             </div>
 
             <nav style={{ display: 'flex', flexDirection: 'column' }}>

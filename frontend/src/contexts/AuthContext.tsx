@@ -50,7 +50,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // Agregar token a headers para futuras peticiones
       api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
-      
+
       // Obtener y guardar el tiempo de inicio del servidor
       try {
         const serverInfo = await api.get('/auth/server-info');
@@ -60,7 +60,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     } catch (err: any) {
       let errorMsg = 'Error al iniciar sesión';
-      
+
       if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
         errorMsg = '⚠️ El servidor no responde. Verifique que el backend esté ejecutándose.';
       } else if (err.code === 'ECONNABORTED') {
@@ -68,7 +68,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else if (err.response) {
         // El servidor respondió con un código de error
         const status = err.response.status;
-        
+
         if (status === 401 || status === 403) {
           errorMsg = '❌ Usuario o contraseña incorrectos. Verifique sus credenciales.';
         } else if (status === 422) {
@@ -82,7 +82,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // La petición se hizo pero no hubo respuesta
         errorMsg = '⚠️ No se pudo conectar con el servidor. Verifique su conexión de red.';
       }
-      
+
       setError(errorMsg);
       throw new Error(errorMsg);
     } finally {
@@ -106,17 +106,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const savedToken = sessionStorage.getItem('auth_token');
     const savedUsername = sessionStorage.getItem('auth_username');
     const savedRole = sessionStorage.getItem('auth_role');
-    const serverStartTime = sessionStorage.getItem('server_start_time');
-    
+
     if (savedToken) {
       setToken(savedToken);
       setUsername(savedUsername);
       setRole(savedRole);
       api.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
-      
+
+      // DEV MODE: Skip server check to avoid 403s on disabled endpoints
+      /*
       // Verificar si el servidor se reinició
       const checkServerStatus = async () => {
         try {
+          const serverStartTime = sessionStorage.getItem('server_start_time');
           const response = await api.get('/auth/server-info');
           const currentServerTime = response.data.start_time;
           
@@ -136,6 +138,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
       
       checkServerStatus();
+      */
     }
   }, [logout]);
 

@@ -14,7 +14,7 @@ from .auth_views import (
     auth_login, auth_users_list, auth_user_delete, auth_user_password_update,
     server_info
 )
-from .views_attendance import calculate_attendance, daily_reports, calculate_single_day
+from .views_attendance import calculate_attendance, daily_reports, calculate_single_day, get_simple_day_view
 from .views_devices import (
     test_connection, test_connection_sync, import_attendance,
     clear_attendance, download_users, sync_users, clear_all_data,
@@ -27,6 +27,7 @@ from .views_system import (
     database_backup, list_backups, database_restore, 
     database_test, database_import
 )
+from .views_stubs import stub_timeline, stub_explanation
 
 router = DefaultRouter()
 
@@ -68,12 +69,13 @@ router.register(r'daily-attendance', DailyAttendanceViewSet, basename='dailyatte
 urlpatterns = [
     path('', include(router.urls)),
     
-    # Auth endpoints compatibles con frontend React
-    path('auth/login', auth_login, name='auth_login'),
-    path('auth/server-info', server_info, name='server_info'),
-    path('auth/users', auth_users_list, name='auth_users_list'),
-    path('auth/users/<int:user_id>', auth_user_delete, name='auth_user_delete'),
-    path('auth/users/<int:user_id>/password', auth_user_password_update, name='auth_user_password_update'),
+    
+    # Auth endpoints compatibles con frontend React (DISABLED FOR DEV MODE)
+    # path('auth/login', auth_login, name='auth_login'),
+    # path('auth/server-info', server_info, name='server_info'),
+    # path('auth/users', auth_users_list, name='auth_users_list'),
+    # path('auth/users/<int:user_id>', auth_user_delete, name='auth_user_delete'),
+    # path('auth/users/<int:user_id>/password', auth_user_password_update, name='auth_user_password_update'),
     
     # Attendance Calculation Endpoints
     path('attendance/calculate/', calculate_attendance, name='calculate_attendance'),
@@ -128,14 +130,20 @@ urlpatterns = [
     
     # Alias para schedules (frontend espera /schedules/*)
     path('schedules/timetables/', TimetableViewSet.as_view({'get': 'list', 'post': 'create'}), name='schedules_timetables'),
-    path('schedules/timetables/<int:pk>/', TimetableViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='schedules_timetable_detail'),
     path('schedules/shifts/', ShiftViewSet.as_view({'get': 'list', 'post': 'create'}), name='schedules_shifts'),
-    path('schedules/shifts/<int:pk>/', ShiftViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='schedules_shift_detail'),
-    path('schedules/employee-shifts/', EmployeeShiftViewSet.as_view({'get': 'list', 'post': 'create'}), name='schedules_employee_shifts'),
-    path('schedules/employee-shifts/<int:pk>/', EmployeeShiftViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='schedules_employee_shift_detail'),
     
-    # Alias para attendance (frontend espera /attendance/*)
+    # Attendance - Minimum Set
     path('attendance/logs/', AttendanceLogViewSet.as_view({'get': 'list'}), name='attendance_logs'),
+    path('attendance/reports/daily/', daily_reports, name='daily_reports'),
     path('attendance/daily-attendance/', DailyAttendanceViewSet.as_view({'get': 'list', 'post': 'create'}), name='attendance_daily'),
-    path('attendance/daily-attendance/<int:pk>/', DailyAttendanceViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='attendance_daily_detail'),
+    
+    # Minimal Day View (Rollback Feature)
+    path('attendance/day/', get_simple_day_view, name='simple_day_view'),
+    
+    # Day View Stubs (DEV MODE - Frontend compatibility)
+    path('attendance/<int:employee_id>/timeline/<str:date>/', stub_timeline, name='stub_timeline'),
+    path('attendance/<int:employee_id>/explanation/<str:date>/', stub_explanation, name='stub_explanation'),
+    
+    # Endpoints de compatibilidad (Alias)
+    path('attendance/absences/', LeaveViewSet.as_view({'get': 'list'}), name='attendance_absences_alias'),
 ]

@@ -1,7 +1,7 @@
 # start-server.ps1
 # Script para iniciar el servidor Django en localhost:9000 por defecto
 
-$env:DJANGO_SETTINGS_MODULE = "SRTimeWeb.settings"
+$env:DJANGO_SETTINGS_MODULE = "config.settings"
 $pythonPath = ".venv/Scripts/python.exe"
 
 if (-Not (Test-Path $pythonPath)) {

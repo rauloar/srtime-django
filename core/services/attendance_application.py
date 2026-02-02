@@ -72,6 +72,9 @@ from .calculation_persistence import (
     get_persistence_service,
 )
 
+# Import shadow comparison service (for V1 vs V2 validation)
+from .shadow_comparison_service import get_shadow_service
+
 
 # =============================================================================
 # EXCEPTIONS
@@ -164,15 +167,22 @@ class AttendanceApplicationService:
     """
     
     ENGINE_VERSION = "2.0.0"
+    SHADOW_MODE_ENABLED = True  # Toggle for shadow comparison
     
-    def __init__(self, persistence_service: Optional[CalculationPersistenceService] = None):
+    def __init__(
+        self, 
+        persistence_service: Optional[CalculationPersistenceService] = None,
+        enable_shadow: bool = True,
+    ):
         """
         Initialize with optional custom persistence service.
         
         Args:
             persistence_service: Custom service for testing. If None, uses singleton.
+            enable_shadow: If True, run V2 shadow comparison after each calculation.
         """
         self._persistence = persistence_service or get_persistence_service()
+        self._shadow_enabled = enable_shadow and self.SHADOW_MODE_ENABLED
     
     # =========================================================================
     # PUBLIC API
@@ -231,6 +241,11 @@ class AttendanceApplicationService:
                 actor=actor,
                 recalculation_reason=recalculation_reason,
             )
+            
+            # Step 6: Run shadow comparison (OUTSIDE transaction, error-isolated)
+            # This compares V1 (just persisted) with V2 for pre-migration validation
+            if self._shadow_enabled and daily is not None:
+                self._run_shadow_comparison(employee, target_date, daily)
             
             return ProcessingResult(
                 daily_attendance=daily,
@@ -584,6 +599,42 @@ class AttendanceApplicationService:
             PersistenceResult.ERROR: "Calculation failed",
         }
         return messages.get(status, "Unknown status")
+    
+    # =========================================================================
+    # PRIVATE - SHADOW MODE (V1 vs V2 Comparison)
+    # =========================================================================
+    
+    def _run_shadow_comparison(
+        self,
+        employee: models.Employee,
+        target_date: date,
+        v1_daily: models.DailyAttendance,
+    ) -> None:
+        """
+        Run V2 calculation in shadow mode for comparison.
+        
+        CRITICAL: This is error-isolated and runs OUTSIDE the main transaction.
+        Failures here do NOT affect production data.
+        
+        Args:
+            employee: Employee being calculated
+            target_date: Date being calculated
+            v1_daily: The V1 result that was just persisted
+        """
+        try:
+            shadow_service = get_shadow_service()
+            shadow_service.run_shadow_for_day(
+                employee=employee,
+                target_date=target_date,
+                v1_daily_attendance=v1_daily,
+            )
+        except Exception as e:
+            # CRITICAL: Never let shadow failures affect production
+            # Log and continue - shadow is for analysis only
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Shadow comparison failed for {employee.id} @ {target_date}: {e}"
+            )
 
 
 # =============================================================================

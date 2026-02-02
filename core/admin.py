@@ -177,9 +177,8 @@ class HolidayAdmin(admin.ModelAdmin):
 @admin.register(DailyAttendance)
 class DailyAttendanceAdmin(admin.ModelAdmin):
     list_display = ['employee', 'date', 'status', 'check_in', 'check_out', 'late_minutes', 'worked_minutes', 'is_absent']
-    list_filter = ['status', 'schedule_type', 'is_absent', 'date']
+    list_filter = ['status', 'is_absent', 'date']
     search_fields = ['employee__name', 'employee__user_id', 'exception_reason']
     ordering = ['-date', 'employee']
     date_hierarchy = 'date'
-    readonly_fields = ['source_logs_count']
 

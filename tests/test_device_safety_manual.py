@@ -6,7 +6,7 @@ import sys
 
 # Setup Django environment
 sys.path.append(os.getcwd())
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'SRTimeWeb.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
 from core.services.zk_workers import run_import_attendance_job
