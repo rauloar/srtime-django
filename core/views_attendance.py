@@ -146,16 +146,25 @@ def get_simple_day_view(request):
     except ValueError:
         return Response({"error": "Invalid date YYYY-MM-DD"}, status=400)
 
-    # 1. Get Employee Name
+    # 1. Get Employee (OPCIÓN B: never 404)
     try:
         emp = models.Employee.objects.get(id=employee_id)
-        emp_name = emp.name
     except models.Employee.DoesNotExist:
-        emp_name = "Unknown"
+        # Return 200 with empty payload (consistent with timeline/explanation)
+        return Response({
+            "employee_id": employee_id,
+            "employee_name": None,
+            "date": date_str,
+            "status": "NoData",
+            "worked_minutes": 0,
+            "logs": []
+        })
+
+    emp_name = emp.name or "Unknown"
 
     # 2. Get Logs (Simple Query)
     logs_qs = models.AttendanceLog.objects.filter(
-        user_id=str(emp.user_id) if emp_name != "Unknown" else "-1", # Match by user_id string
+        user_id=str(emp.user_id),
         timestamp__date=target_date
     ).order_by('timestamp')
 
