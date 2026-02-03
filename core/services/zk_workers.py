@@ -1,6 +1,18 @@
 """
 ZK Device Workers - Adaptado para Django ORM
 Workers para operaciones asíncronas con dispositivos biométricos
+
+⚠️ LEGACY ZKTECO INTEGRATION
+These workers directly persist AttendanceLog and couple device operations with data layer.
+Do not extend or reuse for new features.
+
+New ZKTeco integrations must implement data_entry.ZKTecoAdapter pattern:
+  - Batch mode (connect -> disable -> download -> enable -> disconnect)
+  - Returns raw data structures only
+  - No direct persistence or business logic
+  - Decoupled from async workers
+
+This code remains operational but frozen for compatibility.
 """
 from datetime import datetime, date
 from typing import Optional

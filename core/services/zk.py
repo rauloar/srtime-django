@@ -1,5 +1,16 @@
 """
 ZK Device Service - Wrapper para pyzk library
+
+⚠️ LEGACY ZKTECO INTEGRATION
+This module directly persists AttendanceLog during device operations.
+Do not extend or reuse for new features.
+
+New ZKTeco integrations must implement data_entry.ZKTecoAdapter pattern:
+  - Batch mode (connect -> disable -> download -> enable -> disconnect)
+  - Returns raw data structures only
+  - No direct persistence or business logic
+
+This code remains operational but frozen for compatibility.
 """
 from zk import ZK, const
 from typing import List, Dict, Any, Optional
