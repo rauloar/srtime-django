@@ -66,11 +66,76 @@ Employee IDs relevantes:
 
 ---
 
+### 2.4 Timeline - Escenario B (break)
+
+**Endpoint:**
+`GET /api/v1/attendance/3/timeline/2026-02-11/`
+
+**Resultado:** 200 OK
+
+**Salida observada (resumen):**
+- `blocks`: 2
+- Bloque 1: 12:00→15:00 (180 min)
+- Bloque 2: 16:00→21:00 (300 min)
+
+**Observación:** corresponde a 09:00→12:00 y 13:00→18:00 AR, convertido a UTC.
+
+**Limitación expuesta:** alternancia NAIVE no valida si OUT es break o salida final.
+
+---
+
+### 2.5 Timeline - Escenario C1 (1 evento)
+
+**Endpoint:**
+`GET /api/v1/attendance/4/timeline/2026-02-12/`
+
+**Resultado:** 200 OK
+
+**Salida observada (resumen):**
+- `blocks`: 0 (vacío)
+
+**Limitación expuesta:** evento impar se ignora; no hay forma de inferir estado final.
+
+---
+
+### 2.6 Timeline - Escenario C2 (3 eventos)
+
+**Endpoint:**
+`GET /api/v1/attendance/6/timeline/2026-02-12/`
+
+**Resultado:** 200 OK
+
+**Salida observada (resumen):**
+- `blocks`: 1
+- Bloque 1: 12:00→15:00 (180 min)
+
+**Observación:** corresponde a 09:00→12:00 AR, convertido a UTC. El último evento queda sin par.
+
+**Limitación expuesta:** alternancia NAIVE descarta el último evento impar.
+
+---
+
+### 2.7 Timeline - Escenario D (doble entrada)
+
+**Endpoint:**
+`GET /api/v1/attendance/5/timeline/2026-02-13/`
+
+**Resultado:** 200 OK
+
+**Salida observada (resumen):**
+- `blocks`: 1
+- Bloque 1: 12:00→12:01 (1 min)
+
+**Limitación expuesta:** alternancia NAIVE interpreta IN-IN como IN-OUT, generando bloque incorrecto.
+
+---
+
 ## 3) Conclusiones
 
 - Los endpoints Timeline, Day View y Explanation responden correctamente con los datos seeded.
 - La representación horaria en la API está en UTC por `USE_TZ=True` (comportamiento esperado).
 - No se detectaron errores funcionales en los endpoints testeados.
+- Quedaron evidenciadas limitaciones de alternancia NAIVE en C1/C2/D.
 
 ---
 

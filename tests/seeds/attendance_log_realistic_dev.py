@@ -98,7 +98,8 @@ def setup_base_data():
     test_employees = [
         {"user_id": 200, "name": "Empleado A"},
         {"user_id": 201, "name": "Empleado B (con break)"},
-        {"user_id": 202, "name": "Empleado C (incompleto)"},
+        {"user_id": 202, "name": "Empleado C (incompleto v1)"},
+        {"user_id": 204, "name": "Empleado C (incompleto v2 - 3 eventos)"},
         {"user_id": 203, "name": "Empleado D (doble entrada)"},
     ]
     
@@ -286,6 +287,67 @@ def seed_scenario_c(device, employees):
 
 
 # ============================================================================
+# ESCENARIO C (VARIANTE 2): Jornada incompleta (3 eventos)
+# ============================================================================
+
+def seed_scenario_c_variant_2(device, employees):
+    """
+    ESCENARIO C2: Jornada incompleta con 3 eventos (impar)
+
+    Empleado 204 - 2026-02-12
+    09:00 Entrada
+    12:00 Salida (break)
+    13:00 Entrada (retorno)
+    (Sin salida final)
+
+    Qué se espera observar:
+    - Alternancia NAIVE genera 1 bloque (09:00→12:00)
+    - El último evento queda sin par y se ignora
+
+    Limitación expuesta:
+    - El sistema no puede inferir correctamente el estado final
+    """
+    print("\n" + "-"*70)
+    print("📋 ESCENARIO C2: Jornada incompleta (3 eventos)")
+    print("-"*70)
+
+    employee = employees[204]
+    date = datetime(2026, 2, 12).date()
+
+    # Limpiar logs anteriores
+    AttendanceLog.objects.filter(
+        user_id=str(employee.user_id),
+        timestamp__date=date
+    ).delete()
+
+    events = [
+        (9, 0, "Entrada"),
+        (12, 0, "Salida (break)"),
+        (13, 0, "Entrada (retorno)"),
+    ]
+
+    for hour, minute, description in events:
+        log = AttendanceLog.objects.create(
+            device=device,
+            user_id=str(employee.user_id),
+            timestamp=make_timestamp(2026, 2, 12, hour, minute),
+            status=1,
+            punch=0 if hour in [9, 13] else 1,  # SIMULADO: pares alternados
+            verify_mode=None,
+            workstate=None,
+            workcode=None,
+            punch_source=None,
+        )
+        print(f"  ✅ {description:20} {log.timestamp.strftime('%H:%M')} (punch={log.punch})")
+
+    print("  ⚠️  SIN salida final registrada (evento impar)")
+    print("  🎯 Timeline esperado: 1 bloque WORK 09:00→12:00")
+    print("  📌 Limitación: último evento se ignora por alternancia NAIVE")
+
+    return []
+
+
+# ============================================================================
 # ESCENARIO D: Error de dispositivo (doble entrada)
 # ============================================================================
 
@@ -391,6 +453,7 @@ def main():
     scenario_a = seed_scenario_a(device, employees)
     scenario_b = seed_scenario_b(device, employees)
     scenario_c = seed_scenario_c(device, employees)
+    scenario_c2 = seed_scenario_c_variant_2(device, employees)
     scenario_d = seed_scenario_d(device, employees)
     
     # Resumen
@@ -401,6 +464,7 @@ def main():
     print(f"  Escenario A: 2 logs (Emp 200, 2026-02-10) → Jornada normal")
     print(f"  Escenario B: 4 logs (Emp 201, 2026-02-11) → Con break")
     print(f"  Escenario C: 1 log  (Emp 202, 2026-02-12) → Incompleto")
+    print(f"  Escenario C2: 3 logs (Emp 204, 2026-02-12) → Incompleto (impar)")
     print(f"  Escenario D: 3 logs (Emp 203, 2026-02-13) → Doble entrada (error)")
     
     print(f"\n📌 VALORES SIMULADOS (NO son mapping real de ZKTeco):")
@@ -417,9 +481,13 @@ def main():
     print(f"    curl http://127.0.0.1:9000/api/v1/attendance/{employees[201].id}/timeline/2026-02-11/")
     print(f"    Esperado: 2 bloques WORK (09:00→12:00, 13:00→18:00)")
     
-    print(f"\n  Timeline C (incompleto):")
+    print(f"\n  Timeline C (incompleto v1):")
     print(f"    curl http://127.0.0.1:9000/api/v1/attendance/{employees[202].id}/timeline/2026-02-12/")
     print(f"    Esperado: [] (vacío)")
+
+    print(f"\n  Timeline C2 (incompleto v2 - 3 eventos):")
+    print(f"    curl http://127.0.0.1:9000/api/v1/attendance/{employees[204].id}/timeline/2026-02-12/")
+    print(f"    Esperado: 1 bloque WORK 09:00→12:00 (último evento ignorado)")
     
     print(f"\n  Timeline D (doble entrada - EXPONE BUG NAIVE):")
     print(f"    curl http://127.0.0.1:9000/api/v1/attendance/{employees[203].id}/timeline/2026-02-13/")

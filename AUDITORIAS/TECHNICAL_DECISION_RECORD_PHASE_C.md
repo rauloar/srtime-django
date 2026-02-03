@@ -3,7 +3,9 @@
 
 **Fecha:** 2026-02-03  
 **Contexto:** Análisis de limitaciones observadas en Timeline v1 (FROZEN)  
-**Status:** DECISION DOCUMENTED - Requiere revisión ejecutiva antes de avanzar  
+**Status:** ⛔ **APPROVED – FASE C BLOCKED BY DESIGN**
+
+> FASE C formalmente congelada hasta obtener datos reales de ZKTeco y aprobación ejecutiva explícita.  
 
 ---
 
