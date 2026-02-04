@@ -1,10 +1,13 @@
 # 🎯 MÓDULO DE VISUALIZACIÓN DE ASISTENCIA
-## Guía de Prueba e Integración - Senior Frontend Developer
+## Guía de Prueba - Versión Alfa Congelada
 
 **Versión**: 0.3.1-Alpha  
 **Estado**: ✅ Implementado y Listo para Pruebas  
 **Commit**: `53ac4df` - "feat: implement visualization module"  
 **Fecha**: Feb 4, 2026
+
+⭐ **REGLA DE ORO**: React es estático dentro de Django  
+   Se corre con `python manage.py runserver` (UN ÚNICO servidor)
 
 ---
 
@@ -21,9 +24,67 @@
 
 ---
 
-## 🚀 Cómo Probar
+## 🚀 Cómo Probar - VERSIÓN ALFA (Congelada)
 
-### Paso 1: Asegurar que el Backend está corriendo
+### ⭐ IMPORTANTE: Regla de Oro
+**React es ESTÁTICO dentro de Django**
+- ❌ NO usar `npm run dev` en producción
+- ✅ Usar `npm run build` para compilar
+- ✅ Servir archivos estáticos con Django
+- ✅ Todo en UN ÚNICO servidor: `python manage.py runserver`
+
+### Paso 1: Compilar el Frontend a Estáticos
+
+```bash
+# Terminal 1 - Compilar React
+cd C:\Proyectos\srtime-django\frontend
+npm run build
+
+# Resultado: Archivos compilados en static/
+# - static/index.html
+# - static/js/*.js
+# - static/css/*.css
+```
+
+**Verificar compilación**:
+```bash
+# Debe existir:
+ls static/index.html
+ls static/js/
+ls static/css/
+```
+
+### Paso 2: Iniciar Django (UN ÚNICO servidor)
+
+```bash
+# Terminal 2 - Backend Django (ÚNICO servidor)
+cd C:\Proyectos\srtime-django
+python manage.py runserver 127.0.0.1:9000
+
+# Debe ver:
+# Starting development server at http://127.0.0.1:9000/
+```
+
+**Verificar que funciona**:
+```bash
+# En otra terminal:
+curl http://127.0.0.1:9000/api/v1/employees/
+# Debe retornar JSON con empleados
+```
+
+### Paso 3: Acceder al módulo
+
+Abrir navegador:
+```
+http://127.0.0.1:9000/employees
+```
+
+**Flujo**:
+- Django sirve `http://127.0.0.1:9000/` → React (index.html)
+- React hace requests a `/api/v1/` → Django API
+- TODO en UN PUERTO, UN servidor
+
+### Paso 1 (DEV ONLY): Asegurar que el Backend está corriendo
 
 ```bash
 # Terminal 1 - Backend Django
@@ -38,16 +99,16 @@ curl http://127.0.0.1:9000/api/v1/employees/
 # Debe retornar JSON con empleados
 ```
 
-### Paso 2: Iniciar el Frontend
+### Paso 2 (DEV ONLY): Iniciar el Frontend en Dev Mode
 
 ```bash
-# Terminal 2 - Frontend React
+# Terminal 2 - Frontend React (SOLO para desarrollo)
 cd C:\Proyectos\srtime-django\frontend
 npm run dev
 # Debe ver: Local: http://localhost:5173/
 ```
 
-### Paso 3: Acceder al módulo
+### Paso 3 (DEV ONLY): Acceder al módulo
 
 **Opción A - Desde Topbar** (Recomendado):
 1. Ir a `http://localhost:5173`

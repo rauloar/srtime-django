@@ -112,6 +112,35 @@ Actué como **Senior Frontend Developer** y completé exitosamente la implementa
 
 ## 🚀 Cómo Probar
 
+### ⭐ REGLA DE ORO: React es Estático en Django
+
+React NO corre en servidor separado. Se compila a archivos estáticos que Django sirve.
+
+### Proceso Correcto (Versión Alfa)
+
+**1. Compilar React**
+```bash
+cd C:\Proyectos\srtime-django\frontend
+npm run build
+# Genera: static/index.html, static/js/*, static/css/*
+```
+
+**2. Iniciar Django (ÚNICO servidor)**
+```bash
+cd C:\Proyectos\srtime-django
+python manage.py runserver 127.0.0.1:9000
+```
+
+**3. Acceder**
+```
+http://127.0.0.1:9000/employees
+```
+
+Django sirve:
+- `/` → React (static)
+- `/api/v1/` → Endpoints
+- TODO en puerto 9000
+
 ### 1. Iniciar Backend
 ```bash
 cd C:\Proyectos\srtime-django
