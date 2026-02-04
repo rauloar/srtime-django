@@ -1,0 +1,84 @@
+╔═════════════════════════════════════════════════════════════════════════╗
+║                                                                         ║
+║               ⭐ REGLA DE ORO - VERSIÓN ALFA CONGELADA ⭐              ║
+║                                                                         ║
+║        "React es ESTÁTICO dentro de Django                            ║
+║         y corre con el runserver de Django"                           ║
+║                                                                         ║
+╚═════════════════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════════════════
+
+🎯 CONFIRMADO EN GIT COMMIT: 5873603
+
+Documentación actualizada:
+  ✅ REGLA_DE_ORO_DJANGO_STATIC.md
+  ✅ TESTING_VISUALIZATION_MODULE.md  
+  ✅ VISUALIZATION_MODULE_SUMMARY.md
+
+═══════════════════════════════════════════════════════════════════════════
+
+✅ PROCESO CORRECTO
+
+1️⃣ COMPILAR FRONTEND A ESTÁTICOS
+   cd C:\Proyectos\srtime-django\frontend
+   npm run build
+   
+   Resultado:
+   ├── static/index.html         ← React compilado
+   ├── static/js/*.js            ← Bundles
+   └── static/css/*.css          ← Estilos
+
+2️⃣ INICIAR DJANGO (UN ÚNICO SERVIDOR)
+   cd C:\Proyectos\srtime-django
+   python manage.py runserver 127.0.0.1:9000
+   
+   Django sirve:
+   ├── http://127.0.0.1:9000/               → index.html (React)
+   ├── http://127.0.0.1:9000/api/v1/        → Endpoints
+   └── http://127.0.0.1:9000/static/        → Assets
+
+3️⃣ ACCEDER
+   http://127.0.0.1:9000/employees
+   
+   ✅ FUNCIONA - Un puerto, un servidor
+
+═══════════════════════════════════════════════════════════════════════════
+
+❌ LO QUE NO HACER (INCORRECTO)
+
+   ❌ npm run dev (devserver separado)
+   ❌ Dos puertos (5173 + 9000)
+   ❌ npm run dev + python manage.py runserver
+   ❌ Acceder a localhost:5173 en producción
+
+═══════════════════════════════════════════════════════════════════════════
+
+📊 FLUJO CORRECTO
+
+frontend/src/*.tsx
+      ↓
+   npm run build  ← Compilar
+      ↓
+static/index.html, *.js, *.css  ← Archivos estáticos
+      ↓
+python manage.py runserver      ← UN servidor
+      ↓
+http://127.0.0.1:9000/          ← UN puerto
+
+═══════════════════════════════════════════════════════════════════════════
+
+✨ VERSIÓN ALFA CONGELADA
+
+✅ Frontend compilado a estáticos
+✅ Django sirve todo (API + React)
+✅ Un único servidor
+✅ Un único puerto
+✅ Sin dependencias de npm en producción
+✅ Listo para deployment
+
+═══════════════════════════════════════════════════════════════════════════
+
+🎊 REGLA DE ORO CONFIRMADA Y DOCUMENTADA
+
+═══════════════════════════════════════════════════════════════════════════
