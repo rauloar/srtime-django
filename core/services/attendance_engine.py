@@ -226,8 +226,12 @@ def calculate_day(employee_id: int, target_date: date) -> models.DailyAttendance
         return daily
 
     daily.timetable_id = tt.id
-    daily.on_duty = tt.on_duty_time
-    daily.off_duty = tt.off_duty_time
+    if tt.is_flexible:
+        daily.on_duty = None  # Aligned with ZKTime.Net flexible schedule model
+        daily.off_duty = None  # Aligned with ZKTime.Net flexible schedule model
+    else:
+        daily.on_duty = tt.on_duty_time
+        daily.off_duty = tt.off_duty_time
     
     # Audit: Set schedule_type based on Source + Flexible
     # e.g. OVERRIDE, DEPARTMENT, SHIFT-FLEX, SHIFT-FIXED
@@ -251,7 +255,11 @@ def calculate_day(employee_id: int, target_date: date) -> models.DailyAttendance
     daily.source_logs_count = len(logs)
     
     if not logs:
-        daily.is_absent = True
+        if tt.is_flexible:
+            daily.status = "Incomplete"  # Aligned with ZKTime.Net flexible schedule model
+            daily.is_absent = False  # Aligned with ZKTime.Net flexible schedule model
+        else:
+            daily.is_absent = True
         daily.save()
         return daily
 
@@ -259,7 +267,7 @@ def calculate_day(employee_id: int, target_date: date) -> models.DailyAttendance
 
     # 3. Apply Rules
     if tt.is_flexible:
-        daily.status = "Attendance" 
+        daily.status = "Incomplete"  # Aligned with ZKTime.Net flexible schedule model
         total_worked = 0
         current_in = None
         
@@ -279,28 +287,10 @@ def calculate_day(employee_id: int, target_date: date) -> models.DailyAttendance
                     daily.check_out = log.timestamp 
                     current_in = None
         
-        # Always subtract break (not conditional on total > required)
-        worked_after_break = total_worked
-        if tt.break_minutes > 0:
-            worked_after_break = max(0, total_worked - tt.break_minutes)
-            
-        daily.worked_minutes = int(worked_after_break)
-        
-        req = tt.required_minutes or 480
-        
-        # Calculate overtime for flexible schedules
-        daily.overtime_minutes = 0
-        if daily.worked_minutes > req:
-            daily.overtime_minutes = int(daily.worked_minutes - req)
-        
-        # Update status to include overtime
-        if daily.worked_minutes >= req:
-            if daily.overtime_minutes > 0:
-                daily.status = "Normal, Overtime"
-            else:
-                daily.status = "Normal"
-        else:
-            daily.status = "Attendance" # Below required
+        daily.worked_minutes = int(total_worked)  # Aligned with ZKTime.Net flexible schedule model
+        daily.overtime_minutes = 0  # Aligned with ZKTime.Net flexible schedule model
+        if daily.worked_minutes > 0:
+            daily.status = "Worked"  # Aligned with ZKTime.Net flexible schedule model
         
     else:
         # Fixed schedule logic

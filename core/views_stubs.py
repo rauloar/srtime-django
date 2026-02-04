@@ -143,9 +143,8 @@ def stub_explanation(request, employee_id, date):
         summary = (
             f"{emp_name} trabajó {worked_minutes} minutos ({worked_hours} horas). "
             f"Entrada: {first_log.timestamp.strftime('%H:%M')}, "
-            f"Salida: {last_log.timestamp.strftime('%H:%M')}. "
-            f"Estado: {status}."
-        )
+            f"Salida: {last_log.timestamp.strftime('%H:%M')}."
+        )  # Aligned with ZKTime.Net flexible schedule model
 
     return Response({
         "summary": summary,

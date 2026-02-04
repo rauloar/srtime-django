@@ -299,8 +299,12 @@ def _map_result_to_model(
     """Map DailyCalculationResult to DailyAttendance model."""
     # Identity
     daily.timetable_id = result.timetable_id
-    daily.on_duty = tt.on_duty_time
-    daily.off_duty = tt.off_duty_time
+    if tt.is_flexible:
+        daily.on_duty = None  # Aligned with ZKTime.Net flexible schedule model
+        daily.off_duty = None  # Aligned with ZKTime.Net flexible schedule model
+    else:
+        daily.on_duty = tt.on_duty_time
+        daily.off_duty = tt.off_duty_time
     
     # Schedule type
     if ctx.source == "OVERRIDE":
@@ -323,6 +327,15 @@ def _map_result_to_model(
     # Status
     daily.status = result.status
     daily.is_absent = result.status == "Absent"
+    if tt.is_flexible:
+        daily.late_minutes = 0  # Aligned with ZKTime.Net flexible schedule model
+        daily.early_minutes = 0  # Aligned with ZKTime.Net flexible schedule model
+        daily.overtime_minutes = 0  # Aligned with ZKTime.Net flexible schedule model
+        if result.blocks_count > 0:
+            daily.status = "Worked"  # Aligned with ZKTime.Net flexible schedule model
+        else:
+            daily.status = "Incomplete"  # Aligned with ZKTime.Net flexible schedule model
+        daily.is_absent = False  # Aligned with ZKTime.Net flexible schedule model
     
     # Audit
     daily.source_logs_count = result.source_punches_count
