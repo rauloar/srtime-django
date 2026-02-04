@@ -110,13 +110,13 @@ export function EmployeeDetail() {
         />
         <div className="action-buttons">
           <Link
-            to={`/employees/${employee.id}/day/${selectedDate}`}
+            to={`/employees/${employee.user_id}/day/${selectedDate}`}
             className="button button-primary"
           >
             Ver Día
           </Link>
           <Link
-            to={`/employees/${employee.id}/timeline/${selectedDate}`}
+            to={`/employees/${employee.user_id}/timeline/${selectedDate}`}
             className="button button-secondary"
           >
             Ver Timeline

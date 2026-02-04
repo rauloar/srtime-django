@@ -43,8 +43,8 @@ Se ha implementado un **módulo completo de visualización de asistencia** en Re
 ### ✅ Documentación
 
 1. **README.md** (asistencia/) - Guía de uso del módulo
-2. **IMPLEMENTACION_VISUALIZACION.md** - Documento técnico completo
-3. **TESTING_VISUALIZATION_MODULE.md** - Guía de pruebas
+2. **docs/arquitectura/implementacion_visualizacion.md** - Documento técnico completo
+3. **docs/overview/testing_visualization_module.md** - Guía de pruebas
 
 ---
 
@@ -85,8 +85,8 @@ User Interface (React)
 ✅ frontend/src/pages/asistencia/TimelineView.tsx
 ✅ frontend/src/pages/asistencia/asistencia.css
 ✅ frontend/src/pages/asistencia/README.md
-✅ frontend/IMPLEMENTACION_VISUALIZACION.md
-✅ TESTING_VISUALIZATION_MODULE.md
+✅ docs/arquitectura/implementacion_visualizacion.md
+✅ docs/overview/testing_visualization_module.md
 ```
 
 ### Archivos Modificados (3 archivos)
@@ -262,7 +262,7 @@ npm run dev
 - Endpoints consumidos
 - Troubleshooting
 
-### IMPLEMENTACION_VISUALIZACION.md
+### docs/arquitectura/implementacion_visualizacion.md
 - Resumen ejecutivo
 - Objetivos cumplidos
 - Arquitectura de componentes
@@ -273,7 +273,7 @@ npm run dev
 - Principios respetados
 - Métricas
 
-### TESTING_VISUALIZATION_MODULE.md
+### docs/overview/testing_visualization_module.md
 - Instrucciones de prueba
 - 4 flujos de testing
 - Verificación de búsqueda
@@ -445,7 +445,7 @@ Se ha completado exitosamente la **implementación del módulo de visualización
 
 ### Próximo Paso
 Ejecutar pruebas manuales según:
-`TESTING_VISUALIZATION_MODULE.md`
+`docs/overview/testing_visualization_module.md`
 
 ---
 
@@ -470,7 +470,7 @@ Ejecutar pruebas manuales según:
 - Revisar frontend logs
 
 ### Para Entender
-- Leer: `frontend/IMPLEMENTACION_VISUALIZACION.md`
+- Leer: `docs/arquitectura/implementacion_visualizacion.md`
 - Leer: `frontend/src/pages/asistencia/README.md`
 - Explorar: `frontend/src/pages/asistencia/*.tsx`
 

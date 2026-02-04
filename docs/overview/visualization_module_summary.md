@@ -191,10 +191,12 @@ npm run dev
    ├── asistencia.css
    └── README.md
 
-✅ Documentación en raíz:
-   ├── VISUALIZATION_MODULE_COMPLETE.md
-   ├── TESTING_VISUALIZATION_MODULE.md
-   ├── IMPLEMENTACION_VISUALIZACION.md
+✅ Documentación en docs/:
+   ├── docs/overview/visualization_module_complete.md
+   ├── docs/overview/testing_visualization_module.md
+   ├── docs/overview/visualization_module_summary.md
+   ├── docs/overview/regla_de_oro_django_static.md
+   ├── docs/arquitectura/implementacion_visualizacion.md
    └── PROJECT_COMPLETION_SUMMARY.txt
 ```
 
@@ -298,10 +300,10 @@ Con este módulo como base, se puede:
 
 Para información detallada, ver:
 
-- [TESTING_VISUALIZATION_MODULE.md](./TESTING_VISUALIZATION_MODULE.md) - Guía paso a paso para probar
-- [IMPLEMENTACION_VISUALIZACION.md](./frontend/IMPLEMENTACION_VISUALIZACION.md) - Arquitectura y diseño
-- [README.md](./frontend/src/pages/asistencia/README.md) - Documentación del módulo
-- [PROJECT_COMPLETION_SUMMARY.txt](./PROJECT_COMPLETION_SUMMARY.txt) - Resumen visual
+- [testing_visualization_module.md](./testing_visualization_module.md) - Guía paso a paso para probar
+- [implementacion_visualizacion.md](../arquitectura/implementacion_visualizacion.md) - Arquitectura y diseño
+- [README.md](../../frontend/src/pages/asistencia/README.md) - Documentación del módulo
+- [PROJECT_COMPLETION_SUMMARY.txt](../../PROJECT_COMPLETION_SUMMARY.txt) - Resumen visual
 
 ---
 

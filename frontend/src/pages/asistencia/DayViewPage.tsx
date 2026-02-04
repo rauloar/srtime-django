@@ -31,11 +31,24 @@ export const DayViewPage: React.FC = () => {
             return;
         }
 
+        // Validate that parameters don't contain placeholder literals
+        if (employeeId.includes('{') || employeeId.includes('}') || 
+            date.includes('{') || date.includes('}')) {
+            setError('Parámetros inválidos');
+            setLoading(false);
+            return;
+        }
+
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Call the REAL minimal endpoint
-                const response = await api.get(`/attendance/day/?employee_id=${employeeId}&date=${date}`);
+                // Use params object instead of template string to safely encode parameters
+                const response = await api.get('/attendance/day/', {
+                    params: {
+                        employee_id: employeeId,
+                        date: date
+                    }
+                });
                 setData(response.data);
                 setError(null);
             } catch (err) {

@@ -16,22 +16,32 @@ export function DayView() {
       try {
         setLoading(true);
         setError(null);
+        if (!id || !date || id.includes('{') || date.includes('{') || id.includes('}') || date.includes('}')) {
+          setError('Parámetros inválidos');
+          setDayData(null);
+          return;
+        }
+
         if (id && date) {
           // Get employee name
           const empRes = await api.get(`/employees/${id}`);
           setEmployeeName(empRes.data.name || empRes.data.user_id);
 
           // Get daily attendance for specific date
-          const attendanceRes = await api.get<DailyAttendance[]>('/attendance/reports/daily/', {
+          const attendanceRes = await api.get('/attendance/day/', {
             params: {
-              from_date: date,
-              to_date: date,
-              employee_id: id
+              employee_id: id,
+              date
             }
           });
 
-          if (attendanceRes.data && attendanceRes.data.length > 0) {
-            setDayData(attendanceRes.data[0]);
+          const data = attendanceRes.data as DailyAttendance | DailyAttendance[] | null;
+          if (Array.isArray(data)) {
+            setDayData(data.length > 0 ? data[0] : null);
+          } else if (data && typeof data === 'object' && Object.keys(data).length === 0) {
+            setDayData(null);
+          } else {
+            setDayData(data ?? null);
           }
         }
       } catch (err) {

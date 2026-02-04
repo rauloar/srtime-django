@@ -92,7 +92,7 @@ export function EmployeesList() {
                   </td>
                   <td className="cell-actions">
                     <Link
-                      to={`/employees/${emp.id}`}
+                      to={`/employees/${emp.user_id}`}
                       className="link-button"
                     >
                       Ver
