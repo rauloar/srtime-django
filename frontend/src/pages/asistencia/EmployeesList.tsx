@@ -30,7 +30,7 @@ export function EmployeesList() {
   const filteredEmployees = employees.filter(emp =>
     (emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
      emp.user_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     emp.email?.toLowerCase().includes(searchTerm.toLowerCase()))
+     emp.department_name?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   if (loading) {
@@ -48,19 +48,19 @@ export function EmployeesList() {
   return (
     <div className="asistencia-container">
       <div className="asistencia-header">
-        <h1>Empleados - Visualización de Asistencia</h1>
-        <p className="asistencia-subtitle">Selecciona un empleado para ver sus registros de asistencia</p>
+        <h1>Personal - Control de Asistencia</h1>
+        <p className="asistencia-subtitle">Seleccione un empleado para consultar sus registros de fichadas</p>
       </div>
 
       <div className="asistencia-search-box">
         <input
           type="text"
-          placeholder="Buscar por nombre, ID o email..."
+          placeholder="Buscar por nombre, ID o departamento..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="asistencia-search-input"
         />
-        <span className="asistencia-search-count">{filteredEmployees.length} de {employees.length}</span>
+        <span className="asistencia-search-count">{filteredEmployees.length} de {employees.length} empleados</span>
       </div>
 
       <div className="asistencia-list">
@@ -70,24 +70,24 @@ export function EmployeesList() {
           <table className="asistencia-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Nombre</th>
-                <th>Email</th>
-                <th>Departamento</th>
-                <th>Activo</th>
+                <th>ID Sistema</th>
+                <th>Nombre Completo</th>
+                <th>Área / Turno</th>
+                <th>Estado</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filteredEmployees.map(emp => (
                 <tr key={emp.id}>
-                  <td className="cell-id">{emp.user_id}</td>
-                  <td className="cell-name">{emp.name || '—'}</td>
-                  <td className="cell-email">{emp.email || '—'}</td>
-                  <td className="cell-dept">{emp.department_name || '—'}</td>
+                  <td className="cell-id">
+                    <strong>{emp.user_id}</strong>
+                  </td>
+                  <td className="cell-name">{emp.name || <span style={{ color: '#999' }}>Sin nombre</span>}</td>
+                  <td className="cell-dept">{emp.department_name || <span style={{ color: '#999' }}>No asignado</span>}</td>
                   <td className="cell-status">
                     <span className={`badge ${emp.active ? 'badge-active' : 'badge-inactive'}`}>
-                      {emp.active ? 'Sí' : 'No'}
+                      {emp.active ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
                   <td className="cell-actions">
@@ -95,7 +95,7 @@ export function EmployeesList() {
                       to={`/employees/${emp.user_id}`}
                       className="link-button"
                     >
-                      Ver
+                      Ver Asistencia
                     </Link>
                   </td>
                 </tr>

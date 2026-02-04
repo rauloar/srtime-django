@@ -51,27 +51,44 @@ export const DayHeader: React.FC<DayHeaderProps> = ({ employeeId, date }) => {
         return (
             <div className="card" style={{ padding: '20px', background: '#fff3e0' }}>
                 <div style={{ color: '#ed6c02' }}>
-                    ❌ {error || 'No se pudo cargar la información del día'}
+                    ⚠️ {error || 'No se pudo cargar la información del día'}
                 </div>
             </div>
         );
     }
 
-    // Status colors and labels
-    const getStatusDisplay = (status: string) => {
-        const statusMap: { [key: string]: { label: string; color: string; bg: string } } = {
-            'Normal': { label: '✅ PRESENTE', color: '#2e7d32', bg: '#e8f5e9' },
-            'Late': { label: '⚠️ LLEGÓ TARDE', color: '#ed6c02', bg: '#fff3e0' },
-            'Absent': { label: '❌ AUSENTE', color: '#c62828', bg: '#ffebee' },
-            'Early': { label: '⚠️ SALIÓ TEMPRANO', color: '#f9a825', bg: '#fff9e6' },
-            'Partial': { label: '⚠️ ASISTENCIA PARCIAL', color: '#9c27b0', bg: '#f3e5f5' },
-            'Rest Day': { label: 'ℹ️ DÍA DE DESCANSO', color: '#1565c0', bg: '#e3f2fd' },
-        };
+    // Simple status based on check-in/check-out presence (non-evaluative)
+    const getStatusDisplay = () => {
+        const hasCheckIn = data.check_in !== null && data.check_in !== undefined;
+        const hasCheckOut = data.check_out !== null && data.check_out !== undefined;
 
-        return statusMap[status] || { label: status, color: '#666', bg: '#f5f5f5' };
+        if (!hasCheckIn && !hasCheckOut) {
+            return { 
+                label: '⏸️ Sin Registros', 
+                color: '#757575', 
+                bg: '#f5f5f5',
+                description: 'No hay fichadas registradas'
+            };
+        }
+        
+        if (hasCheckIn && hasCheckOut) {
+            return { 
+                label: '✅ Jornada Completa', 
+                color: '#2e7d32', 
+                bg: '#e8f5e9',
+                description: 'Entrada y salida registradas'
+            };
+        }
+
+        return { 
+            label: '⚠️ Jornada Incompleta', 
+            color: '#ed6c02', 
+            bg: '#fff3e0',
+            description: hasCheckIn ? 'Falta fichada de salida' : 'Falta fichada de entrada'
+        };
     };
 
-    const statusDisplay = getStatusDisplay(data.status);
+    const statusDisplay = getStatusDisplay();
     const formattedDate = new Date(date).toLocaleDateString('es-ES', {
         weekday: 'long',
         year: 'numeric',
@@ -79,16 +96,15 @@ export const DayHeader: React.FC<DayHeaderProps> = ({ employeeId, date }) => {
         day: 'numeric'
     });
 
-    // Calculate expected minutes (8 hours default if not specified)
-    const expectedMinutes = data.on_duty && data.off_duty
-        ? (() => {
-            const onDuty = new Date(`1970-01-01T${data.on_duty}`);
-            const offDuty = new Date(`1970-01-01T${data.off_duty}`);
-            return Math.floor((offDuty.getTime() - onDuty.getTime()) / 60000);
-        })()
-        : 480; // 8 hours default
-
     const employeeName = data.employee?.name || `Empleado ${employeeId}`;
+
+    // Format time display (HH:MM)
+    const formatTime = (timeStr: string | null) => {
+        if (!timeStr) return '—';
+        // timeStr can be "HH:MM:SS" or "YYYY-MM-DD HH:MM:SS"
+        const timePart = timeStr.includes(' ') ? timeStr.split(' ')[1] : timeStr;
+        return timePart.substring(0, 5); // HH:MM
+    };
 
     return (
         <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
@@ -127,79 +143,68 @@ export const DayHeader: React.FC<DayHeaderProps> = ({ employeeId, date }) => {
                         background: statusDisplay.color,
                         color: 'white',
                         borderRadius: '8px',
-                        fontSize: '18px',
+                        fontSize: '16px',
                         fontWeight: 600,
                         textAlign: 'center'
                     }}>
-                        {statusDisplay.label}
+                        <div>{statusDisplay.label}</div>
+                        <div style={{ fontSize: '11px', marginTop: '4px', opacity: 0.9 }}>
+                            {statusDisplay.description}
+                        </div>
                     </div>
                 </div>
             </div>
 
             <div style={{
                 padding: '20px 24px',
-                display: 'flex',
-                gap: '32px',
-                flexWrap: 'wrap',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                gap: '24px',
                 background: 'var(--bg-card)'
             }}>
                 <div>
-                    <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
-                        Horas Trabajadas
+                    <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px', fontWeight: 500 }}>
+                        ⬇️ Primera Entrada
                     </div>
                     <div style={{ fontSize: '20px', fontWeight: 600, color: '#212121' }}>
-                        {Math.floor(data.worked_minutes / 60)}h {data.worked_minutes % 60}m
+                        {formatTime(data.check_in)}
                     </div>
                 </div>
 
                 <div>
-                    <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
-                        Horas Esperadas
+                    <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px', fontWeight: 500 }}>
+                        ⬆️ Última Salida
                     </div>
-                    <div style={{ fontSize: '20px', fontWeight: 600, color: '#666' }}>
-                        {Math.floor(expectedMinutes / 60)}h {expectedMinutes % 60}m
+                    <div style={{ fontSize: '20px', fontWeight: 600, color: '#212121' }}>
+                        {formatTime(data.check_out)}
                     </div>
                 </div>
 
-                {data.worked_minutes !== expectedMinutes && (
-                    <div>
-                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
-                            Diferencia
-                        </div>
-                        <div style={{
-                            fontSize: '20px',
-                            fontWeight: 600,
-                            color: data.worked_minutes < expectedMinutes ? '#c62828' : '#2e7d32'
-                        }}>
-                            {data.worked_minutes > expectedMinutes ? '+' : ''}
-                            {Math.floor((data.worked_minutes - expectedMinutes) / 60)}h{' '}
-                            {Math.abs((data.worked_minutes - expectedMinutes) % 60)}m
-                        </div>
+                <div>
+                    <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px', fontWeight: 500 }}>
+                        ⏱️ Horas Trabajadas
                     </div>
-                )}
-
-                {data.late_minutes > 0 && (
-                    <div>
-                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
-                            Llegada Tarde
-                        </div>
-                        <div style={{ fontSize: '20px', fontWeight: 600, color: '#ed6c02' }}>
-                            {data.late_minutes}m
-                        </div>
+                    <div style={{ fontSize: '20px', fontWeight: 600, color: '#212121' }}>
+                        {data.worked_minutes > 0 
+                            ? `${Math.floor(data.worked_minutes / 60)}h ${data.worked_minutes % 60}m`
+                            : '—'
+                        }
                     </div>
-                )}
-
-                {data.overtime_minutes > 0 && (
-                    <div>
-                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
-                            Horas Extras
-                        </div>
-                        <div style={{ fontSize: '20px', fontWeight: 600, color: '#1565c0' }}>
-                            {Math.floor(data.overtime_minutes / 60)}h {data.overtime_minutes % 60}m
-                        </div>
-                    </div>
-                )}
+                </div>
             </div>
+
+            {data.exception_reason && (
+                <div style={{
+                    padding: '16px 24px',
+                    background: '#fff9e6',
+                    borderTop: '1px solid var(--border-color)',
+                    fontSize: '14px',
+                    color: '#666'
+                }}>
+                    <strong>Observación:</strong> {data.exception_reason}
+                </div>
+            )}
         </div>
     );
 };
+

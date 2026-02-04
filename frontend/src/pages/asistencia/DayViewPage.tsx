@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DayHeader } from '../../components/asistencia/DayHeader';
 import { DayTimeline } from '../../components/asistencia/DayTimeline';
-import { DayExplanation } from '../../components/asistencia/DayExplanation';
+// DayExplanation commented out - component is evaluative (shows anomalies/recommendations)
+// UI principle: system shows data, RRHH interprets. System should not label events as anomalies.
+// import { DayExplanation } from '../../components/asistencia/DayExplanation';
 import { DayPunchList } from '../../components/asistencia/DayPunchList';
 import { DayActions } from '../../components/asistencia/DayActions';
 import { DayNavigation } from '../../components/asistencia/DayNavigation';
@@ -110,11 +112,8 @@ export const DayViewPage: React.FC = () => {
                 logs={data.logs}
             />
 
-            {/* Explanation - Keep generic for now */}
-            <DayExplanation
-                employeeId={employeeId!}
-                date={date!}
-            />
+            {/* DayExplanation hidden - evaluative content (anomalies/recommendations) removed per data audit.
+                System displays raw attendance data; RRHH provides interpretation and decision-making. */}
 
             {/* Pass REAL logs to List */}
             <DayPunchList
