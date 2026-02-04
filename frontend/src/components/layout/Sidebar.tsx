@@ -11,6 +11,12 @@ const MENU_STRUCTURE: { [key: string]: { title: string, items: MenuItem[] } } = 
         title: 'Principal',
         items: []
     },
+    'employees': {
+        title: 'Visualización',
+        items: [
+            { label: 'Empleados', path: '/employees' },
+        ]
+    },
     'attendance': {
         title: 'Asistencia',
         items: [
@@ -49,6 +55,7 @@ export const Sidebar: React.FC = () => {
     let activeModule = pathSegments[0] || 'dashboard';
 
     // Map legacy/other paths to the 4 main sections
+    if (activeModule === 'employees') activeModule = 'employees';
     if (activeModule === 'devices') activeModule = 'system';
     if (activeModule === 'access') activeModule = 'system';
 

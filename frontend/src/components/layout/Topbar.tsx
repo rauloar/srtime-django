@@ -54,6 +54,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuCheck }) => {
 
                 <nav className="desktop-nav" style={{ display: 'flex', height: 'var(--header-height)' }}>
                     <TabLink to="/dashboard" icon={<Home size={18} />} label="Home" />
+                    <TabLink to="/employees" icon={<User size={18} />} label="Visualización" />
                     <TabLink to="/personnel" icon={<User size={18} />} label="Personal" />
                     <TabLink to="/devices" icon={<Monitor size={18} />} label="Dispositivo" />
                     <TabLink to="/attendance" icon={<Clock size={18} />} label="Asistencia" />
