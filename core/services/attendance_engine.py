@@ -114,6 +114,10 @@ def resolve_schedule(employee_id: int, target_date: date) -> DayContext:
     4. Resolve Shift Cycle -> Timetable
     
     Returns DayContext
+    When fails, returns empty DayContext with reason in source field:
+    - "IMPLICIT_REST" = No schedule found
+    - "SHIFT_NO_TIMETABLES" = Shift has no ShiftTimetable configured
+    - "SHIFT_TIMETABLE_MISSING_DAY" = ShiftTimetable not found for day
     """
     
     # 1. Override Check
@@ -149,12 +153,21 @@ def resolve_schedule(employee_id: int, target_date: date) -> DayContext:
             source_type = "DEPARTMENT"
 
     if not assignment or not assignment.shift:
-        return DayContext.empty()
+        # No schedule assignment - implicit rest day
+        empty = DayContext.empty()
+        return empty._replace(source="IMPLICIT_REST")
         
     shift = assignment.shift
     
     # 4. Resolve Cycle (ShiftTimetable) - 0=Mon
     day_idx = target_date.weekday()
+    
+    # Check if shift has ANY timetables configured
+    shift_timetables_count = models.ShiftTimetable.objects.filter(shift_id=shift.id).count()
+    if shift_timetables_count == 0:
+        # Shift exists but has no ShiftTimetable mappings
+        empty = DayContext.empty()
+        return empty._replace(source="SHIFT_NO_TIMETABLES")
     
     shift_tt = models.ShiftTimetable.objects.filter(
         shift_id=shift.id,
@@ -162,7 +175,9 @@ def resolve_schedule(employee_id: int, target_date: date) -> DayContext:
     ).select_related('timetable').first()
     
     if not shift_tt or not shift_tt.timetable:
-        return DayContext.empty()
+        # Shift has timetables but not for this specific day
+        empty = DayContext.empty()
+        return empty._replace(source="SHIFT_TIMETABLE_MISSING_DAY")
         
     return _build_context(shift_tt.timetable, target_date, source_type)
 
@@ -211,10 +226,18 @@ def calculate_day(employee_id: int, target_date: date) -> models.DailyAttendance
     ctx = resolve_schedule(employee_id, target_date)
     
     if not ctx.is_valid:
-        # No schedule = Implicit Rest
+        # Schedule resolution failed - capture reason
         daily.status = "Absent"
         daily.schedule_type = "NONE"
         daily.is_absent = True
+        
+        # Track reason for absence in exception_reason
+        reason_map = {
+            "IMPLICIT_REST": "No schedule configured for this date",
+            "SHIFT_NO_TIMETABLES": "Shift assigned but has no timetable hours configured",
+            "SHIFT_TIMETABLE_MISSING_DAY": "Shift has no timetable for this day of week"
+        }
+        daily.exception_reason = reason_map.get(ctx.source, f"Schedule error: {ctx.source}")
         daily.save()
         return daily
 
@@ -222,6 +245,7 @@ def calculate_day(employee_id: int, target_date: date) -> models.DailyAttendance
     # Safe guard if timetable is None but valid (should not happen with current constructor)
     if not tt: 
         daily.is_absent = True
+        daily.exception_reason = "File processing error: timetable lost during resolution"
         daily.save()
         return daily
 
@@ -373,6 +397,14 @@ def calculate_day(employee_id: int, target_date: date) -> models.DailyAttendance
 def calculate_period(start_date: date, end_date: date, department_id: Optional[int] = None):
     """
     Calcula asistencia para todos los empleados en un periodo.
+    
+    Sistema inteligente:
+    - Procesa solo empleados con EmployeeShift válido
+    - Reporta empleados saltados sin detenerse
+    - Continúa con siguientes registros si falla uno
+    
+    Returns:
+        tuple: (results, skipped_employees_report)
     """
     employees = models.Employee.objects.filter(active=True)
     
@@ -381,14 +413,48 @@ def calculate_period(start_date: date, end_date: date, department_id: Optional[i
     
     employees = list(employees)
     results = []
+    skipped_employees = []
     
-    days_count = (end_date - start_date).days + 1
+    # Filtrar empleados que SÍ tienen EmployeeShift asignado
+    employee_shifts = models.EmployeeShift.objects.filter(
+        employee_id__in=[e.id for e in employees]
+    ).values_list('employee_id', flat=True).distinct()
     
-    for emp in employees:
+    valid_employees = [e for e in employees if e.id in employee_shifts]
+    skipped_no_shift = [e for e in employees if e.id not in employee_shifts]
+    
+    # Registrar empleados sin shift
+    for emp in skipped_no_shift:
+        skipped_employees.append({
+            'employee_id': emp.id,
+            'user_id': emp.user_id,
+            'name': emp.name,
+            'reason': 'NO_SHIFT_ASSIGNED'
+        })
+    
+    # Procesar solo empleados válidos
+    for emp in valid_employees:
         current_date = start_date
         while current_date <= end_date:
-            daily = calculate_day(emp.id, current_date)
-            results.append(daily)
+            try:
+                daily = calculate_day(emp.id, current_date)
+                results.append(daily)
+            except Exception as e:
+                # Continuar procesando otros días/empleados si hay error
+                skipped_employees.append({
+                    'employee_id': emp.id,
+                    'user_id': emp.user_id,
+                    'name': emp.name,
+                    'date': str(current_date),
+                    'reason': f'CALC_ERROR: {str(e)[:50]}'
+                })
             current_date += timedelta(days=1)
     
-    return results
+    # Almacenar reporte en sesión/contexto si es necesario
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f'Attendance Calculation: {len(results)} processed, {len(skipped_employees)} skipped')
+    for skip in skipped_employees:
+        logger.warning(f'Skipped {skip}')
+    
+    return results, skipped_employees

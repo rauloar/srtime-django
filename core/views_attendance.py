@@ -7,9 +7,11 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from django.db.models import Count, Q, F, Sum, Avg
 from core import models
 from core.serializers import DailyAttendanceSerializer
 from core.services import calculate_day, calculate_period
+import json
 
 
 @api_view(['POST'])
@@ -42,11 +44,146 @@ def calculate_attendance(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    results = calculate_period(start_date, end_date, department_id)
+    results, skipped_employees = calculate_period(start_date, end_date, department_id)
+    
+    # Agrupar empleados saltados por razón
+    skipped_by_reason = {}
+    for skip in skipped_employees:
+        reason = skip['reason']
+        if reason not in skipped_by_reason:
+            skipped_by_reason[reason] = []
+        skipped_by_reason[reason].append({
+            'id': skip['employee_id'],
+            'name': skip['name']
+        })
+    
+    # Analizar causas de Absent entre los procesados
+    absence_reasons = {}
+    for record in results:
+        if record.status == "Absent" and record.exception_reason:
+            reason = record.exception_reason
+            if reason not in absence_reasons:
+                absence_reasons[reason] = {'count': 0, 'employees': set()}
+            absence_reasons[reason]['count'] += 1
+            absence_reasons[reason]['employees'].add(record.employee_id)
+    
+    # Convertir sets a listas para JSON
+    for reason in absence_reasons:
+        absence_reasons[reason]['employees'] = list(absence_reasons[reason]['employees'])
     
     return Response({
-        "message": f"Calculated {len(results)} records",
-        "count": len(results)
+        "message": f"✅ Calculated {len(results)} records successfully",
+        "summary": {
+            "processed_records": len(results),
+            "skipped_employees": len(skipped_employees),
+            "total_employees_expected": len(skipped_employees) + len(set(r.employee_id for r in results))
+        },
+        "date_range": {
+            "start": str(start_date),
+            "end": str(end_date),
+            "days": (end_date - start_date).days + 1
+        },
+        "skipped_employees": {
+            "total": len(skipped_employees),
+            "by_reason": skipped_by_reason
+        },
+        "processed_analysis": {
+            "absence_reasons": absence_reasons,
+            "note": "Employees marked absent either have no shift timetables configured, no logs for the period, or didn't check in"
+        }
+    })
+
+
+@api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+def calculate_attendance_detailed(request):
+    """
+    POST /api/v1/attendance/calculate/detailed/
+    Body: {
+        "start_date": "2025-01-01",
+        "end_date": "2025-01-07",
+        "department_id": 1  // Optional
+    }
+    
+    Returns detailed breakdown per employee with logs count
+    """
+    start_date_str = request.data.get('start_date')
+    end_date_str = request.data.get('end_date')
+    department_id = request.data.get('department_id')
+    
+    if not start_date_str or not end_date_str:
+        return Response(
+            {"error": "start_date and end_date are required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+        end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return Response(
+            {"error": "Invalid date format. Use YYYY-MM-DD"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    results, skipped_employees = calculate_period(start_date, end_date, department_id)
+    
+    # Agrupar resultados por empleado
+    employee_details = {}
+    for record in results:
+        emp_id = record.employee_id
+        if emp_id not in employee_details:
+            emp = models.Employee.objects.get(id=emp_id)
+            employee_details[emp_id] = {
+                'id': emp_id,
+                'name': emp.name,
+                'user_id': emp.user_id,
+                'status': 'PROCESSED',
+                'days_processed': 0,
+                'days_present': 0,
+                'days_absent': 0,
+                'total_worked_minutes': 0,
+                'sample_records': []
+            }
+        
+        employee_details[emp_id]['days_processed'] += 1
+        if record.status == "Present":
+            employee_details[emp_id]['days_present'] += 1
+        else:
+            employee_details[emp_id]['days_absent'] += 1
+        
+        employee_details[emp_id]['total_worked_minutes'] += record.worked_minutes or 0
+        
+        # Guardar 3 primeros registros como sample
+        if len(employee_details[emp_id]['sample_records']) < 3:
+            employee_details[emp_id]['sample_records'].append({
+                'date': str(record.date),
+                'status': record.status,
+                'worked_minutes': record.worked_minutes,
+                'reason': record.exception_reason
+            })
+    
+    # Skipped employees
+    skipped_by_reason = {}
+    for skip in skipped_employees:
+        reason = skip['reason']
+        if reason not in skipped_by_reason:
+            skipped_by_reason[reason] = []
+        skipped_by_reason[reason].append({
+            'id': skip['employee_id'],
+            'name': skip['name'],
+            'user_id': skip.get('user_id', 'N/A')
+        })
+    
+    return Response({
+        "summary": {
+            "total_processed_employees": len(employee_details),
+            "total_skipped_employees": len(skipped_employees),
+            "total_records": len(results),
+            "date_range": f"{start_date} to {end_date}"
+        },
+        "skipped_employees": skipped_by_reason,
+        "processed_employees": list(employee_details.values())
     })
 
 

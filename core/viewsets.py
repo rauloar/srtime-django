@@ -6,6 +6,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
 from .models import (
     Company, Position, Zone, Department, Employee,
     Device, AttendanceLog, ImportBatch, User, BiometricTemplate,
@@ -142,8 +143,8 @@ class AttendanceLogViewSet(viewsets.ModelViewSet):
     queryset = AttendanceLog.objects.all()
     serializer_class = AttendanceLogSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['device', 'user_id', 'status', 'punch']
-    search_fields = ['user_id']
+    filterset_fields = ['device', 'user_id', 'status', 'punch', 'is_manual']
+    search_fields = ['user_id', 'edited_reason', 'edited_by']
     ordering_fields = ['timestamp', 'user_id']
     ordering = ['-timestamp']
     
@@ -152,6 +153,36 @@ class AttendanceLogViewSet(viewsets.ModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+    def perform_create(self, serializer):
+        data = serializer.validated_data
+        edited_reason = data.get('edited_reason')
+        is_manual = data.get('is_manual')
+
+        if edited_reason or is_manual:
+            user = self.request.user
+            edited_by = data.get('edited_by')
+            if not edited_by and user and user.is_authenticated:
+                edited_by = user.username
+            serializer.save(edited_by=edited_by, edited_at=timezone.now())
+            return
+
+        serializer.save()
+
+    def perform_update(self, serializer):
+        data = serializer.validated_data
+        edited_reason = data.get('edited_reason')
+        is_manual = data.get('is_manual')
+
+        if edited_reason or is_manual:
+            user = self.request.user
+            edited_by = data.get('edited_by')
+            if not edited_by and user and user.is_authenticated:
+                edited_by = user.username
+            serializer.save(edited_by=edited_by, edited_at=timezone.now())
+            return
+
+        serializer.save()
 
 
 class ImportBatchViewSet(viewsets.ModelViewSet):

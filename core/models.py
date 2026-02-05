@@ -173,6 +173,10 @@ class AttendanceLog(models.Model):
     punch_source = models.CharField(max_length=50, null=True, blank=True, verbose_name='Origen Marcación')
     
     raw_json = models.JSONField(null=True, blank=True, verbose_name='JSON Original')
+    edited_reason = models.CharField(max_length=255, null=True, blank=True, verbose_name='Motivo Edicion')
+    edited_by = models.CharField(max_length=100, null=True, blank=True, verbose_name='Editado Por')
+    edited_at = models.DateTimeField(null=True, blank=True, verbose_name='Fecha Edicion')
+    is_manual = models.BooleanField(default=False, verbose_name='Editado Manual')
 
     class Meta:
         db_table = 'attendance_logs'
