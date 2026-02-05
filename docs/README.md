@@ -13,11 +13,12 @@
 
 - docs/arquitectura/auditoria_alfa_time_attendance.md
 - docs/arquitectura/auditoria_frontend_backend_alpha.md
-- docs/arquitectura/implementacion_visualizacion.md
 - docs/overview/visualization_module_summary.md
 - docs/overview/visualization_module_complete.md
 - docs/overview/testing_visualization_module.md
 - docs/overview/regla_de_oro_django_static.md
+- docs/overview/manual_uso_sistema.md
+- docs/data_entry/seed_zktime_sql.md
 - docs/producto/product_attendance_decisions.md
 - docs/00_overview/README.md
 
