@@ -28,11 +28,9 @@ const MENU_STRUCTURE: { [key: string]: { title: string, items: MenuItem[] } } = 
         ]
     },
     'personnel': {
-        title: 'Empleados',
+        title: 'RRHH',
         items: [
             { label: 'Lista Empleados', path: '/personnel/employees' },
-            { label: 'Departamentos', path: '/personnel/departments' },
-            // Simplified structure
         ]
     },
     'system': { // Maps to "Configuración" conceptually
