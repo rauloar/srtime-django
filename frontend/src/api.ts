@@ -42,6 +42,8 @@ export interface Device {
     enabled?: boolean;
     serialnumber?: string;
     device_name?: string;
+    zone?: string;
+    location?: string;
     firmware_version?: string;
     platform?: string;
     mac?: string;
@@ -124,6 +126,7 @@ export const getDevices = async () => {
 };
 export const getDevice = async (id: number) => (await api.get<Device>(`/devices/${id}`)).data;
 export const createDevice = async (device: Device) => (await api.post<Device>('/devices/', device)).data;
+export const updateDevice = async (id: number, device: Partial<Device>) => (await api.put<Device>(`/devices/${id}/`, device)).data;
 export const getAllDevicesConnectionStatus = async () => (await api.get<DevicesConnectionStatusResponse>('/devices/connection-status/all')).data;
 
 // Async Job Endpoints
@@ -225,8 +228,16 @@ export interface DeviceUser {
     group_id?: number;
 }
 
-export const getAttendanceLogs = async (params: { device_id?: number; user_id?: string; from_date?: string; to_date?: string }) => {
-    return (await api.get<AttendanceLog[]>('/attendance/', { params })).data;
+export const getAttendanceLogs = async (params: { 
+    device_id?: number; 
+    user_id?: string; 
+    from_date?: string; 
+    to_date?: string;
+    page?: number;
+    page_size?: number;
+}) => {
+    const response = await api.get<{ count: number; next: string | null; previous: string | null; results: AttendanceLog[] }>('/attendance/', { params });
+    return response.data;
 };
 
 // Settings & Jobs
@@ -473,7 +484,11 @@ export interface Absence {
 
 export const getAbsences = async () => {
     try {
-        return (await api.get<Absence[]>('/attendance/absences/')).data;
+        const response = await api.get('/attendance/absences/');
+        const data = response.data as Absence[] | { results?: Absence[] } | null;
+        if (Array.isArray(data)) return data;
+        if (data && Array.isArray(data.results)) return data.results;
+        return [];
     } catch {
         return [];
     }

@@ -101,7 +101,6 @@ urlpatterns = [
     path('devices/<int:device_id>/users/sync', sync_users, name='sync_users_alias'),
     path('devices/<int:device_id>/clear_all_data', clear_all_data, name='clear_all_data_alias'),
     path('devices/<int:device_id>/test_connection', test_connection, name='test_connection_alias'),
-    path('devices/<int:device_id>/test_connection', test_connection, name='test_connection_alias'),
     path('devices/<int:device_id>/test_connection_sync', test_connection_sync, name='test_connection_sync_alias'),
     
     # New Device Operations
@@ -135,7 +134,6 @@ urlpatterns = [
     
     # Attendance - Minimum Set
     path('attendance/logs/', AttendanceLogViewSet.as_view({'get': 'list'}), name='attendance_logs'),
-    path('attendance/reports/daily/', daily_reports, name='daily_reports'),
     path('attendance/daily-attendance/', DailyAttendanceViewSet.as_view({'get': 'list', 'post': 'create'}), name='attendance_daily'),
     
     # Minimal Day View (Rollback Feature)

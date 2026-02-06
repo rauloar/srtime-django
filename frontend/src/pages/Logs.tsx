@@ -7,6 +7,11 @@ export function Logs() {
     const [logs, setLogs] = useState<AttendanceLog[]>([]);
     const [loading, setLoading] = useState(false);
     const [devices, setDevices] = useState<Device[]>([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
+    const pageSize = 50;
+    const totalPages = Math.ceil(totalCount / pageSize);
+    
     const [filters, setFilters] = useState({
         device_id: '',
         user_id: '',
@@ -19,19 +24,23 @@ export function Logs() {
 
     useEffect(() => {
         getDevices().then(setDevices);
-        loadLogs();
+        loadLogs(1);
     }, []);
 
-    const loadLogs = async () => {
+    const loadLogs = async (page: number = 1) => {
         try {
             setLoading(true);
-            const params: any = {};
+            setCurrentPage(page);
+            const params: any = { page, page_size: pageSize };
             if (filters.device_id) params.device_id = parseInt(filters.device_id);
             if (filters.user_id) params.user_id = filters.user_id;
             if (filters.from_date) params.from_date = new Date(filters.from_date).toISOString();
             if (filters.to_date) params.to_date = new Date(filters.to_date).toISOString();
 
-            let data = await getAttendanceLogs(params);
+            const response = await getAttendanceLogs(params);
+            setTotalCount(response.count);
+
+            let data = response.results || [];
 
             // Client-side filtering for Name (since backend doesn't support it yet)
             if (filters.name) {
@@ -48,6 +57,11 @@ export function Logs() {
 
     const handleFilterChange = (key: string, value: string) => {
         setFilters(prev => ({ ...prev, [key]: value }));
+    };
+
+    const handleFilter = () => {
+        setCurrentPage(1); // Reset to first page when filtering
+        loadLogs(1);
     };
 
     const getStatusLabel = (status: number) => {
@@ -237,7 +251,7 @@ export function Logs() {
                     <label style={{ display: 'block', marginBottom: '5px' }}>Hasta</label>
                     <input type="date" value={filters.to_date} onChange={e => handleFilterChange('to_date', e.target.value)} />
                 </div>
-                <button className="primary" onClick={loadLogs}>Filtrar</button>
+                <button className="primary" onClick={handleFilter}>Filtrar</button>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                     <button onClick={exportCsv}>Exportar CSV</button>
                     <button onClick={exportExcel}>Exportar Excel</button>
@@ -252,6 +266,39 @@ export function Logs() {
                     loading={loading}
                     placeholder="No hay registros. (Verifique filtros)"
                 />
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                    Página <strong>{currentPage}</strong> de <strong>{totalPages || 1}</strong> | Total: <strong>{totalCount}</strong> registros
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    <button 
+                        onClick={() => loadLogs(1)} 
+                        disabled={currentPage === 1 || loading}
+                    >
+                        Primera
+                    </button>
+                    <button 
+                        onClick={() => loadLogs(currentPage - 1)} 
+                        disabled={currentPage === 1 || loading}
+                    >
+                        Anterior
+                    </button>
+                    <button 
+                        onClick={() => loadLogs(currentPage + 1)} 
+                        disabled={currentPage >= totalPages || loading}
+                    >
+                        Siguiente
+                    </button>
+                    <button 
+                        onClick={() => loadLogs(totalPages)} 
+                        disabled={currentPage >= totalPages || loading}
+                    >
+                        Última
+                    </button>
+                </div>
             </div>
         </div>
     );

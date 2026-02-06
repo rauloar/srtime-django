@@ -99,7 +99,7 @@ export const DayHeader: React.FC<DayHeaderProps> = ({ employeeId, date }) => {
     const employeeName = data.employee?.name || `Empleado ${employeeId}`;
 
     // Format time display (HH:MM)
-    const formatTime = (timeStr: string | null) => {
+    const formatTime = (timeStr: string | null | undefined) => {
         if (!timeStr) return '—';
         // timeStr can be "HH:MM:SS" or "YYYY-MM-DD HH:MM:SS"
         const timePart = timeStr.includes(' ') ? timeStr.split(' ')[1] : timeStr;

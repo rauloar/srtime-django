@@ -149,13 +149,13 @@ export const Departments: React.FC = () => {
                 onSearch={setSearchTerm}
                 searchPlaceholder="Buscar por nombre o código..."
                 actions={
-                    <button className="primary flex-row gap-2" onClick={() => { setEditingDept(null); setIsModalOpen(true); }}>
+                    <button className="primary flex-row gap-2" onClick={() => { setEditingDept(null); setIsModalOpen(true); }} disabled>
                         <Plus size={16} /> Nuevo Departamento
                     </button>
                 }
             />
 
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="page-card">
                 <DataGrid
                     columns={columns}
                     data={filteredDepartments}

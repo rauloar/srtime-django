@@ -114,13 +114,13 @@ export const Shifts: React.FC = () => {
                 onSearch={setSearchTerm}
                 searchPlaceholder="Buscar turno..."
                 actions={
-                    <button className="primary flex-row gap-2" onClick={() => setIsModalOpen(true)}>
+                    <button className="primary flex-row gap-2" onClick={() => setIsModalOpen(true)} disabled>
                         <Plus size={16} /> Agregar
                     </button>
                 }
             />
 
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="page-card">
                 <DataGrid
                     columns={columns}
                     data={filteredShifts}

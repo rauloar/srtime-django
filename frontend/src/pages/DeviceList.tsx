@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, Plus, Search } from 'lucide-react';
+import { RefreshCw, Plus, Search, Edit2 } from 'lucide-react';
 import { getDevices, getAllDevicesConnectionStatus, type Device, type DeviceConnectionStatus } from '../api';
 import { DeviceFormModal } from '../components/devices/DeviceFormModal';
 import { DataGrid, type Column } from '../components/ui/DataGrid';
@@ -14,6 +14,7 @@ export const DeviceList: React.FC = () => {
     const [connectionStatus, setConnectionStatus] = useState<Record<number, DeviceConnectionStatus>>({});
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingDevice, setEditingDevice] = useState<Device | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [checkingConnections, setCheckingConnections] = useState(false);
 
@@ -55,7 +56,15 @@ export const DeviceList: React.FC = () => {
 
     const handleModalSuccess = () => {
         setIsModalOpen(false);
+        setEditingDevice(null);
         toast.success('Dispositivo creado exitosamente');
+        fetchDevices();
+    };
+
+    const handleEditSuccess = () => {
+        setIsModalOpen(false);
+        setEditingDevice(null);
+        toast.success('Dispositivo actualizado exitosamente');
         fetchDevices();
     };
 
@@ -131,6 +140,27 @@ export const DeviceList: React.FC = () => {
                     {dev.last_seen ? new Date(dev.last_seen).toLocaleString() : '-'}
                 </span>
             )
+        },
+        {
+            field: 'actions',
+            header: 'Acciones',
+            width: '90px',
+            align: 'right',
+            render: (dev) => (
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                        className="icon-btn"
+                        title="Editar"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingDevice(dev);
+                            setIsModalOpen(true);
+                        }}
+                    >
+                        <Edit2 size={16} />
+                    </button>
+                </div>
+            )
         }
     ];
 
@@ -163,7 +193,7 @@ export const DeviceList: React.FC = () => {
                         </button>
                         <button
                             className="primary flex-row gap-2"
-                            onClick={() => setIsModalOpen(true)}
+                            onClick={() => { setEditingDevice(null); setIsModalOpen(true); }}
                             style={{ height: '36px' }}
                             disabled={loading}
                         >
@@ -210,8 +240,9 @@ export const DeviceList: React.FC = () => {
 
                 <DeviceFormModal
                     isOpen={isModalOpen}
-                    onClose={() => setIsModalOpen(false)}
-                    onSuccess={handleModalSuccess}
+                    onClose={() => { setIsModalOpen(false); setEditingDevice(null); }}
+                    onSuccess={editingDevice ? handleEditSuccess : handleModalSuccess}
+                    device={editingDevice}
                 />
             </div>
         </div>

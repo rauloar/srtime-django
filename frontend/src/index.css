@@ -1133,3 +1133,269 @@ h4 {
 .scrollbar-custom::-webkit-scrollbar-thumb:hover {
   background: var(--text-secondary);
 }
+
+/* ============================================
+   VISUAL IMPROVEMENTS - CARDS & CONTAINERS
+   ============================================ */
+
+/**
+ * Page Card: Contenedor consistente para secciones
+ * Proporciona borde visual, padding y sombra sutiles
+ */
+.page-card {
+  border: 2px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: 20px 24px;
+  background-color: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease;
+}
+
+.page-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.page-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+  gap: 16px;
+}
+
+.page-card-header-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.page-card-header-right {
+  flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+}
+
+/* ============================================
+   TYPOGRAPHY HIERARCHY
+   ============================================ */
+
+.page-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0 0 4px 0;
+  line-height: 1.2;
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 0 0 8px 0;
+  line-height: 1.3;
+}
+
+.section-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+  font-weight: 400;
+}
+
+/* ============================================
+   TABLE IMPROVEMENTS
+   ============================================ */
+
+/**
+ * Mejorar DataGrid: borde azul + mejor contrast
+ */
+.zk-datagrid-container {
+  background: var(--bg-card);
+  border: 2px solid #1e40af;
+  border-radius: var(--border-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease;
+}
+
+.zk-datagrid-container:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.zk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.zk-table thead {
+  background-color: #1e3a8a;
+  border-bottom: 2px solid #1e40af;
+}
+
+.zk-table th {
+  padding: 12px 16px;
+  font-weight: 700;
+  color: #ffffff;
+  text-align: left;
+  white-space: nowrap;
+  border-right: 1px solid #1e40af;
+}
+
+.zk-table th:last-child {
+  border-right: none;
+}
+
+.zk-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.zk-table td:last-child {
+  border-right: none;
+}
+
+/* Zebra rows: alternar colores para mejor legibilidad */
+.zk-table tbody tr:nth-child(odd) {
+  background-color: var(--bg-card);
+}
+
+.zk-table tbody tr:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.01);
+}
+
+.zk-table tr:hover {
+  background-color: rgba(10, 100, 173, 0.05);
+  transition: background-color 0.15s ease;
+}
+
+.zk-table tr.clickable-row {
+  cursor: pointer;
+}
+
+.zk-table tr.clickable-row:hover {
+  background-color: rgba(10, 100, 173, 0.1);
+}
+
+.zk-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: var(--bg-card);
+  border-top: 1px solid var(--border-color);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* ============================================
+   EMPTY STATE COMPONENT
+   ============================================ */
+
+.empty-state-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  background-color: var(--bg-card);
+  border: 2px dashed var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: 40px 20px;
+  margin: 20px 0;
+}
+
+.empty-state-content {
+  text-align: center;
+  max-width: 400px;
+}
+
+.empty-state-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  line-height: 1;
+}
+
+.empty-state-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 0 0 8px 0;
+}
+
+.empty-state-description {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 16px 0;
+  line-height: 1.5;
+}
+
+.empty-state-button {
+  padding: 8px 16px;
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.empty-state-button:hover:not(:disabled) {
+  background-color: var(--primary-dark);
+  box-shadow: var(--shadow-md);
+}
+
+.empty-state-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   SPACING UTILITIES
+   ============================================ */
+
+/* Margin utilities */
+.mt-0 { margin-top: 0; }
+.mt-2 { margin-top: 8px; }
+.mt-4 { margin-top: 16px; }
+.mt-6 { margin-top: 24px; }
+.mb-0 { margin-bottom: 0; }
+.mb-2 { margin-bottom: 8px; }
+.mb-4 { margin-bottom: 16px; }
+.mb-6 { margin-bottom: 24px; }
+
+/* Padding utilities */
+.p-2 { padding: 8px; }
+.p-4 { padding: 16px; }
+.px-4 { padding-left: 16px; padding-right: 16px; }
+.py-4 { padding-top: 16px; padding-bottom: 16px; }
+
+/* Gap utilities */
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; }
+.gap-6 { gap: 24px; }
+
+/* Section spacing */
+.space-section {
+  margin: 24px 0;
+}
+
+.space-item {
+  margin: 12px 0;
+}

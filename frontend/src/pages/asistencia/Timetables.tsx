@@ -148,13 +148,13 @@ export const Timetables: React.FC = () => {
                 onSearch={setSearchTerm}
                 searchPlaceholder="Buscar horario..."
                 actions={
-                    <button className="primary flex-row gap-2" onClick={() => { setEditingTimetable(null); setIsModalOpen(true); }}>
+                    <button className="primary flex-row gap-2" onClick={() => { setEditingTimetable(null); setIsModalOpen(true); }} disabled>
                         <Plus size={16} /> Agregar
                     </button>
                 }
             />
 
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="page-card">
                 <DataGrid
                     columns={columns}
                     data={filteredTimetables}

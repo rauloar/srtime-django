@@ -148,11 +148,9 @@ class AttendanceLogViewSet(viewsets.ModelViewSet):
     ordering_fields = ['timestamp', 'user_id']
     ordering = ['-timestamp']
     
-    def list(self, request, *args, **kwargs):
-        """Devolver array directo como FastAPI"""
-        queryset = self.filter_queryset(self.get_queryset())
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+    def get_queryset(self):
+        """Optimize queries with select_related to avoid N+1"""
+        return AttendanceLog.objects.select_related('device')
 
     def perform_create(self, serializer):
         data = serializer.validated_data

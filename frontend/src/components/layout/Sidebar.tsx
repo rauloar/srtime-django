@@ -50,6 +50,13 @@ const MENU_STRUCTURE: { [key: string]: { title: string, items: MenuItem[] } } = 
 export const Sidebar: React.FC = () => {
     const location = useLocation();
 
+    const systemItems: MenuItem[] = [
+        { label: 'Ajustes', path: '/system/settings' },
+        { label: 'Terminales', path: '/devices' },
+        { label: 'Turnos', path: '/attendance/shifts' },
+        { label: 'Horarios', path: '/attendance/timetables' },
+    ];
+
     // Determine active module from path
     const pathSegments = location.pathname.split('/').filter(Boolean);
     let activeModule = pathSegments[0] || 'dashboard';
@@ -60,9 +67,22 @@ export const Sidebar: React.FC = () => {
     if (activeModule === 'access') activeModule = 'system';
 
     const menu = MENU_STRUCTURE[activeModule];
+    const isSystemSettings = location.pathname.startsWith('/system/settings');
+    const isDevices = location.pathname.startsWith('/devices');
+
+    const resolvedMenu = activeModule === 'system'
+        ? {
+            ...menu,
+            items: isSystemSettings
+                ? systemItems.filter(item => item.path === '/system/settings')
+                : isDevices
+                    ? systemItems.filter(item => item.path === '/devices' || item.path === '/system/settings')
+                    : systemItems
+        }
+        : menu;
 
     // Don't show sidebar for dashboard
-    if (activeModule === 'dashboard' || !menu) return null;
+    if (activeModule === 'dashboard' || !resolvedMenu) return null;
 
     return (
         <aside style={{
@@ -80,11 +100,11 @@ export const Sidebar: React.FC = () => {
                 borderBottom: '1px solid var(--border-color)',
                 marginBottom: '10px'
             }}>
-                {menu.title} <span style={{ fontSize: '10px', color: 'red' }}>DEBUG v2.0</span>
+                {resolvedMenu.title} <span style={{ fontSize: '10px', color: 'red' }}>DEBUG v2.0</span>
             </div>
 
             <nav style={{ display: 'flex', flexDirection: 'column' }}>
-                {menu.items.map((item) => (
+                {resolvedMenu.items.map((item) => (
                     <NavLink
                         key={item.path}
                         to={item.path}

@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal } from '../ui/Modal';
-import { createDevice, checkDeviceOnline } from '../../api';
+import { createDevice, checkDeviceOnline, updateDevice, type Device } from '../../api';
 import { useToast } from '../../hooks/useToast';
 
 interface DeviceFormModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
+    device?: Device | null;
 }
 
-export const DeviceFormModal: React.FC<DeviceFormModalProps> = ({ isOpen, onClose, onSuccess }) => {
+export const DeviceFormModal: React.FC<DeviceFormModalProps> = ({ isOpen, onClose, onSuccess, device }) => {
     const toast = useToast();
     const [formData, setFormData] = useState({
         name: '',
@@ -21,6 +22,30 @@ export const DeviceFormModal: React.FC<DeviceFormModalProps> = ({ isOpen, onClos
         device_name: ''
     });
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (device) {
+            setFormData({
+                name: device.name || '',
+                ip: device.ip || '',
+                port: device.port || 4370,
+                password: 0,
+                zone: device.zone || '',
+                location: device.location || '',
+                device_name: device.device_name || ''
+            });
+        } else {
+            setFormData({
+                name: '',
+                ip: '',
+                port: 4370,
+                password: 0,
+                zone: '',
+                location: '',
+                device_name: ''
+            });
+        }
+    }, [device, isOpen]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -41,6 +66,17 @@ export const DeviceFormModal: React.FC<DeviceFormModalProps> = ({ isOpen, onClos
         setLoading(true);
 
         try {
+            if (device?.id) {
+                await updateDevice(device.id, {
+                    ...formData,
+                    enabled: device.enabled
+                });
+                toast.success(`✅ Dispositivo "${formData.name}" actualizado correctamente`);
+                onSuccess();
+                onClose();
+                return;
+            }
+
             // First, test the connection to verify device is reachable
             toast.info('Verificando conexión con el dispositivo...');
             
@@ -67,25 +103,15 @@ export const DeviceFormModal: React.FC<DeviceFormModalProps> = ({ isOpen, onClos
             
             onSuccess();
             onClose();
-            // Reset form
-            setFormData({
-                name: '',
-                ip: '',
-                port: 4370,
-                password: 0,
-                zone: '',
-                location: '',
-                device_name: ''
-            });
         } catch (err: any) {
-            toast.error(err.response?.data?.detail || 'Error al crear dispositivo');
+            toast.error(err.response?.data?.detail || (device?.id ? 'Error al actualizar dispositivo' : 'Error al crear dispositivo'));
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Nuevo Dispositivo">
+        <Modal isOpen={isOpen} onClose={onClose} title={device?.id ? 'Editar Dispositivo' : 'Nuevo Dispositivo'}>
             <form onSubmit={handleSubmit} className="flex-col gap-4">
                 <div className="form-group">
                     <label>Nombre</label>
@@ -140,7 +166,7 @@ export const DeviceFormModal: React.FC<DeviceFormModalProps> = ({ isOpen, onClos
                         Cancelar
                     </button>
                     <button type="submit" className="primary" disabled={loading}>
-                        {loading ? 'Guardando...' : 'Guardar Dispositivo'}
+                        {loading ? 'Guardando...' : (device?.id ? 'Guardar Cambios' : 'Guardar Dispositivo')}
                     </button>
                 </div>
             </form>

@@ -235,7 +235,7 @@ class Command(BaseCommand):
         for columns, values in iter_insert_rows(sql_path, "hr_company"):
             row = dict(zip(columns, values))
             zk_id = to_int(row.get("id"))
-            name = safe_str(row.get("company_name"))
+            name = safe_str(row.get("cmp_name"))  # Fixed: was company_name
             if not name:
                 continue
 
@@ -243,8 +243,8 @@ class Command(BaseCommand):
                 company, _ = Company.objects.get_or_create(
                     name=name,
                     defaults={
-                        "code": safe_str(row.get("company_code")) or None,
-                        "address": safe_str(row.get("company_address")) or None,
+                        "code": safe_str(row.get("cmp_code")) or None,  # Fixed: was company_code
+                        "address": safe_str(row.get("cmp_address1")) or None,  # Fixed: was company_address
                     },
                 )
                 if zk_id is not None:
@@ -266,7 +266,7 @@ class Command(BaseCommand):
         for columns, values in iter_insert_rows(sql_path, "hr_department"):
             row = dict(zip(columns, values))
             zk_id = to_int(row.get("id"))
-            name = safe_str(row.get("department_name"))
+            name = safe_str(row.get("dept_name"))  # Fixed: was department_name
             if not name:
                 continue
 
@@ -278,7 +278,7 @@ class Command(BaseCommand):
                 dept, _ = Department.objects.get_or_create(
                     name=name,
                     defaults={
-                        "code": safe_str(row.get("departement_code")) or None,
+                        "code": safe_str(row.get("dept_code")) or None,  # Fixed: was departement_code
                         "company": company_obj,
                     },
                 )
@@ -331,13 +331,15 @@ class Command(BaseCommand):
         for columns, values in iter_insert_rows(sql_path, "att_timetable"):
             row = dict(zip(columns, values))
             zk_id = to_int(row.get("id"))
-            name = safe_str(row.get("time_name"))
+            name = safe_str(row.get("timetable_name"))  # Fixed: was time_name
             if not name:
                 continue
 
-            # Extract time fields (Mon_In, Mon_Out, Tue_In, etc.)
-            on_duty = safe_str(row.get("Mon_In")) or "09:00"
-            off_duty = safe_str(row.get("Mon_Out")) or "18:00"
+            # Extract time fields (truncate to HH:MM format if longer)
+            on_duty_raw = safe_str(row.get("timetable_start")) or "09:00"
+            off_duty_raw = safe_str(row.get("timetable_end")) or "18:00"
+            on_duty = on_duty_raw[:10]  # Limit to 10 chars max (HH:MM:SS)
+            off_duty = off_duty_raw[:10]
 
             if not dry_run:
                 timetable, _ = Timetable.objects.get_or_create(
@@ -470,7 +472,7 @@ class Command(BaseCommand):
         for columns, values in iter_insert_rows(sql_path, "att_employee_shift"):
             row = dict(zip(columns, values))
 
-            emp_zk_id = to_int(row.get("emp_id"))
+            emp_zk_id = to_int(row.get("employee_id"))  # Fixed: was emp_id
             user_id = employee_id_map.get(emp_zk_id)
             if not user_id:
                 skipped += 1
@@ -482,7 +484,7 @@ class Command(BaseCommand):
                 skipped += 1
                 continue
 
-            start_date = parse_date_safe(row.get("start_date"))
+            start_date = parse_date_safe(row.get("startDate"))  # Fixed: was start_date
             if not start_date:
                 skipped += 1
                 continue
@@ -498,7 +500,7 @@ class Command(BaseCommand):
                         start_date=start_date,
                         defaults={
                             "scope": "EMPLOYEE",
-                            "end_date": parse_date_safe(row.get("end_date")),
+                            "end_date": parse_date_safe(row.get("endDate")),  # Fixed: was end_date
                         },
                     )
                 except (Employee.DoesNotExist, Shift.DoesNotExist):
@@ -605,7 +607,7 @@ def iter_insert_rows(sql_path: Path, table_name: str) -> Iterable[Tuple[List[str
 
 
 def parse_insert_statement(statement: str, table_name: str) -> Iterable[Tuple[List[str], List[object]]]:
-    pattern = rf'INSERT INTO "{re.escape(table_name)}" \((?P<cols>.+?)\) VALUES (?P<values>.+);'
+    pattern = rf'INSERT INTO "{re.escape(table_name)}"\s+\((?P<cols>.+?)\)\s+VALUES\s+(?P<values>.+);'
     match = re.search(pattern, statement, flags=re.DOTALL)
     if not match:
         return []

@@ -28,7 +28,6 @@ def api_root(request):
                 'POST /api/token/refresh/ - Refrescar token'
             ],
             'organizacion': [
-                'GET/POST /api/v1/auth-users/',
                 'GET/POST /api/v1/companies/',
                 'GET/POST /api/v1/positions/',
                 'GET/POST /api/v1/zones/',
@@ -56,10 +55,16 @@ def api_root(request):
             ],
             'ausencias': [
                 'GET/POST /api/v1/leaves/',
-                'GET/POST /api/v1/holidays/'
+                'GET/POST /api/v1/holidays/',
+                'GET /api/v1/attendance/absences/'
             ],
             'asistencia': [
-                'GET/POST /api/v1/daily-attendance/'
+                'GET/POST /api/v1/daily-attendance/',
+                'POST /api/v1/attendance/calculate/',
+                'POST /api/v1/attendance/calculate/detailed/',
+                'GET /api/v1/attendance/reports/daily/',
+                'GET /api/v1/attendance/logs/',
+                'GET /api/v1/attendance/'
             ]
         },
         'caracteristicas': {
