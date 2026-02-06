@@ -1,6 +1,15 @@
+from django.db.models import Count, Avg, Q
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+from .enums import (
+    PUNCH_STATUS,
+    VERIFY_MODE,
+    ATTENDANCE_STATUS,
+    ATTENDANCE_PRESENT_STATUSES,
+    ATTENDANCE_ABSENT_STATUS
+)
+from .models import Company, Employee, Department, Shift, Timetable, DailyAttendance, User
 
 
 @api_view(['GET'])
@@ -111,5 +120,76 @@ def api_v1_info(request):
             'searching': True,
             'ordering': True,
             'pagination': True
+        }
+    }, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+def enums_list(request):
+    """
+    API Enumerations endpoint
+    Provides all enum definitions used across the system for frontend consumption.
+    
+    This is the source of truth for:
+    - Punch status codes (0, 1, 2, etc.)
+    - Verify mode codes (1, 3, 4, 15, 25)
+    - Attendance status values (Normal, Absent, Late, etc.)
+    
+    Frontend should use these values to avoid hardcoding enums.
+    """
+    return Response({
+        'message': 'API Enumerations - Source of truth for all enum values',
+        'version': '1.0.0',
+        'punch_status': PUNCH_STATUS,
+        'verify_mode': VERIFY_MODE,
+        'attendance_status': ATTENDANCE_STATUS,
+        'usage': {
+            'punch_status': 'Use status_label from AttendanceLog response instead of mapping locally',
+            'verify_mode': 'Use verify_mode_label from AttendanceLog response instead of mapping locally',
+            'attendance_status': 'Use backend returned status with color info from this endpoint'
+        }
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def dashboard_summary(request):
+    """
+    Dashboard summary endpoint.
+    Provides master counts and historical report summaries only (no live data).
+    """
+    try:
+        limit = int(request.query_params.get('limit', 5))
+    except (TypeError, ValueError):
+        limit = 5
+
+    counts = {
+        'employees': Employee.objects.count(),
+        'departments': Department.objects.count(),
+        'shifts': Shift.objects.count(),
+        'timetables': Timetable.objects.count(),
+        'groups': User.objects.exclude(group_id__isnull=True).values('group_id').distinct().count()
+    }
+
+    company_name = Company.objects.values_list('name', flat=True).first()
+
+    recent_reports = list(
+        DailyAttendance.objects
+        .values('date')
+        .annotate(
+            total_records=Count('id'),
+            present=Count('id', filter=Q(status__in=ATTENDANCE_PRESENT_STATUSES)),
+            absent=Count('id', filter=Q(status=ATTENDANCE_ABSENT_STATUS)),
+            avg_worked_minutes=Avg('worked_minutes')
+        )
+        .order_by('-date')[:limit]
+    )
+
+    return Response({
+        'message': 'Dashboard summary (historical and master data only)',
+        'version': '1.0.0',
+        'counts': counts,
+        'company_name': company_name,
+        'recent_reports': recent_reports,
+        'meta': {
+            'limit': limit
         }
     }, status=status.HTTP_200_OK)

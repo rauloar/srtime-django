@@ -72,6 +72,10 @@ export interface AttendanceLog {
     workcode?: number;
     punch_source?: string;
     user_name?: string;
+    
+    // Labels from backend (source of truth)
+    status_label?: string;
+    verify_mode_label?: string;
 }
 
 export interface TestResponse {
@@ -449,7 +453,15 @@ export interface DailyAttendance {
     status: string;
     exception_reason?: string;
     employee_name?: string; // Derived from serializer
-
+    
+    // Status color and label from backend
+    status_info?: {
+        label: string;
+        display: string;
+        color: string;
+        color_dark?: string;
+        icon?: string;
+    };
     // Audit
     schedule_type?: string;
     source_logs_count?: number;
@@ -457,6 +469,33 @@ export interface DailyAttendance {
 
     employee?: Employee;
 }
+
+export interface DashboardSummaryReport {
+    date: string;
+    total_records: number;
+    present: number;
+    absent: number;
+    avg_worked_minutes: number | null;
+}
+
+export interface DashboardSummary {
+    company_name: string | null;
+    counts: {
+        employees: number;
+        departments: number;
+        shifts: number;
+        timetables: number;
+        groups: number;
+    };
+    recent_reports: DashboardSummaryReport[];
+    meta?: {
+        limit?: number;
+    };
+}
+
+export const getDashboardSummary = async (limit = 5) => {
+    return (await api.get<DashboardSummary>('/dashboard/summary/', { params: { limit } })).data;
+};
 
 export const calculateAttendance = async (startDate: string, endDate: string, departmentId?: number) => {
     const params: any = { start_date: startDate, end_date: endDate };

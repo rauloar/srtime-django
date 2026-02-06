@@ -14,6 +14,7 @@ from .auth_views import (
     auth_login, auth_users_list, auth_user_delete, auth_user_password_update,
     server_info
 )
+from .views import enums_list, dashboard_summary
 from .views_attendance import calculate_attendance, daily_reports, calculate_single_day, get_simple_day_view, calculate_attendance_detailed
 from .views_devices import (
     test_connection, test_connection_sync, import_attendance,
@@ -69,6 +70,11 @@ router.register(r'daily-attendance', DailyAttendanceViewSet, basename='dailyatte
 urlpatterns = [
     path('', include(router.urls)),
     
+    # Enums - Provides all enum definitions for front-end consumption
+    path('enums/', enums_list, name='enums_list'),
+
+    # Dashboard summary (historical only)
+    path('dashboard/summary/', dashboard_summary, name='dashboard_summary'),
     
     # Auth endpoints compatibles con frontend React (DISABLED FOR DEV MODE)
     # path('auth/login', auth_login, name='auth_login'),

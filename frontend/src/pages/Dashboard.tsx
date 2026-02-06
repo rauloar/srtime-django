@@ -1,124 +1,186 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
-
-interface Employee {
-    id: number;
-    user_id: string;
-    name: string;
-    department: number | null;
-}
-
-interface DayStatus {
-    status: string;
-    worked_minutes: number;
-}
+import {
+    BarChart3,
+    Users,
+    Calendar,
+    FileText,
+    Building2,
+    Clock,
+    Layers
+} from 'lucide-react';
+import { getDashboardSummary } from '../api';
+import type { DashboardSummary } from '../api';
 
 export const Dashboard: React.FC = () => {
     const navigate = useNavigate();
-    const today = new Date().toISOString().split('T')[0];
-    const [employees, setEmployees] = useState<Employee[]>([]);
-    const [statuses, setStatuses] = useState<Record<number, DayStatus>>({});
-    const [loading, setLoading] = useState(true);
+    const [summary, setSummary] = useState<DashboardSummary | null>(null);
+    const [summaryError, setSummaryError] = useState(false);
 
     useEffect(() => {
-        const fetchDashboardData = async () => {
+        const loadSummary = async () => {
             try {
-                // 1. Get Employees
-                const empRes = await api.get('/employees/');
-                const empList = empRes.data.results || empRes.data; // Handle pagination or list
-                setEmployees(empList);
-
-                // 2. Fetch status for each (Parallel)
-                const statusMap: Record<number, DayStatus> = {};
-                await Promise.all(empList.map(async (emp: Employee) => {
-                    try {
-                        const dayRes = await api.get(`/attendance/day/?employee_id=${emp.id}&date=${today}`);
-                        statusMap[emp.id] = {
-                            status: dayRes.data.status,
-                            worked_minutes: dayRes.data.worked_minutes
-                        };
-                    } catch (e) {
-                        statusMap[emp.id] = { status: 'Error', worked_minutes: 0 };
-                    }
-                }));
-                setStatuses(statusMap);
+                const response = await getDashboardSummary(7);
+                setSummary(response);
+                setSummaryError(false);
             } catch (error) {
-                console.error("Dashboard Error:", error);
-            } finally {
-                setLoading(false);
+                console.error('Dashboard summary error:', error);
+                setSummaryError(true);
             }
         };
 
-        fetchDashboardData();
-    }, [today]);
+        loadSummary();
+    }, []);
 
-    if (loading) return <div style={{ padding: '20px' }}>Cargando Dashboard...</div>;
+    const quickLinks = useMemo(() => ([
+        {
+            title: 'Marcaciones',
+            description: 'Ver registros de asistencia y fichadas',
+            icon: <BarChart3 size={28} />,
+            path: '/attendance/logs',
+            colorClass: 'dash-color-info'
+        },
+        {
+            title: 'Reporte Diario',
+            description: 'Analisis historico de asistencia',
+            icon: <Calendar size={28} />,
+            path: '/attendance/reports',
+            colorClass: 'dash-color-success'
+        },
+        {
+            title: 'Empleados',
+            description: 'Gestion de empleados, turnos y grupos',
+            icon: <Users size={28} />,
+            path: '/personnel/employees',
+            colorClass: 'dash-color-warning'
+        },
+        {
+            title: 'Reportes',
+            description: 'Reportes y estadisticas del sistema',
+            icon: <FileText size={28} />,
+            path: '/analytics',
+            colorClass: 'dash-color-accent'
+        }
+    ]), []);
+
+    const metrics = useMemo(() => ([
+        {
+            title: 'Empleados',
+            value: summary?.counts.employees ?? null,
+            icon: <Users size={20} />,
+            colorClass: 'dash-color-info'
+        },
+        {
+            title: 'Empresa',
+            value: summary?.company_name ?? null,
+            icon: <Building2 size={20} />,
+            colorClass: 'dash-color-accent'
+        },
+        {
+            title: 'Departamentos',
+            value: summary?.counts.departments ?? null,
+            icon: <Layers size={20} />,
+            colorClass: 'dash-color-muted'
+        },
+        {
+            title: 'Turnos',
+            value: summary?.counts.shifts ?? null,
+            icon: <Clock size={20} />,
+            colorClass: 'dash-color-warning'
+        },
+        {
+            title: 'Grupos',
+            value: summary?.counts.groups ?? null,
+            icon: <Users size={20} />,
+            colorClass: 'dash-color-success'
+        }
+    ]), [summary]);
+
+    const formatMinutes = (minutes: number | null) => {
+        if (minutes === null || Number.isNaN(minutes)) return '-';
+        const hours = Math.floor(minutes / 60);
+        const mins = Math.round(minutes % 60);
+        return `${hours}h ${mins}m`;
+    };
 
     return (
-        <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '20px' }}>
-            <h2 style={{ marginBottom: '20px' }}>Dashboard Operativo ({today})</h2>
+        <div className="dashboard-page">
+            <div className="dashboard-hero">
+                <h1 className="dashboard-title">Bienvenido al Sistema SRTime</h1>
+                <p className="dashboard-subtitle">Selecciona una opcion para comenzar</p>
+            </div>
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                <thead style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                    <tr>
-                        <th style={{ padding: '12px', textAlign: 'left' }}>Empleado</th>
-                        <th style={{ padding: '12px', textAlign: 'left' }}>ID</th>
-                        <th style={{ padding: '12px', textAlign: 'center' }}>Estado Hoy</th>
-                        <th style={{ padding: '12px', textAlign: 'center' }}>Horas</th>
-                        <th style={{ padding: '12px', textAlign: 'right' }}>Acción</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {employees.map(emp => {
-                        const st = statuses[emp.id] || { status: 'Pending', worked_minutes: 0 };
-                        const hours = Math.floor(st.worked_minutes / 60);
-                        const mins = st.worked_minutes % 60;
+            <div className="dashboard-section">
+                <div className="dashboard-section-header">
+                    <h2 className="dashboard-section-title">Resumen general</h2>
+                    {summaryError && (
+                        <span className="dashboard-section-note">Resumen no disponible</span>
+                    )}
+                </div>
+                <div className="dashboard-metrics">
+                    {metrics.map((metric, idx) => (
+                        <div key={idx} className="dashboard-metric-card">
+                            <div className={`dashboard-metric-icon ${metric.colorClass}`}>
+                                {metric.icon}
+                            </div>
+                            <div className="dashboard-metric-content">
+                                <div className="dashboard-metric-title">{metric.title}</div>
+                                <div className="dashboard-metric-value">
+                                    {metric.value === null || metric.value === '' ? '-' : metric.value}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
 
-                        let statusColor = '#6c757d'; // grey
-                        if (st.status === 'Normal') statusColor = '#28a745'; // green
-                        if (st.status === 'Partial') statusColor = '#ffc107'; // yellow
-                        if (st.status === 'Absent') statusColor = '#dc3545'; // red
+            <div className="dashboard-links">
+                {quickLinks.map((link, idx) => (
+                    <button
+                        key={idx}
+                        type="button"
+                        onClick={() => navigate(link.path)}
+                        className="dashboard-link-card"
+                    >
+                        <div className={`dashboard-link-icon ${link.colorClass}`}>
+                            {link.icon}
+                        </div>
+                        <div className="dashboard-link-title">{link.title}</div>
+                        <div className="dashboard-link-desc">{link.description}</div>
+                    </button>
+                ))}
+            </div>
 
+            <div className="dashboard-section">
+                <div className="dashboard-section-header">
+                    <h2 className="dashboard-section-title">Reporte diario</h2>
+                    <span className="dashboard-section-note">Historico previo a bajadas de logs</span>
+                </div>
+                <div className="dashboard-chart">
+                    {(summary?.recent_reports || []).length === 0 && (
+                        <div className="dashboard-chart-empty">No hay reportes historicos disponibles</div>
+                    )}
+                    {(summary?.recent_reports || []).map((report) => {
+                        const total = report.present + report.absent || 1;
+                        const presentPct = Math.round((report.present / total) * 100);
+                        const absentPct = 100 - presentPct;
                         return (
-                            <tr key={emp.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                                <td style={{ padding: '12px' }}>{emp.name || 'Sin Nombre'}</td>
-                                <td style={{ padding: '12px', color: '#666' }}>{emp.user_id}</td>
-                                <td style={{ padding: '12px', textAlign: 'center' }}>
-                                    <span style={{
-                                        padding: '4px 8px',
-                                        borderRadius: '4px',
-                                        color: 'white',
-                                        backgroundColor: statusColor,
-                                        fontSize: '0.9em',
-                                        fontWeight: 500
-                                    }}>
-                                        {st.status}
-                                    </span>
-                                </td>
-                                <td style={{ padding: '12px', textAlign: 'center' }}>
-                                    {st.worked_minutes > 0 ? `${hours}h ${mins}m` : '-'}
-                                </td>
-                                <td style={{ padding: '12px', textAlign: 'right' }}>
-                                    <button
-                                        onClick={() => navigate(`/asistencia/empleado/${emp.id}/dia/${today}`)}
-                                        style={{
-                                            padding: '6px 12px',
-                                            cursor: 'pointer',
-                                            background: '#007bff',
-                                            color: 'white',
-                                            border: 'none',
-                                            borderRadius: '4px'
-                                        }}
-                                    >
-                                        Ver Detalle
-                                    </button>
-                                </td>
-                            </tr>
+                            <div key={report.date} className="dashboard-chart-row">
+                                <div className="dashboard-chart-date">{report.date}</div>
+                                <div className="dashboard-chart-bars">
+                                    <div className="dashboard-chart-bar dash-bar-present" style={{ ['--bar-size' as any]: `${presentPct}%` }}>
+                                        <span>{report.present}</span>
+                                    </div>
+                                    <div className="dashboard-chart-bar dash-bar-absent" style={{ ['--bar-size' as any]: `${absentPct}%` }}>
+                                        <span>{report.absent}</span>
+                                    </div>
+                                </div>
+                                <div className="dashboard-chart-hours">{formatMinutes(report.avg_worked_minutes)}</div>
+                            </div>
                         );
                     })}
-                </tbody>
-            </table>
+                </div>
+            </div>
         </div>
     );
 };
