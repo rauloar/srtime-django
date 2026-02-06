@@ -77,13 +77,13 @@ export const Reports: React.FC = () => {
             field: 'status',
             header: 'Estado',
             render: (r) => {
-                let color = '#666';
-                if (r.status === 'Normal') color = '#2e7d32'; // Green
-                else if (r.status === 'Absent') color = '#c62828'; // Red
-                else if (r.status === 'Late') color = '#ef6c00'; // Orange
-                else if (r.status === 'Early') color = '#f9a825'; // Yellow-Orange
-                else if (r.status === 'Partial') color = '#afb42b'; // Lime?
-                else if (r.status === 'Rest Day') color = '#1565c0'; // Blue
+                let color = 'var(--text-secondary)';
+                if (r.status === 'Normal') color = 'var(--att-normal)';
+                else if (r.status === 'Absent') color = 'var(--att-absent)';
+                else if (r.status === 'Late') color = 'var(--att-late)';
+                else if (r.status === 'Early') color = 'var(--att-early)';
+                else if (r.status === 'Partial') color = 'var(--att-partial)';
+                else if (r.status === 'Rest Day') color = 'var(--att-rest-day)';
 
                 return (
                     <div className="flex-col gap-1">
@@ -91,7 +91,7 @@ export const Reports: React.FC = () => {
                             {r.status}
                         </span>
                         {r.exception_reason && (
-                            <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
                                 {r.exception_reason}
                             </span>
                         )}
@@ -107,9 +107,9 @@ export const Reports: React.FC = () => {
             render: (r) => (
                 <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     {r.worked_minutes > 0 && <span>Work: {Math.floor(r.worked_minutes / 60)}h {r.worked_minutes % 60}m</span>}
-                    {r.overtime_minutes > 0 && <span style={{ color: '#0288d1' }}>OT: {Math.floor(r.overtime_minutes / 60)}h {r.overtime_minutes % 60}m</span>}
-                    {r.late_minutes > 0 && <span style={{ color: '#d32f2f' }}>Late: {r.late_minutes}m</span>}
-                    {r.early_minutes > 0 && <span style={{ color: '#f9a825' }}>Early: {r.early_minutes}m</span>}
+                    {r.overtime_minutes > 0 && <span style={{ color: 'var(--att-overtime)' }}>OT: {Math.floor(r.overtime_minutes / 60)}h {r.overtime_minutes % 60}m</span>}
+                    {r.late_minutes > 0 && <span style={{ color: 'var(--att-late)' }}>Late: {r.late_minutes}m</span>}
+                    {r.early_minutes > 0 && <span style={{ color: 'var(--att-early)' }}>Early: {r.early_minutes}m</span>}
                 </div>
             )
         }
@@ -178,13 +178,13 @@ export const Reports: React.FC = () => {
                                     <span style={{ fontSize: '12px', fontWeight: 'normal', opacity: 0.7 }}>({items.length} regs)</span>
                                 </div>
                                 <div style={{ display: 'flex', gap: '20px', fontSize: '13px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#2e7d32' }} title="Presentismo">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--att-normal)' }} title="Presentismo">
                                         <UserCheck size={16} /> Presentes: <b>{totalPresent}</b>
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#c62828' }} title="Ausentismo">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--att-absent)' }} title="Ausentismo">
                                         <UserX size={16} /> Ausentes: <b>{totalAbsent}</b>
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#1565c0' }} title="Horas Trabajadas">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--att-rest-day)' }} title="Horas Trabajadas">
                                         <Clock size={16} /> Horas: <b>{totalHours}h</b>
                                     </div>
                                 </div>

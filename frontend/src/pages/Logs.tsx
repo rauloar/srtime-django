@@ -263,7 +263,7 @@ export function Logs() {
             </div>
 
             {/* Filters - Row 2: Date range filters */}
-            <div className="card" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'end', backgroundColor: '#f9f9f9' }}>
+            <div className="card" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'end', backgroundColor: 'var(--bg-card)' }}>
                 <div>
                     <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: '500' }}>Fecha Desde</label>
                     <input 

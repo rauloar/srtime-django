@@ -330,11 +330,11 @@ export function DeviceDetail() {
                     <h1 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         {device.name}
                         {device.enabled ?
-                            <span style={{ fontSize: '12px', background: '#2ea043', color: 'white', padding: '2px 8px', borderRadius: '12px' }}>Habilitado</span> :
-                            <span style={{ fontSize: '12px', background: '#8b949e', color: 'white', padding: '2px 8px', borderRadius: '12px' }}>Deshabilitado</span>
+                            <span style={{ fontSize: '12px', background: 'var(--status-ok)', color: 'white', padding: '2px 8px', borderRadius: '12px' }}>Habilitado</span> :
+                            <span style={{ fontSize: '12px', background: 'var(--status-offline)', color: 'white', padding: '2px 8px', borderRadius: '12px' }}>Deshabilitado</span>
                         }
                     </h1>
-                    <p style={{ color: '#8b949e' }}>{device.ip}:{device.port}</p>
+                    <p style={{ color: 'var(--text-muted)' }}>{device.ip}:{device.port}</p>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
                     <button onClick={handleRefreshInfo} disabled={refreshing}>

@@ -147,7 +147,7 @@ export const AttentionList: React.FC<AttentionListProps> = ({
 
     if (error) {
         return (
-            <div className="card" style={{ padding: '20px', background: '#ffebee', color: '#c62828' }}>
+            <div className="card" style={{ padding: '20px', background: 'rgba(198, 40, 40, 0.1)', color: 'var(--att-absent)' }}>
                 ⚠️ {error}
             </div>
         );

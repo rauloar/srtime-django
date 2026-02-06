@@ -79,7 +79,7 @@ export const TodaySummary: React.FC<TodaySummaryProps> = ({ date }) => {
 
     if (error || !stats) {
         return (
-            <div className="card" style={{ padding: '20px', background: '#ffebee', color: '#c62828' }}>
+            <div className="card" style={{ padding: '20px', background: 'rgba(198, 40, 40, 0.1)', color: 'var(--att-absent)' }}>
                 ⚠️ {error} <br />
                 <small style={{ opacity: 0.8 }}>{(error as any)?.message || String(error)}</small>
             </div>

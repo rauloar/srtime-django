@@ -52,6 +52,15 @@
   --status-info: #0078d4;
   --status-offline: #8a8886;
   
+  /* Attendance Status Colors */
+  --att-normal: #2e7d32;
+  --att-absent: #c62828;
+  --att-late: #ef6c00;
+  --att-early: #f9a825;
+  --att-partial: #afb42b;
+  --att-rest-day: #1565c0;
+  --att-overtime: #0288d1;
+  
   /* Tipografía */
   --font-base: 'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-size-base: 14px;
@@ -131,6 +140,15 @@
   --status-info: #60a5fa;
   --status-offline: #94a3b8;
   
+  /* Attendance Status Colors */
+  --att-normal: #4ade80;
+  --att-absent: #f87171;
+  --att-late: #fbbf24;
+  --att-early: #fcd34d;
+  --att-partial: #dcf323;
+  --att-rest-day: #60a5fa;
+  --att-overtime: #38bdf8;
+  
   /* Tipografía */
   --font-base: 'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-size-base: 14px;
@@ -208,6 +226,15 @@
   --status-info: #0078d4;
   --status-offline: #737373;
   
+  /* Attendance Status Colors */
+  --att-normal: #2e7d32;
+  --att-absent: #c62828;
+  --att-late: #ef6c00;
+  --att-early: #f9a825;
+  --att-partial: #afb42b;
+  --att-rest-day: #1565c0;
+  --att-overtime: #0288d1;
+  
   /* Tipografía */
   --font-base: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   --font-weight-normal: 400;
@@ -268,6 +295,15 @@
   --status-warning: #ca5010;
   --status-info: #0078d4;
   --status-offline: #8a8886;
+  
+  /* Attendance Status Colors */
+  --att-normal: #2e7d32;
+  --att-absent: #c62828;
+  --att-late: #ef6c00;
+  --att-early: #f9a825;
+  --att-partial: #afb42b;
+  --att-rest-day: #1565c0;
+  --att-overtime: #0288d1;
   
   /* Tipografía */
   --font-base: 'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
