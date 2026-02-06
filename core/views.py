@@ -153,8 +153,47 @@ def enums_list(request):
 @api_view(['GET'])
 def dashboard_summary(request):
     """
-    Dashboard summary endpoint.
-    Provides master counts and historical report summaries only (no live data).
+    Dashboard Summary Endpoint - Central Hub Data
+    
+    PHILOSOPHY:
+    - Provides ONLY master counts and historical aggregates
+    - NO real-time or today metrics (system does not support live capture/downloads)
+    - Data source: Company, Employee, Department, Shift, Timetable, User (master data)
+                   DailyAttendance (historical records only, aggregated)
+    - Designed for informational dashboard, not operational decision-making on same day
+    
+    QUERY PARAMS:
+    - limit: number of historical days to return (default: 5, max recommended: 30)
+    
+    RESPONSE STRUCTURE:
+    {
+        "message": "Dashboard summary (historical and master data only)",
+        "counts": {
+            "employees": int,
+            "departments": int,
+            "shifts": int,
+            "timetables": int,
+            "groups": int
+        },
+        "company_name": string | null,
+        "recent_reports": [
+            {
+                "date": "YYYY-MM-DD",
+                "present": int,
+                "absent": int,
+                "avg_worked_minutes": float
+            }
+        ]
+    }
+    
+    RELATED COMPONENTS:
+    - Frontend: Dashboard.tsx (uses this endpoint)
+    - Enums: ATTENDANCE_PRESENT_STATUSES, ATTENDANCE_ABSENT_STATUS
+    
+    DESIGN NOTES:
+    - Analytics page (separate, currently unused) pending redesign
+    - All UI navigation flows through Topbar (Home, Personnel, Devices, Attendance, System)
+    - Dashboard serves as entry point with quick links to Topbar routes
     """
     try:
         limit = int(request.query_params.get('limit', 5))
