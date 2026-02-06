@@ -20,9 +20,9 @@ const MENU_STRUCTURE: { [key: string]: { title: string, items: MenuItem[] } } = 
     'attendance': {
         title: 'Asistencia',
         items: [
-            { label: 'Reporte Diario', path: '/attendance' }, // Defaults to daily
-            { label: 'Calendario', path: '/attendance/schedule' },
             { label: 'Marcaciones', path: '/attendance/logs' },
+            { label: 'Reporte Diario', path: '/attendance/reports' },
+            { label: 'Calendario', path: '/attendance/schedule' },
             { label: 'Ausencias', path: '/attendance/absences' },
             // Removed technical: Timetables, Shifts, Calculation
         ]
