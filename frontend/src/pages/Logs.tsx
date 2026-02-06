@@ -227,35 +227,64 @@ export function Logs() {
         <div>
             <h1>Registros de Asistencia</h1>
 
+            {/* Filters - Row 1: Main filters */}
             <div className="card" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'end' }}>
                 <div>
-                    <label style={{ display: 'block', marginBottom: '5px' }}>Dispositivo</label>
+                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: '500' }}>Dispositivo</label>
                     <select value={filters.device_id} onChange={e => handleFilterChange('device_id', e.target.value)}>
                         <option value="">Todos</option>
                         {devices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                     </select>
                 </div>
                 <div>
-                    <label style={{ display: 'block', marginBottom: '5px' }}>User ID</label>
-                    <input type="text" value={filters.user_id} onChange={e => handleFilterChange('user_id', e.target.value)} style={{ width: '100px' }} />
+                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: '500' }}>User ID</label>
+                    <input 
+                        type="text" 
+                        value={filters.user_id} 
+                        onChange={e => handleFilterChange('user_id', e.target.value)} 
+                        placeholder="ej: 909"
+                        style={{ width: '120px' }} 
+                    />
                 </div>
-                <div>
-                    <label style={{ display: 'block', marginBottom: '5px' }}>Nombre</label>
-                    <input type="text" value={filters.name} onChange={e => handleFilterChange('name', e.target.value)} placeholder="Buscar..." />
-                </div>
-                <div>
-                    <label style={{ display: 'block', marginBottom: '5px' }}>Desde</label>
-                    <input type="date" value={filters.from_date} onChange={e => handleFilterChange('from_date', e.target.value)} />
-                </div>
-                <div>
-                    <label style={{ display: 'block', marginBottom: '5px' }}>Hasta</label>
-                    <input type="date" value={filters.to_date} onChange={e => handleFilterChange('to_date', e.target.value)} />
+                <div style={{ flex: 1, minWidth: '180px' }}>
+                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: '500' }}>Nombre/Búsqueda</label>
+                    <input 
+                        type="text" 
+                        value={filters.name} 
+                        onChange={e => handleFilterChange('name', e.target.value)} 
+                        placeholder="Buscar por nombre..." 
+                    />
                 </div>
                 <button className="primary" onClick={handleFilter}>Filtrar</button>
+                <button onClick={() => {
+                    setFilters({ device_id: '', user_id: '', name: '', from_date: '', to_date: '' });
+                    loadLogs(1);
+                }}>Limpiar</button>
+            </div>
+
+            {/* Filters - Row 2: Date range filters */}
+            <div className="card" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'end', backgroundColor: '#f9f9f9' }}>
+                <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: '500' }}>Fecha Desde</label>
+                    <input 
+                        type="date" 
+                        value={filters.from_date} 
+                        onChange={e => handleFilterChange('from_date', e.target.value)} 
+                    />
+                </div>
+                <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: '500' }}>Fecha Hasta</label>
+                    <input 
+                        type="date" 
+                        value={filters.to_date} 
+                        onChange={e => handleFilterChange('to_date', e.target.value)} 
+                    />
+                </div>
+                <button className="primary" onClick={handleFilter}>Aplicar Rango</button>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <button onClick={exportCsv}>Exportar CSV</button>
-                    <button onClick={exportExcel}>Exportar Excel</button>
-                    <button onClick={printLogs}>Imprimir</button>
+                    <button onClick={exportCsv}>📥 Exportar CSV</button>
+                    <button onClick={exportExcel}>📊 Exportar Excel</button>
+                    <button onClick={printLogs}>🖨️ Imprimir</button>
                 </div>
             </div>
 
