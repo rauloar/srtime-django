@@ -16,11 +16,12 @@ export const Analytics: React.FC = () => {
         const fetchData = async () => {
             try {
                 const devs = await getDevices();
-                const logs = await getAttendanceLogs({}); // Get recent logs
+                const response = await getAttendanceLogs({}); // Get recent logs
+                const logs = response.results || [];
 
                 // Calculate stats
                 const today = new Date().toISOString().split('T')[0];
-                const todayLogs = logs.filter(l => l.timestamp.startsWith(today));
+                const todayLogs = logs.filter((l: any) => l.timestamp.startsWith(today));
 
                 setStats(prev => ({
                     ...prev,

@@ -28,7 +28,7 @@ export const DayPunchList: React.FC<DayPunchListProps> = ({ employeeId, date }) 
                     from_date: new Date(date).toISOString(),
                     to_date: new Date(date).toISOString(),
                 });
-                setPunches(result);
+                setPunches(result.results || []);
                 setError(null);
             } catch (err: any) {
                 console.error('Error loading punches:', err);
