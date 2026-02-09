@@ -1049,6 +1049,14 @@ h4 {
   margin-top: 20px;
 }
 
+/* Grid para ciclos de días (2 columnas: label + control) */
+.modal-days-grid {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
 /* Toolbar superior optimizado */
 .page-toolbar-desktop {
   display: flex;
@@ -1717,4 +1725,239 @@ h4 {
 
 .dash-color-muted {
   color: var(--text-muted);
+}
+
+/* ========================================
+   📊 SCHEDULE TABLE STYLES (EmployeeSchedule)
+   ======================================== */
+.schedule-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border: none;
+  background: transparent;
+}
+
+.schedule-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px;
+  background: var(--bg-card);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+
+.schedule-table thead tr {
+  background: var(--bg-main);
+  border-bottom: 2px solid var(--border-color);
+}
+
+.schedule-table th {
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-main);
+  font-size: var(--font-size-sm);
+}
+
+/* Sticky left column for employee name */
+.schedule-table th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-main);
+  border-right: 1px solid var(--border-color);
+}
+
+/* Center-aligned day header cells */
+.schedule-day-header {
+  text-align: center;
+}
+
+.schedule-day-header-day {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.schedule-day-header-date {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Table body rows */
+.schedule-table tbody tr {
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.15s ease;
+}
+
+.schedule-table tbody tr:hover {
+  background-color: var(--bg-highlight);
+}
+
+/* Sticky left employee name cell */
+.schedule-employee-cell {
+  padding: 10px 12px;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg-card);
+  border-right: 1px solid var(--border-color);
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.schedule-employee-name {
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.schedule-employee-id {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Data cells (where shifts are assigned) */
+.schedule-data-cell {
+  padding: 8px;
+  text-align: center;
+  border-left: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.schedule-data-cell:hover {
+  background-color: var(--bg-highlight);
+}
+
+/* Shift assignment styling */
+.schedule-cell-assigned {
+  background: var(--att-rest-day);
+  color: white;
+  padding: 4px 8px;
+  border-radius: var(--border-radius);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+  display: inline-block;
+}
+
+/* Empty cell indicator */
+.schedule-cell-empty {
+  color: var(--border-color);
+  font-size: 1.2em;
+}
+
+/* Modal for single shift assignment */
+.shift-assignment-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--modal-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.shift-assignment-modal-content {
+  background: var(--bg-card);
+  border-radius: var(--border-radius-lg);
+  padding: 20px;
+  width: 300px;
+  max-height: 400px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color);
+}
+
+.shift-assignment-modal-date {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-bottom: 15px;
+}
+
+.shift-assignment-modal-list {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 15px;
+}
+
+.shift-assignment-modal-button {
+  text-align: left;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-main);
+  cursor: pointer;
+  width: 100%;
+  margin-bottom: 8px;
+  border-radius: var(--border-radius);
+  transition: all 0.15s ease;
+}
+
+.shift-assignment-modal-button:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+
+.shift-assignment-modal-button:last-child {
+  margin-bottom: 0;
+}
+
+/* Batch assignment modal */
+.batch-assignment-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--modal-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.batch-assignment-modal-content {
+  background: var(--bg-card);
+  border-radius: var(--border-radius-lg);
+  padding: 20px;
+  width: 400px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color);
+}
+
+.batch-assignment-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.batch-assignment-modal-tabs {
+  display: flex;
+  margin-bottom: 15px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.batch-assignment-modal-tab {
+  padding: 10px 20px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  font-weight: 400;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.batch-assignment-modal-tab.active {
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+  color: var(--primary);
 }

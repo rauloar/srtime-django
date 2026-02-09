@@ -178,52 +178,40 @@ export function EmployeeSchedule() {
                 }
             />
 
-            <div className="card" style={{ padding: 0, overflowX: 'auto', border: 'none', background: 'transparent' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px', background: 'white', borderRadius: '4px', overflow: 'hidden' }}>
+            <div className="schedule-table-wrapper">
+                <table className="schedule-table">
                     <thead>
-                        <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #eee' }}>
-                            <th style={{ padding: '12px', textAlign: 'left', position: 'sticky', left: 0, background: '#f8f9fa', zIndex: 2 }}>Empleado</th>
+                        <tr>
+                            <th>Empleado</th>
                             {days.map(d => (
-                                <th key={d.toISOString()} style={{ padding: '12px', textAlign: 'center' }}>
-                                    <div style={{ fontWeight: 600 }}>{d.toLocaleDateString(undefined, { weekday: 'short' })}</div>
-                                    <div style={{ fontSize: '0.8em', color: '#666' }}>{d.getDate()}</div>
+                                <th key={d.toISOString()} className="schedule-day-header">
+                                    <div className="schedule-day-header-day">{d.toLocaleDateString(undefined, { weekday: 'short' })}</div>
+                                    <div className="schedule-day-header-date">{d.getDate()}</div>
                                 </th>
                             ))}
                         </tr>
                     </thead>
                     <tbody>
                         {employees.map(emp => (
-                            <tr key={emp.id} style={{ borderBottom: '1px solid #eee' }}>
-                                <td style={{ padding: '10px', position: 'sticky', left: 0, background: 'white', zIndex: 1, borderRight: '1px solid #eee' }}>
-                                    <div style={{ fontWeight: 500 }}>{emp.name}</div>
-                                    <div style={{ fontSize: '0.75em', color: '#888' }}>{emp.user_id}</div>
+                            <tr key={emp.id}>
+                                <td className="schedule-employee-cell">
+                                    <div className="schedule-employee-name">{emp.name}</div>
+                                    <div className="schedule-employee-id">{emp.user_id}</div>
                                 </td>
                                 {days.map(d => {
                                     const assign = getDayAssignment(emp, d);
                                     return (
                                         <td
                                             key={d.toISOString()}
-                                            style={{ padding: '8px', textAlign: 'center', cursor: 'pointer', borderLeft: '1px solid #eee' }}
+                                            className="schedule-data-cell"
                                             onClick={() => handleCellClick(emp.id!, d)}
-                                            className="hover-cell"
                                         >
                                             {assign ? (
-                                                <div style={{
-                                                    background: '#e3f2fd',
-                                                    color: '#1565c0',
-                                                    padding: '4px 8px',
-                                                    borderRadius: '4px',
-                                                    fontSize: '0.85em',
-                                                    fontWeight: 500,
-                                                    whiteSpace: 'nowrap',
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    maxWidth: '100px'
-                                                }} title={assign.shift_name}>
+                                                <div className="schedule-cell-assigned" title={assign.shift_name}>
                                                     {assign.shift_name}
                                                 </div>
                                             ) : (
-                                                <span style={{ color: '#eee', fontSize: '1.2em' }}>+</span>
+                                                <span className="schedule-cell-empty">+</span>
                                             )}
                                         </td>
                                     );
@@ -235,20 +223,17 @@ export function EmployeeSchedule() {
             </div>
 
             {selectedCell && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: 'var(--modal-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-                }} onClick={() => setSelectedCell(null)}>
-                    <div className="card" style={{ width: '300px', padding: '20px' }} onClick={e => e.stopPropagation()}>
+                <div className="shift-assignment-modal" onClick={() => setSelectedCell(null)}>
+                    <div className="shift-assignment-modal-content" onClick={e => e.stopPropagation()}>
                         <h4 style={{ marginTop: 0 }}>Asignar Turno</h4>
-                        <p className="text-muted" style={{ fontSize: '0.9em' }}>
+                        <p className="shift-assignment-modal-date">
                             {selectedCell?.date.toLocaleDateString()}
                         </p>
-                        <div className="flex-col gap-2" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                        <div className="shift-assignment-modal-list">
                             {shifts.map(s => (
                                 <button
                                     key={s.id}
-                                    style={{ textAlign: 'left', padding: '10px', border: '1px solid #eee', background: 'white', cursor: 'pointer' }}
+                                    className="shift-assignment-modal-button"
                                     onClick={() => s.id && handleAssign(s.id)}
                                 >
                                     {s.name}
@@ -263,26 +248,23 @@ export function EmployeeSchedule() {
             )}
 
             {showBatchModal && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-                }} onClick={() => setShowBatchModal(false)}>
-                    <div className="card" style={{ width: '400px', padding: '20px' }} onClick={e => e.stopPropagation()}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <div className="batch-assignment-modal" onClick={() => setShowBatchModal(false)}>
+                    <div className="batch-assignment-modal-content" onClick={e => e.stopPropagation()}>
+                        <div className="batch-assignment-modal-header">
                             <h3 style={{ margin: 0 }}>Asignación Masiva</h3>
                             <button className="icon-btn" onClick={() => setShowBatchModal(false)}><X size={20} /></button>
                         </div>
 
                         {/* Tabs */}
-                        <div style={{ display: 'flex', marginBottom: '15px', borderBottom: '1px solid #eee' }}>
+                        <div className="batch-assignment-modal-tabs">
                             <div
-                                style={{ padding: '10px 20px', cursor: 'pointer', borderBottom: batchForm.targetType === 'DEPARTMENT' ? '2px solid #007bff' : 'none', fontWeight: batchForm.targetType === 'DEPARTMENT' ? 600 : 400, color: batchForm.targetType === 'DEPARTMENT' ? '#007bff' : '#666' }}
+                                className={`batch-assignment-modal-tab ${batchForm.targetType === 'DEPARTMENT' ? 'active' : ''}`}
                                 onClick={() => setBatchForm(p => ({ ...p, targetType: 'DEPARTMENT' }))}
                             >
                                 Por Departamento
                             </div>
                             <div
-                                style={{ padding: '10px 20px', cursor: 'pointer', borderBottom: batchForm.targetType === 'EMPLOYEE' ? '2px solid #007bff' : 'none', fontWeight: batchForm.targetType === 'EMPLOYEE' ? 600 : 400, color: batchForm.targetType === 'EMPLOYEE' ? '#007bff' : '#666' }}
+                                className={`batch-assignment-modal-tab ${batchForm.targetType === 'EMPLOYEE' ? 'active' : ''}`}
                                 onClick={() => setBatchForm(p => ({ ...p, targetType: 'EMPLOYEE' }))}
                             >
                                 Por Empleado

@@ -22,10 +22,6 @@ import { Calculation } from './pages/asistencia/Calculation';
 import { Reports } from './pages/asistencia/Reports';
 import { Absences } from './pages/asistencia/Absences';
 import { DayViewPage } from './pages/asistencia/DayViewPage'; // Kept as is, was already there
-import { EmployeesList } from './pages/asistencia/EmployeesList';
-import { EmployeeDetail } from './pages/asistencia/EmployeeDetail';
-import { DayView } from './pages/asistencia/DayView';
-import { TimelineView } from './pages/asistencia/TimelineView';
 import { ToastProvider } from './contexts/ToastContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { AppProvider } from './contexts/AppContext';
@@ -75,36 +71,29 @@ function AppContent() {
           <Route path="devices/:id" element={<DeviceDetail />} />
           <Route path="devices/:id/users" element={<Users />} />
 
-          {/* Personnel Mdule */}
+          {/* Personnel Module (RRHH) - Complete Organization Management */}
           <Route path="personnel" element={<Navigate to="/personnel/employees" replace />} />
+          <Route path="personnel/company" element={<Company />} />
           <Route path="personnel/departments" element={<Departments />} />
           <Route path="personnel/employees" element={<Employees />} />
+          <Route path="personnel/shifts" element={<Shifts />} />
+          <Route path="personnel/timetables" element={<Timetables />} />
 
           {/* Attendance Module */}
           <Route path="attendance" element={<Navigate to="/attendance/logs" replace />} />
           <Route path="attendance/logs" element={<Logs />} />
-          <Route path="attendance/timetables" element={<Timetables />} />
-          <Route path="attendance/shifts" element={<Shifts />} />
           <Route path="attendance/schedule" element={<EmployeeSchedule />} />
           <Route path="attendance/absences" element={<Absences />} />
           <Route path="attendance/calculation" element={<Calculation />} />
           <Route path="attendance/reports" element={<Reports />} />
-
-          {/* Asistencia Module - Visualization Routes */}
-          <Route path="employees" element={<EmployeesList />} />
-          <Route path="employees/:id" element={<EmployeeDetail />} />
-          <Route path="employees/:id/day/:date" element={<DayView />} />
-          <Route path="employees/:id/timeline/:date" element={<TimelineView />} />
 
           {/* Asistencia Module (Legacy) */}
           <Route path="asistencia">
             <Route path="empleado/:employeeId/dia/:date" element={<DayViewPage />} />
           </Route>
 
-          {/* Organization Module (Access/Structure) */}
-          <Route path="access" element={<Navigate to="/access/company" replace />} />
-          <Route path="access/company" element={<Company />} />
-          <Route path="access/departments" element={<Departments />} />
+          {/* Organization Module (Legacy routes for Positions/Zones) */}
+          <Route path="access" element={<Navigate to="/personnel/company" replace />} />
           <Route path="access/positions" element={<Positions />} />
           <Route path="access/zones" element={<Zones />} />
 

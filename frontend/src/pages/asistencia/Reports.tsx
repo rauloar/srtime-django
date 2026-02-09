@@ -77,13 +77,21 @@ export const Reports: React.FC = () => {
             field: 'status',
             header: 'Estado',
             render: (r) => {
+                // Use backend-provided color info if available, fallback to CSS variables
+                const statusInfo = r.status_info;
                 let color = 'var(--text-secondary)';
-                if (r.status === 'Normal') color = 'var(--att-normal)';
-                else if (r.status === 'Absent') color = 'var(--att-absent)';
-                else if (r.status === 'Late') color = 'var(--att-late)';
-                else if (r.status === 'Early') color = 'var(--att-early)';
-                else if (r.status === 'Partial') color = 'var(--att-partial)';
-                else if (r.status === 'Rest Day') color = 'var(--att-rest-day)';
+                
+                if (statusInfo?.color) {
+                    color = statusInfo.color;
+                } else {
+                    // Fallback to CSS variable mapping for backward compatibility
+                    if (r.status === 'Normal') color = 'var(--att-normal)';
+                    else if (r.status === 'Absent') color = 'var(--att-absent)';
+                    else if (r.status === 'Late') color = 'var(--att-late)';
+                    else if (r.status === 'Early') color = 'var(--att-early)';
+                    else if (r.status === 'Partial') color = 'var(--att-partial)';
+                    else if (r.status === 'Rest Day') color = 'var(--att-rest-day)';
+                }
 
                 return (
                     <div className="flex-col gap-1">

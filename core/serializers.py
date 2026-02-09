@@ -5,6 +5,9 @@ from .models import (
     Setting, Job, JobLog, Timetable, Shift, ShiftTimetable,
     ScheduleOverride, EmployeeShift, Leave, Holiday, DailyAttendance
 )
+from .enums import (
+    get_punch_status_label, get_verify_mode_label, get_attendance_status_info
+)
 
 
 class CompanySerializer(serializers.ModelSerializer):
@@ -53,10 +56,22 @@ class DeviceSerializer(serializers.ModelSerializer):
 
 class AttendanceLogSerializer(serializers.ModelSerializer):
     device_name = serializers.CharField(source='device.name', read_only=True)
+    status_label = serializers.SerializerMethodField()
+    verify_mode_label = serializers.SerializerMethodField()
     
     class Meta:
         model = AttendanceLog
         fields = '__all__'
+    
+    def get_status_label(self, obj):
+        """Return punch status label from enums"""
+        return get_punch_status_label(obj.status)
+    
+    def get_verify_mode_label(self, obj):
+        """Return verify mode label from enums"""
+        if obj.verify_mode is None:
+            return None
+        return get_verify_mode_label(obj.verify_mode)
 
 
 class ImportBatchSerializer(serializers.ModelSerializer):
@@ -163,10 +178,18 @@ class DailyAttendanceSerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source='employee.name', read_only=True)
     employee_user_id = serializers.CharField(source='employee.user_id', read_only=True)
     timetable_name = serializers.CharField(source='timetable.name', read_only=True)
+    status_info = serializers.SerializerMethodField()
     
     class Meta:
         model = DailyAttendance
         fields = '__all__'
+    
+    def get_status_info(self, obj):
+        """
+        Returns attendance status information including label and color.
+        Provides single source of truth for frontend rendering.
+        """
+        return get_attendance_status_info(obj.status)
 
 
 

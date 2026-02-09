@@ -14,6 +14,7 @@ export const Employees: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedDepartment, setSelectedDepartment] = useState<number | null>(null);
     // const fileInputRef = useRef<HTMLInputElement>(null);  // Removed: import functionality disabled
 
     // Confirm Dialog
@@ -121,10 +122,15 @@ export const Employees: React.FC = () => {
         return d ? d.name : '-';
     };
 
-    const filteredEmployees = employees.filter(e =>
-        e.user_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (e.name && e.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    // Filter employees by search term and department
+    const filteredEmployees = employees.filter(e => {
+        const matchesSearch = e.user_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (e.name && e.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        
+        const matchesDepartment = selectedDepartment === null || e.department_id === selectedDepartment;
+        
+        return matchesSearch && matchesDepartment;
+    });
 
     const columns: Column<Employee>[] = [
         {
@@ -188,6 +194,17 @@ export const Employees: React.FC = () => {
                 searchPlaceholder="Buscar por ID o Nombre..."
                 actions={
                     <>
+                        <select
+                            value={selectedDepartment ?? ''}
+                            onChange={(e) => setSelectedDepartment(e.target.value ? parseInt(e.target.value) : null)}
+                            className="form-control"
+                            style={{ minWidth: '200px', height: '36px' }}
+                        >
+                            <option value="">Todos los Departamentos</option>
+                            {departments.map(d => (
+                                <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                        </select>
                         <button className="secondary flex-row gap-2" onClick={handleExportCSV}>
                             <Download size={16} /> CSV
                         </button>

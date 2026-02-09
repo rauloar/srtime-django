@@ -162,11 +162,8 @@ const ShiftModal: React.FC<{
     const [name, setName] = useState('');
 
     return (
-        <div style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'var(--modal-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-            <div className="card" style={{ width: '400px', padding: '20px' }}>
+        <div className="modal-desktop">
+            <div className="card modal-content-desktop" style={{ maxWidth: '500px' }}>
                 <h3>Nuevo Turno</h3>
                 <div className="flex-col gap-4">
                     <div className="flex-col gap-2">
@@ -251,11 +248,8 @@ const CycleModal: React.FC<{
     };
 
     return (
-        <div style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-            <div className="card" style={{ width: '600px', padding: '20px', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div className="modal-desktop">
+            <div className="card modal-content-desktop" style={{ maxWidth: '600px' }}>
                 <h3>Configurar Ciclo: {shift.name}</h3>
 
                 {loading ? <p>Cargando...</p> : (
@@ -265,7 +259,7 @@ const CycleModal: React.FC<{
                             <button className="secondary small" onClick={handleApplyWorkWeek}>Aplicar Lunes a Vie</button>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '10px', alignItems: 'center' }}>
+                        <div className="modal-days-grid">
                             {days.map((day, idx) => (
                                 <React.Fragment key={idx}>
                                     <label style={{ fontWeight: 500 }}>{day}</label>

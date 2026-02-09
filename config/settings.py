@@ -141,3 +141,14 @@ SIMPLE_JWT = {
     'SIGNING_KEY': SECRET_KEY,
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+# ATTENDANCE ENGINE SHADOW MODE
+# Enable dual-engine validation: V1 (production) + V2 (shadow validation)
+# Shadow mode runs V2 in parallel without affecting production data
+ATTENDANCE_SHADOW_ENABLED = os.getenv('ATTENDANCE_SHADOW_ENABLED', 'False').lower() == 'true'
+ATTENDANCE_SHADOW_LOG_LEVEL = os.getenv('ATTENDANCE_SHADOW_LOG_LEVEL', 'WARNING')  # DEBUG, INFO, WARNING, ERROR
+
+# Shadow mode behavior:
+# - V1 (attendance_engine.py) → Production calculations (official record)
+# - V2 (attendance_engine_v2.py) → Validation calculations (shadow)
+# - Both use unified resolver (schedule_resolver.py) → Guaranteed consistency
+# - Differences are logged to 'attendance.shadow.*' loggers

@@ -64,30 +64,6 @@ export function Logs() {
         loadLogs(1);
     };
 
-    const getStatusLabel = (status: number) => {
-        switch (status) {
-            case 0: return 'Entrada';
-            case 1: return 'Salida';
-            case 2: return 'Inicio Descanso';
-            case 3: return 'Fin Descanso';
-            case 4: return 'Inicio Horas Extras';
-            case 5: return 'Fin Horas Extras';
-            default: return `Estado ${status}`;
-        }
-    };
-
-    const getVerifyModeLabel = (mode?: number) => {
-        if (mode === undefined || mode === null) return '-';
-        switch (mode) {
-            case 1: return 'Huella';
-            case 3: return 'Contraseña';
-            case 4: return 'Tarjeta';
-            case 15: return 'Rostro';
-            case 25: return 'Palma'; // Common generic code
-            default: return `Modo ${mode}`;
-        }
-    };
-
     // Format Helpers
     const formatDate = (dateString: string) => {
         const d = new Date(dateString);
@@ -115,9 +91,9 @@ export function Logs() {
             log.user_name || '-',
             formatDate(log.timestamp),
             formatTime(log.timestamp),
-            getStatusLabel(log.status),
+            log.status_label || `Estado ${log.status}`,
             log.punch_source || 'Terminal',
-            getVerifyModeLabel(log.verify_mode)
+            log.verify_mode_label || '-'
         ]);
 
         const csvContent = [headers, ...rows]
@@ -143,9 +119,9 @@ export function Logs() {
             log.user_name || '-',
             formatDate(log.timestamp),
             formatTime(log.timestamp),
-            getStatusLabel(log.status),
+            log.status_label || `Estado ${log.status}`,
             log.punch_source || 'Terminal',
-            getVerifyModeLabel(log.verify_mode)
+            log.verify_mode_label || '-'
         ]);
 
         const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -171,9 +147,9 @@ export function Logs() {
                 <td>${escapeHtml(String(log.user_name || '-'))}</td>
                 <td>${escapeHtml(formatDate(log.timestamp))}</td>
                 <td>${escapeHtml(formatTime(log.timestamp))}</td>
-                <td>${escapeHtml(getStatusLabel(log.status))}</td>
+                <td>${escapeHtml(log.status_label || `Estado ${log.status}`)}</td>
                 <td>${escapeHtml(String(log.punch_source || 'Terminal'))}</td>
-                <td>${escapeHtml(getVerifyModeLabel(log.verify_mode))}</td>
+                <td>${escapeHtml(log.verify_mode_label || '-')}</td>
             </tr>
         `).join('');
 
@@ -218,9 +194,9 @@ export function Logs() {
         { field: 'user_name', header: 'Nombre', render: log => log.user_name || '-' },
         { field: 'timestamp', header: 'Fecha', width: '120px', render: log => formatDate(log.timestamp) },
         { field: 'timestamp', header: 'Hora', width: '100px', render: log => formatTime(log.timestamp) },
-        { field: 'status', header: 'Estado', render: log => getStatusLabel(log.status) },
+        { field: 'status', header: 'Estado', render: log => log.status_label || `Estado ${log.status}` },
         { field: 'punch_source', header: 'Origen', render: log => log.punch_source || 'Terminal' },
-        { field: 'verify_mode', header: 'Verificación', render: log => getVerifyModeLabel(log.verify_mode) }
+        { field: 'verify_mode', header: 'Verificación', render: log => log.verify_mode_label || '-' }
     ];
 
     return (

@@ -70,10 +70,10 @@ export const Dashboard: React.FC = () => {
             colorClass: 'dash-color-success'
         },
         {
-            title: 'Empleados',
-            description: 'Gestion de empleados, turnos y grupos',
+            title: 'RRHH',
+            description: 'Gestión completa de organización y personal',
             icon: <Users size={28} />,
-            path: '/personnel/employees',
+            path: '/personnel',
             colorClass: 'dash-color-warning'
         },
         {
@@ -109,13 +109,14 @@ export const Dashboard: React.FC = () => {
             value: summary?.counts.shifts ?? null,
             icon: <Clock size={20} />,
             colorClass: 'dash-color-warning'
-        },
-        {
-            title: 'Grupos',
-            value: summary?.counts.groups ?? null,
-            icon: <Users size={20} />,
-            colorClass: 'dash-color-success'
         }
+        // LEGACY: Access Control Module - Reserved for future updates
+        // {
+        //     title: 'Grupos',
+        //     value: summary?.counts.groups ?? null,
+        //     icon: <Users size={20} />,
+        //     colorClass: 'dash-color-success'
+        // }
     ]), [summary]);
 
     const formatMinutes = (minutes: number | null) => {

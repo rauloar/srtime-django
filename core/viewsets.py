@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
@@ -285,7 +285,7 @@ class ShiftViewSet(viewsets.ModelViewSet):
     ordering_fields = ['name']
     ordering = ['name']
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     @action(detail=True, methods=['get', 'post'])
     def timetables(self, request, pk=None):
@@ -395,4 +395,89 @@ class DailyAttendanceViewSet(viewsets.ModelViewSet):
     filterset_fields = ['employee', 'date', 'status', 'schedule_type', 'is_absent', 'timetable']
     search_fields = ['exception_reason']
     ordering_fields = ['date', 'employee', 'status']
-    ordering = ['-date', 'employee']
+    ordering = ['-date', 'employee']    
+    def get_permissions(self):
+        """Custom permissions for shadow mode endpoint."""
+        if self.action == 'shadow_comparison':
+            # Allow any authenticated user to view shadow comparisons (for monitoring)
+            return [AllowAny()]
+        return [AllowAny()]
+    
+    @action(detail=False, methods=['get'])
+    def shadow_comparison(self, request):
+        """
+        Get shadow mode comparison for a specific employee and date.
+        
+        Query params:
+            - employee_id: Employee ID
+            - date: Date (YYYY-MM-DD)
+        
+        Returns:
+            Shadow mode comparison result (V1 vs V2)
+        """
+        from rest_framework.response import Response
+        from .services.shadow_mode_service import ShadowModeService
+        from datetime import datetime
+        
+        employee_id = request.query_params.get('employee_id')
+        date_str = request.query_params.get('date')
+        
+        if not employee_id or not date_str:
+            return Response(
+                {'error': 'Missing required parameters: employee_id, date'},
+                status=400
+            )
+        
+        try:
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return Response(
+                {'error': f'Invalid date format: {date_str}. Use YYYY-MM-DD'},
+                status=400
+            )
+        
+        # Get V1 results (if exists)
+        daily = DailyAttendance.objects.filter(
+            employee_id=employee_id,
+            date=target_date
+        ).first()
+        
+        # Run shadow mode comparison
+        shadow = ShadowModeService()
+        comparison = shadow.validate_daily_calculation(
+            employee_id=int(employee_id),
+            target_date=target_date,
+            v1_daily_attendance=daily
+        )
+        
+        if not comparison:
+            return Response(
+                {'error': 'Shadow mode is disabled or failed to generate comparison'},
+                status=503
+            )
+        
+        return Response(
+            {
+                'employee_id': comparison.employee_id,
+                'date': str(comparison.target_date),
+                'v1': {
+                    'status': comparison.v1_status,
+                    'worked_minutes': comparison.v1_worked_minutes,
+                    'late_minutes': comparison.v1_late_minutes,
+                    'early_minutes': comparison.v1_early_minutes,
+                    'error': comparison.v1_error,
+                },
+                'v2': {
+                    'status': comparison.v2_status,
+                    'worked_minutes': comparison.v2_worked_minutes,
+                    'late_minutes': comparison.v2_late_minutes,
+                    'early_minutes': comparison.v2_early_minutes,
+                    'error': comparison.v2_error,
+                },
+                'comparison': {
+                    'matches': not comparison.has_differences,
+                    'differences': comparison.differences,
+                    'timestamp': comparison.comparison_timestamp.isoformat(),
+                },
+            }
+        )

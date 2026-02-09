@@ -1,11 +1,10 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, User, Monitor, Clock, Settings, LogOut, Menu } from 'lucide-react';
+import { Home, User, Monitor, Clock, Settings, LogOut, Menu, Building } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../hooks/useToast';
 import { useApp } from '../../hooks/useApp';
 import { ThemeToggle } from '../ui/ThemeToggle';
-import { SearchBar } from './SearchBar';
 
 interface TopbarProps {
     onMenuCheck?: () => void;
@@ -54,23 +53,12 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuCheck }) => {
 
                 <nav className="desktop-nav" style={{ display: 'flex', height: 'var(--header-height)' }}>
                     <TabLink to="/dashboard" icon={<Home size={18} />} label="Home" />
-                    <TabLink to="/employees" icon={<User size={18} />} label="Visualización" />
+                    <TabLink to="/access" icon={<Building size={18} />} label="Organización" />
                     <TabLink to="/personnel" icon={<User size={18} />} label="RRHH" />
                     <TabLink to="/devices" icon={<Monitor size={18} />} label="Dispositivo" />
                     <TabLink to="/attendance" icon={<Clock size={18} />} label="Asistencia" />
                     <TabLink to="/system" icon={<Settings size={18} />} label="Sistema" />
                 </nav>
-
-                {/* SearchBar - centered */}
-                <div style={{
-                    flex: 1,
-                    display: 'flex',
-                    justifyContent: 'center',
-                    maxWidth: '400px',
-                    margin: '0 20px'
-                }}>
-                    <SearchBar />
-                </div>
 
                 {/* User & Logout */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginLeft: 'auto' }}>

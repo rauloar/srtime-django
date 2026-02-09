@@ -1,13 +1,21 @@
 """
 Attendance Calculation Engine - Adaptado para Django ORM
 Motor de cálculo de asistencia con soporte para horarios fijos y flexibles
+
+Uses unified schedule resolution via schedule_resolver.py
+to ensure consistency between V1 and V2 engines.
 """
 from datetime import date, datetime, timedelta, time
 from typing import List, Optional
+import logging
 from django.db.models import Q
+from django.utils import timezone
 from core import models
 from .day_context import DayContext
 from .obligation import ObligationResolver
+from .schedule_resolver import resolve_schedule_unified
+
+logger = logging.getLogger(__name__)
 
 
 def round_time(dt: datetime, rule: str, is_check_in: bool) -> datetime:
@@ -36,8 +44,8 @@ def _build_context(tt: models.Timetable, target_date: date, source: str) -> DayC
             t_in_start = datetime.strptime(tt.check_in_start or "00:00", "%H:%M").time()
             t_out_end = datetime.strptime(tt.check_out_end or "23:59", "%H:%M").time()
             
-            dt_search_start = datetime.combine(target_date, t_in_start)
-            dt_search_end = datetime.combine(target_date, t_out_end)
+            dt_search_start = timezone.make_aware(datetime.combine(target_date, t_in_start))
+            dt_search_end = timezone.make_aware(datetime.combine(target_date, t_out_end))
             
             if dt_search_end < dt_search_start:
                  dt_search_end += timedelta(days=1)
@@ -59,28 +67,43 @@ def _build_context(tt: models.Timetable, target_date: date, source: str) -> DayC
             )
 
         # Standard Fixed
-        t_on = datetime.strptime(tt.on_duty_time, "%H:%M").time()
-        t_off = datetime.strptime(tt.off_duty_time, "%H:%M").time()
+        # Parse time fields - handle both "HH:MM" and "HH:MM:SS" formats
+        def parse_time_field(time_str):
+            if not time_str:
+                return None
+            # Try HH:MM:SS format first
+            try:
+                return datetime.strptime(time_str, "%H:%M:%S").time()
+            except ValueError:
+                # Fall back to HH:MM format
+                return datetime.strptime(time_str, "%H:%M").time()
+        
+        t_on = parse_time_field(tt.on_duty_time)
+        t_off = parse_time_field(tt.off_duty_time)
         
         def parse_time(s, default):
-            try: return datetime.strptime(s, "%H:%M").time()
-            except: return default
+            if not s:
+                return default
+            try:
+                return parse_time_field(s)
+            except:
+                return default
             
         t_in_start = parse_time(tt.check_in_start, time.min)
         t_out_end = parse_time(tt.check_out_end, time.max)
         
-        dt_on = datetime.combine(target_date, t_on)
-        dt_off = datetime.combine(target_date, t_off)
+        dt_on = timezone.make_aware(datetime.combine(target_date, t_on))
+        dt_off = timezone.make_aware(datetime.combine(target_date, t_off))
         
         is_cross_day = False
         if dt_off < dt_on:
             is_cross_day = True
             dt_off += timedelta(days=1)
             
-        dt_search_start = datetime.combine(target_date, t_in_start)
+        dt_search_start = timezone.make_aware(datetime.combine(target_date, t_in_start))
         
         end_date = target_date if not is_cross_day else dt_off.date()
-        dt_search_end = datetime.combine(end_date, t_out_end)
+        dt_search_end = timezone.make_aware(datetime.combine(end_date, t_out_end))
         
         if dt_search_end < dt_search_start:
             dt_search_end += timedelta(days=1)
@@ -107,79 +130,34 @@ def _build_context(tt: models.Timetable, target_date: date, source: str) -> DayC
 
 def resolve_schedule(employee_id: int, target_date: date) -> DayContext:
     """
-    BioTime Logic:
-    1. Check Overrides (Highest Priority)
-    2. Check Calendar/Assignment (EmployeeShift)
-    3. Check Department Assignment (Fallback)
-    4. Resolve Shift Cycle -> Timetable
+    Resolve schedule for an employee on a given date.
     
-    Returns DayContext
-    When fails, returns empty DayContext with reason in source field:
-    - "IMPLICIT_REST" = No schedule found
-    - "SHIFT_NO_TIMETABLES" = Shift has no ShiftTimetable configured
-    - "SHIFT_TIMETABLE_MISSING_DAY" = ShiftTimetable not found for day
+    This function delegates to the unified schedule resolver (schedule_resolver.py)
+    to ensure consistency with V2 engine.
+    
+    Priority:
+    1. ScheduleOverride (highest)
+    2. EmployeeShift (EMPLOYEE scope)
+    3. EmployeeShift (DEPARTMENT scope)
+    4. Implicit rest day
+    
+    Returns:
+        DayContext with resolved schedule or empty context if not found
     """
+    # Use unified resolver
+    resolved = resolve_schedule_unified(employee_id, target_date)
     
-    # 1. Override Check
-    override = models.ScheduleOverride.objects.filter(
-        employee_id=employee_id,
-        date=target_date
-    ).select_related('timetable').first()
-    
-    if override:
-        return _build_context(override.timetable, target_date, "OVERRIDE")
-
-    # 2. Assignment Check (Employee Scope)
-    assignment = models.EmployeeShift.objects.filter(
-        employee_id=employee_id,
-        start_date__lte=target_date
-    ).filter(
-        Q(end_date__gte=target_date) | Q(end_date__isnull=True)
-    ).select_related('shift').first()
-    
-    source_type = "SHIFT"
-    
-    # 3. Department Check (Department Scope)
-    if not assignment:
-        emp = models.Employee.objects.filter(id=employee_id).select_related('department').first()
-        if emp and emp.department:
-            assignment = models.EmployeeShift.objects.filter(
-                department_id=emp.department.id,
-                scope='DEPARTMENT',
-                start_date__lte=target_date
-            ).filter(
-                Q(end_date__gte=target_date) | Q(end_date__isnull=True)
-            ).select_related('shift').first()
-            source_type = "DEPARTMENT"
-
-    if not assignment or not assignment.shift:
-        # No schedule assignment - implicit rest day
+    if not resolved.is_valid:
+        # Schedule resolution failed - return empty context with reason
         empty = DayContext.empty()
-        return empty._replace(source="IMPLICIT_REST")
-        
-    shift = assignment.shift
+        return empty._replace(source=resolved.error.value)
     
-    # 4. Resolve Cycle (ShiftTimetable) - 0=Mon
-    day_idx = target_date.weekday()
-    
-    # Check if shift has ANY timetables configured
-    shift_timetables_count = models.ShiftTimetable.objects.filter(shift_id=shift.id).count()
-    if shift_timetables_count == 0:
-        # Shift exists but has no ShiftTimetable mappings
-        empty = DayContext.empty()
-        return empty._replace(source="SHIFT_NO_TIMETABLES")
-    
-    shift_tt = models.ShiftTimetable.objects.filter(
-        shift_id=shift.id,
-        day_index=day_idx
-    ).select_related('timetable').first()
-    
-    if not shift_tt or not shift_tt.timetable:
-        # Shift has timetables but not for this specific day
-        empty = DayContext.empty()
-        return empty._replace(source="SHIFT_TIMETABLE_MISSING_DAY")
-        
-    return _build_context(shift_tt.timetable, target_date, source_type)
+    # Build DayContext from resolved schedule
+    return _build_context(
+        resolved.timetable,
+        target_date,
+        resolved.source.value
+    )
 
 
 def get_logs(user_id: str, start: datetime, end: datetime) -> List[models.AttendanceLog]:
@@ -347,9 +325,9 @@ def calculate_day(employee_id: int, target_date: date) -> models.DailyAttendance
                 late_delta = (daily.check_in - ctx.on_duty_dt).total_seconds() / 60
                 daily.late_minutes = int(late_delta)
                 
-                # Apply tolerance
-                if tt.late_allow_minutes and daily.late_minutes <= tt.late_allow_minutes:
-                    daily.late_minutes = 0
+                # Apply tolerance - subtract allowance from late minutes
+                if tt.late_allow_minutes:
+                    daily.late_minutes = max(0, daily.late_minutes - tt.late_allow_minutes)
                 
                 if daily.late_minutes > 0:
                     daily.status = "Late"
@@ -360,9 +338,9 @@ def calculate_day(employee_id: int, target_date: date) -> models.DailyAttendance
                 early_delta = (ctx.off_duty_dt - daily.check_out).total_seconds() / 60
                 daily.early_minutes = int(early_delta)
                 
-                # Apply tolerance
-                if tt.early_leave_allow_minutes and daily.early_minutes <= tt.early_leave_allow_minutes:
-                    daily.early_minutes = 0
+                # Apply tolerance - subtract allowance from early minutes
+                if tt.early_leave_allow_minutes:
+                    daily.early_minutes = max(0, daily.early_minutes - tt.early_leave_allow_minutes)
                 
                 if daily.early_minutes > 0:
                     if daily.status == "Late":
@@ -386,11 +364,25 @@ def calculate_day(employee_id: int, target_date: date) -> models.DailyAttendance
                 overtime_delta = (daily.check_out - ctx.off_duty_dt).total_seconds() / 60
                 daily.overtime_minutes = int(overtime_delta)
                 
+                # Apply overtime threshold - only count if >= threshold
+                if tt.overtime_threshold_minutes and daily.overtime_minutes < tt.overtime_threshold_minutes:
+                    daily.overtime_minutes = 0
+                
                 if daily.overtime_minutes > 0:
                     if "Normal" in daily.status:
                         daily.status = "Normal, Overtime"
             
     daily.save()
+    
+    # Run shadow mode validation (if enabled)
+    try:
+        from .shadow_mode_service import ShadowModeService
+        shadow = ShadowModeService()
+        shadow.validate_daily_calculation(employee_id, target_date, daily)
+    except Exception as e:
+        # Shadow mode errors never affect production
+        logger.warning(f"Shadow mode validation error: {e}", exc_info=False)
+    
     return daily
 
 

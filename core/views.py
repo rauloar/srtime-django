@@ -205,7 +205,8 @@ def dashboard_summary(request):
         'departments': Department.objects.count(),
         'shifts': Shift.objects.count(),
         'timetables': Timetable.objects.count(),
-        'groups': User.objects.exclude(group_id__isnull=True).values('group_id').distinct().count()
+        # LEGACY: Access Control Module - Reserved for future updates
+        # 'groups': User.objects.exclude(group_id__isnull=True).values('group_id').distinct().count()
     }
 
     company_name = Company.objects.values_list('name', flat=True).first()

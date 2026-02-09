@@ -369,6 +369,11 @@ class Timetable(models.Model):
     required_minutes = models.IntegerField(default=0, verbose_name='Minutos Requeridos')
     work_days = models.IntegerField(default=1, verbose_name='Días de Trabajo')
     is_flexible = models.BooleanField(default=False, verbose_name='Es Flexible')
+    overtime_threshold_minutes = models.IntegerField(
+        default=0, 
+        verbose_name='Umbral Mínimo Hora Extra (min)',
+        help_text='Minutos mínimos de overtime para que cuente como hora extra. Ej: 30 = solo cuenta si trabajó al menos 30 min extra'
+    )
 
     class Meta:
         db_table = 'att_timetables'
@@ -383,6 +388,11 @@ class Timetable(models.Model):
 class Shift(models.Model):
     """Turno de trabajo"""
     name = models.CharField(max_length=100, verbose_name='Nombre')
+    cycle_days = models.IntegerField(
+        default=0,
+        verbose_name='Días del ciclo',
+        help_text='0=ciclo semanal (Monday-Sunday), >0=ciclo largo (rotaciones de N días)'
+    )
 
     class Meta:
         db_table = 'att_shifts'

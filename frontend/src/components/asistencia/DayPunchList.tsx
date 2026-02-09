@@ -12,6 +12,7 @@ interface Punch {
     status: number;
     verify_mode?: number;
     punch_source?: string;
+    status_label?: string;
 }
 
 export const DayPunchList: React.FC<DayPunchListProps> = ({ employeeId, date }) => {
@@ -40,18 +41,6 @@ export const DayPunchList: React.FC<DayPunchListProps> = ({ employeeId, date }) 
 
         fetchPunches();
     }, [employeeId, date]);
-
-    const getStatusLabel = (status: number) => {
-        const labels: { [key: number]: string } = {
-            0: 'Entrada',
-            1: 'Salida',
-            2: 'Inicio Descanso',
-            3: 'Fin Descanso',
-            4: 'Inicio Horas Extras',
-            5: 'Fin Horas Extras',
-        };
-        return labels[status] || `Estado ${status}`;
-    };
 
     const getStatusIcon = (status: number) => {
         // Simple, clear iconography
@@ -198,7 +187,7 @@ export const DayPunchList: React.FC<DayPunchListProps> = ({ employeeId, date }) 
                                     color: '#212121',
                                     marginBottom: '2px'
                                 }}>
-                                    {getStatusLabel(punch.status)}
+                                    {punch.status_label || `Estado ${punch.status}`}
                                 </div>
                                 <div style={{ fontSize: '12px', color: '#999' }}>
                                     {punch.punch_source || 'Terminal'}

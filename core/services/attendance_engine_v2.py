@@ -3,8 +3,10 @@ Attendance Engine V2 - Hybrid Calculation Engine
 Supports both STRUCTURED (fixed) and FLEXIBLE (punch-based) schedules.
 
 Uses Strategy pattern to delegate calculation to appropriate processor.
+Uses unified schedule resolver (schedule_resolver.py) for consistency with V1.
+
 This module handles:
-- Schedule resolution
+- Schedule resolution (via unified resolver)
 - Log retrieval
 - Processor selection
 - Result persistence
@@ -13,6 +15,7 @@ The processors themselves are pure and don't access DB.
 """
 from datetime import date, datetime, timedelta, time
 from typing import List, Optional, Set
+import logging
 
 from django.db.models import Q
 
@@ -21,6 +24,9 @@ from .day_context import DayContext
 from .processors import ProcessorContext
 from .processors.flexible_processor import FlexibleProcessor
 from .processors.structured_processor import StructuredProcessor
+from .schedule_resolver import resolve_schedule_unified
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -61,71 +67,31 @@ def resolve_schedule(employee_id: int, target_date: date) -> DayContext:
     """
     Resolve the schedule for an employee on a given date.
     
+    This function delegates to the unified schedule resolver (schedule_resolver.py)
+    to ensure consistency with V1 engine.
+    
     Priority:
     1. ScheduleOverride (highest)
     2. EmployeeShift (calendar assignment)
-    3. Department default shift (fallback)
+    3. EmployeeShift (department scope)
+    4. Implicit rest day
+    
+    Returns:
+        DayContext with resolved schedule or empty context if not found
     """
-    # 1. Check Overrides
-    override = models.ScheduleOverride.objects.filter(
-        employee_id=employee_id,
-        date=target_date
-    ).select_related('timetable').first()
+    # Use unified resolver
+    resolved = resolve_schedule_unified(employee_id, target_date)
     
-    if override and override.timetable:
-        return _build_context(override.timetable, target_date, "OVERRIDE")
+    if not resolved.is_valid:
+        # Schedule resolution failed
+        return DayContext(is_valid=False)
     
-    # 2. Check EmployeeShift
-    emp_shift = models.EmployeeShift.objects.filter(
-        employee_id=employee_id,
-        start_date__lte=target_date,
-    ).filter(
-        Q(end_date__gte=target_date) | Q(end_date__isnull=True)
-    ).select_related('shift').first()
-    
-    if emp_shift and emp_shift.shift:
-        shift = emp_shift.shift
-        
-        # Resolve timetable for this day
-        if shift.cycle_days and shift.cycle_days > 0:
-            # Cyclical shift
-            days_since_start = (target_date - emp_shift.start_date).days
-            cycle_index = days_since_start % shift.cycle_days
-            
-            shift_tt = models.ShiftTimetable.objects.filter(
-                shift=shift,
-                day_index=cycle_index
-            ).select_related('timetable').first()
-            
-            if shift_tt and shift_tt.timetable:
-                return _build_context(shift_tt.timetable, target_date, "SHIFT")
-        else:
-            # Weekly shift
-            day_of_week = target_date.weekday()
-            shift_tt = models.ShiftTimetable.objects.filter(
-                shift=shift,
-                day_index=day_of_week
-            ).select_related('timetable').first()
-            
-            if shift_tt and shift_tt.timetable:
-                return _build_context(shift_tt.timetable, target_date, "SHIFT")
-    
-    # 3. Check Department default
-    emp = models.Employee.objects.filter(id=employee_id).select_related('department').first()
-    if emp and emp.department and emp.department.default_shift_id:
-        shift = models.Shift.objects.filter(id=emp.department.default_shift_id).first()
-        if shift:
-            day_of_week = target_date.weekday()
-            shift_tt = models.ShiftTimetable.objects.filter(
-                shift=shift,
-                day_index=day_of_week
-            ).select_related('timetable').first()
-            
-            if shift_tt and shift_tt.timetable:
-                return _build_context(shift_tt.timetable, target_date, "DEPARTMENT")
-    
-    # No schedule found
-    return DayContext(is_valid=False)
+    # Build DayContext from resolved schedule
+    return _build_context(
+        resolved.timetable,
+        target_date,
+        resolved.source.value
+    )
 
 
 # =============================================================================
