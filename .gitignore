@@ -45,7 +45,9 @@ Thumbs.db
 htmlcov/
 .pytest_cache/
 .tox/
-tests/
+tests/*.py          # Exclude test files
+!tests/__init__.py   # But include init (documentation)
+!tests/README.md     # Include test documentation
 tests_*.py
 
 # Celery
