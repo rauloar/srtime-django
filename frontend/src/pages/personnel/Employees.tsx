@@ -201,7 +201,7 @@ export const Employees: React.FC = () => {
                         <button className="secondary flex-row gap-2" onClick={handleExportExcel}>
                             <Download size={16} /> Excel
                         </button>
-                        <button className="primary flex-row gap-2" onClick={() => { setEditingEmp(null); setIsModalOpen(true); }} disabled>
+                        <button className="primary flex-row gap-2" onClick={() => { setEditingEmp(null); setIsModalOpen(true); }}>
                             <Plus size={16} /> Nuevo
                         </button>
                     </>

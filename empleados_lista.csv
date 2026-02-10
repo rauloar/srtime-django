@@ -1,0 +1,28 @@
+user_id	Nombre	Departamento	Turno	Horario	Días Laborables
+A001	Ana García	Administración	Administrativo	08:00 - 17:00	Lunes a Viernes
+A002	Carlos Ruiz	Administración	Administrativo	08:00 - 17:00	Lunes a Viernes
+A003	María López	Administración	Administrativo	08:00 - 17:00	Lunes a Viernes
+A004	Roberto Fernández	Administración	Administrativo	08:00 - 17:00	Lunes a Viernes
+A005	Laura Martínez	Administración	Administrativo	08:00 - 17:00	Lunes a Viernes
+FAB001	Operario Fábrica 1	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB002	Operario Fábrica 2	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB003	Operario Fábrica 3	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB004	Operario Fábrica 4	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB005	Operario Fábrica 5	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB006	Operario Fábrica 6	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB007	Operario Fábrica 7	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB008	Operario Fábrica 8	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB009	Operario Fábrica 9	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB010	Operario Fábrica 10	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB011	Operario Fábrica 11	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB012	Operario Fábrica 12	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB013	Operario Fábrica 13	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB014	Operario Fábrica 14	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB015	Operario Fábrica 15	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB016	Operario Fábrica 16	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB017	Operario Fábrica 17	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB018	Operario Fábrica 18	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB019	Operario Fábrica 19	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+FAB020	Operario Fábrica 20	Fábrica	Fabrica	08:00 - 16:00	Lunes a Sábado
+TI001	Juan Pérez	TI	TI	Flexible	Lunes a Viernes
+TI002	Sandra González	TI	TI	Flexible	Lunes a Viernes

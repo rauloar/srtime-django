@@ -49,6 +49,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Custom logging middleware (after auth to capture user context)
+    'core.middlewares.logging_middleware.RequestLoggingMiddleware',
+    'core.middlewares.logging_middleware.ErrorCaptureMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -201,3 +204,155 @@ ATTENDANCE_SHADOW_LOG_LEVEL = os.getenv('ATTENDANCE_SHADOW_LOG_LEVEL', 'WARNING'
 # - V2 (attendance_engine_v2.py) → Validation calculations (shadow)
 # - Both use unified resolver (schedule_resolver.py) → Guaranteed consistency
 # - Differences are logged to 'attendance.shadow.*' loggers
+
+# ============================================================================
+# LOGGING CONFIGURATION
+# ============================================================================
+
+# Create logs directory if doesn't exist
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} [{name}] {module}.{funcName}:{lineno} - {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+        'simple': {
+            'format': '{levelname} {asctime} - {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+    },
+    'filters': {
+        'require_debug_false': {
+            '()': 'django.utils.log.RequireDebugFalse',
+        },
+        'require_debug_true': {
+            '()': 'django.utils.log.RequireDebugTrue',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'file_general': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'django.log',
+            'maxBytes': 10 * 1024 * 1024,  # 10 MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
+        'file_errors': {
+            'level': 'ERROR',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'errors.log',
+            'maxBytes': 10 * 1024 * 1024,  # 10 MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
+        'file_attendance': {
+            'level': 'DEBUG',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'attendance.log',
+            'maxBytes': 10 * 1024 * 1024,  # 10 MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
+        'file_api': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'api.log',
+            'maxBytes': 10 * 1024 * 1024,  # 10 MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
+    },
+    'loggers': {
+        # Django core loggers
+        'django': {
+            'handlers': ['console', 'file_general'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console', 'file_errors'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.server': {
+            'handlers': ['console', 'file_general'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # Application-specific loggers
+        'core': {
+            'handlers': ['console', 'file_general', 'file_errors'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'devices': {
+            'handlers': ['console', 'file_general', 'file_errors'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Attendance engine loggers
+        'attendance': {
+            'handlers': ['console', 'file_attendance', 'file_errors'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'attendance.shadow': {
+            'handlers': ['file_attendance'],
+            'level': ATTENDANCE_SHADOW_LOG_LEVEL,
+            'propagate': False,
+        },
+        'attendance.resolver': {
+            'handlers': ['file_attendance'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # API request/response logging
+        'api': {
+            'handlers': ['console', 'file_api', 'file_errors'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+    },
+    'root': {
+        'handlers': ['console', 'file_general', 'file_errors'],
+        'level': 'INFO',
+    },
+}
+
+# ============================================================================
+# LOGGING NOTES
+# ============================================================================
+# Available log files:
+# - logs/django.log      → General application logs (INFO+)
+# - logs/errors.log      → Error and exception logs (ERROR+)
+# - logs/attendance.log  → Attendance engine and shadow mode logs (DEBUG+)
+# - logs/api.log         → API request/response logs (INFO+)
+#
+# Usage in code:
+#   import logging
+#   logger = logging.getLogger('core')  # or 'attendance', 'api', etc.
+#   logger.debug('Debug message')
+#   logger.info('Info message')
+#   logger.warning('Warning message')
+#   logger.error('Error message', exc_info=True)  # Include traceback
+#   logger.critical('Critical message')
+#
+# Log rotation: Each file max 10MB, keeps 5 backups
+# ============================================================================

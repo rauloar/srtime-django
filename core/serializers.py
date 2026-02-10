@@ -248,10 +248,14 @@ class TimetableSerializer(serializers.ModelSerializer):
     on_duty_time = serializers.TimeField(
         format="%H:%M:%S",
         input_formats=["%H:%M:%S", "%H:%M"],
+        allow_null=True,
+        required=False,
     )
     off_duty_time = serializers.TimeField(
         format="%H:%M:%S",
         input_formats=["%H:%M:%S", "%H:%M"],
+        allow_null=True,
+        required=False,
     )
     check_in_start = serializers.TimeField(
         format="%H:%M:%S",
@@ -281,6 +285,23 @@ class TimetableSerializer(serializers.ModelSerializer):
     class Meta:
         model = Timetable
         fields = '__all__'
+    
+    def validate(self, data):
+        """Validación personalizada para horarios flexibles vs fijos"""
+        is_flexible = data.get('is_flexible', False)
+        
+        # Para horarios fijos, on_duty_time y off_duty_time son requeridos
+        if not is_flexible:
+            if not data.get('on_duty_time'):
+                raise serializers.ValidationError(
+                    {"on_duty_time": "Este campo es requerido para horarios fijos."}
+                )
+            if not data.get('off_duty_time'):
+                raise serializers.ValidationError(
+                    {"off_duty_time": "Este campo es requerido para horarios fijos."}
+                )
+        
+        return data
 
 
 class ShiftSerializer(serializers.ModelSerializer):
@@ -292,10 +313,11 @@ class ShiftSerializer(serializers.ModelSerializer):
 class ShiftTimetableSerializer(serializers.ModelSerializer):
     shift_name = serializers.CharField(source='shift.name', read_only=True)
     timetable_name = serializers.CharField(source='timetable.name', read_only=True)
+    timetable_id = serializers.IntegerField(source='timetable.id', read_only=True)
     
     class Meta:
         model = ShiftTimetable
-        fields = '__all__'
+        fields = ['id', 'shift', 'shift_name', 'timetable', 'timetable_id', 'timetable_name', 'day_index']
 
 
 class ScheduleOverrideSerializer(serializers.ModelSerializer):

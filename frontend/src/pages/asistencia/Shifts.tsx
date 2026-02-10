@@ -114,7 +114,7 @@ export const Shifts: React.FC = () => {
                 onSearch={setSearchTerm}
                 searchPlaceholder="Buscar turno..."
                 actions={
-                    <button className="primary flex-row gap-2" onClick={() => setIsModalOpen(true)} disabled>
+                    <button className="primary flex-row gap-2" onClick={() => setIsModalOpen(true)}>
                         <Plus size={16} /> Agregar
                     </button>
                 }
@@ -273,10 +273,15 @@ const CycleModal: React.FC<{
                                         }}
                                         className="form-control"
                                     >
-                                        <option value="">- Descanser -</option>
-                                        {timetables.map(t => (
-                                            <option key={t.id} value={t.id}>{t.name} ({t.on_duty_time} - {t.off_duty_time})</option>
-                                        ))}
+                                        <option value="">- Descanso -</option>
+                                        {timetables.map(t => {
+                                            const timeDisplay = t.is_flexible 
+                                                ? `(Flexible - ${t.required_minutes}min)` 
+                                                : `(${t.on_duty_time} - ${t.off_duty_time})`;
+                                            return (
+                                                <option key={t.id} value={t.id}>{t.name} {timeDisplay}</option>
+                                            );
+                                        })}
                                     </select>
                                 </React.Fragment>
                             ))}

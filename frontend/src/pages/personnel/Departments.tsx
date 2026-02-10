@@ -185,7 +185,7 @@ export const Departments: React.FC = () => {
                 onSearch={setSearchTerm}
                 searchPlaceholder="Buscar por nombre o código..."
                 actions={
-                    <button className="primary flex-row gap-2" onClick={() => { setEditingDept(null); setIsModalOpen(true); }} disabled>
+                    <button className="primary flex-row gap-2" onClick={() => { setEditingDept(null); setIsModalOpen(true); }}>
                         <Plus size={16} /> Nuevo Departamento
                     </button>
                 }

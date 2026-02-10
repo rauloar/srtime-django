@@ -354,8 +354,8 @@ class Timetable(models.Model):
     ]
 
     name = models.CharField(max_length=100, verbose_name='Nombre')
-    on_duty_time = models.TimeField(verbose_name='Hora Entrada')
-    off_duty_time = models.TimeField(verbose_name='Hora Salida')
+    on_duty_time = models.TimeField(null=True, blank=True, verbose_name='Hora Entrada')
+    off_duty_time = models.TimeField(null=True, blank=True, verbose_name='Hora Salida')
     late_allow_minutes = models.IntegerField(default=0, verbose_name='Tolerancia Llegada Tarde (min)')
     early_leave_allow_minutes = models.IntegerField(default=0, verbose_name='Tolerancia Salida Temprano (min)')
     

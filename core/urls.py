@@ -79,12 +79,12 @@ urlpatterns = [
     # CSRF Token endpoint
     path('csrf/', get_csrf_token, name='get_csrf_token'),
     
-    # Auth endpoints compatibles con frontend React (DISABLED FOR DEV MODE)
-    # path('auth/login', auth_login, name='auth_login'),
-    # path('auth/server-info', server_info, name='server_info'),
-    # path('auth/users', auth_users_list, name='auth_users_list'),
-    # path('auth/users/<int:user_id>', auth_user_delete, name='auth_user_delete'),
-    # path('auth/users/<int:user_id>/password', auth_user_password_update, name='auth_user_password_update'),
+    # Auth endpoints compatibles con frontend React
+    path('auth/login', auth_login, name='auth_login'),
+    path('auth/server-info', server_info, name='server_info'),
+    path('auth/users', auth_users_list, name='auth_users_list'),
+    path('auth/users/<int:user_id>', auth_user_delete, name='auth_user_delete'),
+    path('auth/users/<int:user_id>/password', auth_user_password_update, name='auth_user_password_update'),
     
     # Attendance Calculation Endpoints
     path('attendance/calculate/', calculate_attendance, name='calculate_attendance'),

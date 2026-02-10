@@ -313,7 +313,7 @@ export const getLogsWithValidation = async (employee_id: number, date: string) =
 };
 
 export const updateAttendanceLog = async (id: number, data: Partial<AttendanceLog>) => 
-    (await api.put<AttendanceLog>(`/attendance/${id}/`, data)).data;
+    (await api.put<AttendanceLog>(`/attendance-logs/${id}/`, data)).data;
 
 // Settings & Jobs
 export const getSettings = async () => (await api.get<Setting[]>('/settings/')).data;
@@ -433,8 +433,30 @@ export const getEmployee = async (id: number) => (await api.get<Employee>(`/empl
 export const getEmployeeByDate = async (id: number, date: string) => (
     await api.get<Employee>(`/employees/${id}/`, { params: { date } })
 ).data;
-export const createEmployee = async (emp: Employee) => (await api.post<Employee>('/employees/', emp)).data;
-export const updateEmployee = async (id: number, emp: Employee) => (await api.put<Employee>(`/employees/${id}/`, emp)).data;
+const serializeEmployeePayload = (emp: Employee) => ({
+    user_id: emp.user_id,
+    name: emp.name,
+    email: emp.email,
+    phone: emp.phone,
+    mobile_phone: emp.mobile_phone,
+    ssn: emp.ssn,
+    department: emp.department_id,
+    hire_date: (emp as { hire_date?: string }).hire_date,
+    birthday: emp.birthday,
+    gender: emp.gender,
+    active: emp.active,
+    address: emp.address,
+    city: emp.city,
+    country: emp.country,
+    photo_path: (emp as { photo_path?: string }).photo_path,
+});
+
+export const createEmployee = async (emp: Employee) => (
+    await api.post<Employee>('/employees/', serializeEmployeePayload(emp))
+).data;
+export const updateEmployee = async (id: number, emp: Employee) => (
+    await api.put<Employee>(`/employees/${id}/`, serializeEmployeePayload(emp))
+).data;
 export const deleteEmployee = async (id: number) => (await api.delete(`/employees/${id}/`)).data;
 
 export interface ImportResult {
@@ -668,8 +690,8 @@ export const getAbsences = async () => {
         return [];
     }
 };
-export const createAbsence = async (abs: Absence) => (await api.post<Absence>('/attendance/absences/', abs)).data;
-export const deleteAbsence = async (id: number) => (await api.delete(`/attendance/absences/${id}`)).data;
+export const createAbsence = async (abs: Absence) => (await api.post<Absence>('/leaves/', abs)).data;
+export const deleteAbsence = async (id: number) => (await api.delete(`/leaves/${id}/`)).data;
 
 // Auth System
 export interface AuthUser {

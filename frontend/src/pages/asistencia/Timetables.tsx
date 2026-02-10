@@ -148,7 +148,7 @@ export const Timetables: React.FC = () => {
                 onSearch={setSearchTerm}
                 searchPlaceholder="Buscar horario..."
                 actions={
-                    <button className="primary flex-row gap-2" onClick={() => { setEditingTimetable(null); setIsModalOpen(true); }} disabled>
+                    <button className="primary flex-row gap-2" onClick={() => { setEditingTimetable(null); setIsModalOpen(true); }}>
                         <Plus size={16} /> Agregar
                     </button>
                 }
@@ -194,11 +194,13 @@ const TimetableModal: React.FC<{
     const [lateAllow, setLateAllow] = useState(initialValue?.late_allow_minutes || 0);
     const [earlyAllow, setEarlyAllow] = useState(initialValue?.early_leave_allow_minutes || 0);
 
-    // Windows
-    const [checkInStart, setCheckInStart] = useState(initialValue?.check_in_start || '');
-    const [checkInEnd, setCheckInEnd] = useState(initialValue?.check_in_end || '');
-    const [checkOutStart, setCheckOutStart] = useState(initialValue?.check_out_start || '');
-    const [checkOutEnd, setCheckOutEnd] = useState(initialValue?.check_out_end || '');
+    // COMENTADO: Ventanas horarias para horarios semi-flexibles (opcional, futuro)
+    // Permite definir rangos de entrada/salida flexible
+    // Ej: Puede entrar entre 08:00-10:00, salir entre 16:00-18:00
+    // const [checkInStart, setCheckInStart] = useState(initialValue?.check_in_start || '');
+    // const [checkInEnd, setCheckInEnd] = useState(initialValue?.check_in_end || '');
+    // const [checkOutStart, setCheckOutStart] = useState(initialValue?.check_out_start || '');
+    // const [checkOutEnd, setCheckOutEnd] = useState(initialValue?.check_out_end || '');
 
     const [breakMin, setBreakMin] = useState(initialValue?.break_minutes ?? 60);
     const [rounding, setRounding] = useState(initialValue?.rounding_rule || 'none');
@@ -264,6 +266,10 @@ const TimetableModal: React.FC<{
 
                     {!isFlexible && (
                         <>
+                            {/* COMENTADO: Ventanas horarias para horarios semi-flexibles (futuro)
+                              Permite definir rangos de entrada/salida flexible
+                              Ej: Puede entrar entre 08:00-10:00, salir entre 16:00-18:00
+                              
                             <div className="flex-row gap-4">
                                 <div className="flex-col gap-2" style={{ flex: 1 }}>
                                     <label className="text-muted" style={{ fontSize: '12px' }}>Fichaje Entrada (Inicio)</label>
@@ -287,6 +293,7 @@ const TimetableModal: React.FC<{
                             </div>
 
                             <hr style={{ margin: '10px 0', border: 'none', borderTop: '1px solid var(--border-color)' }} />
+                            */}
 
                             <div className="flex-row gap-4">
                                 <div className="flex-col gap-2" style={{ flex: 1 }}>
@@ -318,19 +325,21 @@ const TimetableModal: React.FC<{
 
                             if (isFlexible) {
                                 payload.required_minutes = reqMin;
-                                payload.check_in_start = checkInStart || undefined;
-                                payload.check_in_end = checkInEnd || undefined;
-                                payload.check_out_start = checkOutStart || undefined;
-                                payload.check_out_end = checkOutEnd || undefined;
+                                // COMENTADO: Campos de ventanas horarias (semi-flexible, futuro)
+                                // payload.check_in_start = checkInStart || undefined;
+                                // payload.check_in_end = checkInEnd || undefined;
+                                // payload.check_out_start = checkOutStart || undefined;
+                                // payload.check_out_end = checkOutEnd || undefined;
                             } else {
                                 payload.on_duty_time = onDuty;
                                 payload.off_duty_time = offDuty;
                                 payload.late_allow_minutes = lateAllow;
                                 payload.early_leave_allow_minutes = earlyAllow;
-                                payload.check_in_start = checkInStart || undefined;
-                                payload.check_in_end = checkInEnd || undefined;
-                                payload.check_out_start = checkOutStart || undefined;
-                                payload.check_out_end = checkOutEnd || undefined;
+                                // COMENTADO: Campos de ventanas horarias (semi-flexible, futuro)
+                                // payload.check_in_start = checkInStart || undefined;
+                                // payload.check_in_end = checkInEnd || undefined;
+                                // payload.check_out_start = checkOutStart || undefined;
+                                // payload.check_out_end = checkOutEnd || undefined;
                                 payload.rounding_rule = rounding;
                             }
 
