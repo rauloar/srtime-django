@@ -1,4 +1,4 @@
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -101,6 +101,21 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     ordering_fields = ['user_id', 'name', 'hire_date']
     ordering = ['name']
     
+    def get_serializer_context(self):
+        """Add target_date to serializer context if provided in query params"""
+        context = super().get_serializer_context()
+        
+        date_str = self.request.query_params.get('date')
+        if date_str:
+            try:
+                from datetime import datetime
+                target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                context['target_date'] = target_date
+            except ValueError:
+                pass  # Invalid date format, use default (today)
+        
+        return context
+    
     def list(self, request, *args, **kwargs):
         """Adaptar respuesta para ser compatible con frontend FastAPI"""
         # Si tiene skip/limit, devolver array directo (sin paginación DRF)
@@ -143,14 +158,35 @@ class AttendanceLogViewSet(viewsets.ModelViewSet):
     queryset = AttendanceLog.objects.all()
     serializer_class = AttendanceLogSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['device', 'user_id', 'status', 'punch', 'is_manual']
-    search_fields = ['user_id', 'edited_reason', 'edited_by']
+    filterset_fields = {
+        'device': ['exact'],
+        'user_id': ['exact', 'icontains'],
+        'status': ['exact'],
+        'punch': ['exact'],
+        'is_manual': ['exact'],
+        'timestamp': ['gte', 'lte', 'range'],  # Support date range filtering
+    }
+    search_fields = ['user_id', 'user_name', 'edited_reason', 'edited_by']
     ordering_fields = ['timestamp', 'user_id']
     ordering = ['-timestamp']
     
     def get_queryset(self):
-        """Optimize queries with select_related to avoid N+1"""
-        return AttendanceLog.objects.select_related('device')
+        """Optimize queries with select_related and handle custom date filters"""
+        queryset = AttendanceLog.objects.select_related('device')
+        
+        # Handle from_date and to_date query params (frontend compatibility)
+        from_date = self.request.query_params.get('from_date')
+        to_date = self.request.query_params.get('to_date')
+        device_id = self.request.query_params.get('device_id')  # Support device_id alias
+        
+        if from_date:
+            queryset = queryset.filter(timestamp__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(timestamp__lte=to_date)
+        if device_id:  # Allow device_id as alias for device
+            queryset = queryset.filter(device_id=device_id)
+            
+        return queryset
 
     def perform_create(self, serializer):
         data = serializer.validated_data
@@ -346,10 +382,100 @@ class ScheduleOverrideViewSet(viewsets.ModelViewSet):
     queryset = ScheduleOverride.objects.all()
     serializer_class = ScheduleOverrideSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['employee', 'timetable', 'date']
+    filterset_fields = {
+        'employee': ['exact'],
+        'timetable': ['exact'],
+        'date': ['exact', 'gte', 'lte', 'range']
+    }
     search_fields = []
     ordering_fields = ['date', 'created_at']
     ordering = ['-date']
+
+    def list(self, request, *args, **kwargs):
+        """Devolver array directo (sin paginación) como FastAPI"""
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], url_path='from-shift')
+    def create_from_shift(self, request):
+        """
+        Create/update a schedule override using a shift and date.
+
+        Body:
+        {
+          "employee_id": 1,
+          "shift_id": 2,
+          "date": "2026-02-09",
+          "start_date": "2026-02-01"  # Optional, required if shift.cycle_days > 0
+        }
+        """
+        employee_id = request.data.get('employee_id')
+        shift_id = request.data.get('shift_id')
+        date_str = request.data.get('date')
+        start_date_str = request.data.get('start_date')
+
+        if not employee_id or not shift_id or not date_str:
+            return Response(
+                {"error": "employee_id, shift_id, and date are required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            from datetime import datetime
+            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return Response(
+                {"error": "Invalid date format. Use YYYY-MM-DD"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            employee = Employee.objects.get(id=employee_id)
+            shift = Shift.objects.get(id=shift_id)
+        except (Employee.DoesNotExist, Shift.DoesNotExist):
+            return Response(
+                {"error": "Employee or shift not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Resolve day_index dynamically
+        if shift.cycle_days and shift.cycle_days > 0:
+            if not start_date_str:
+                return Response(
+                    {"error": "start_date is required for shifts with cycle_days"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            try:
+                start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                return Response(
+                    {"error": "Invalid start_date format. Use YYYY-MM-DD"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            day_index = (target_date - start_date).days % shift.cycle_days
+        else:
+            day_index = target_date.weekday()
+
+        shift_tt = ShiftTimetable.objects.filter(
+            shift=shift,
+            day_index=day_index
+        ).select_related('timetable').first()
+
+        if not shift_tt or not shift_tt.timetable:
+            return Response(
+                {"error": "No timetable configured for this shift on the selected date"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        override, _ = ScheduleOverride.objects.update_or_create(
+            employee=employee,
+            date=target_date,
+            defaults={"timetable": shift_tt.timetable}
+        )
+
+        serializer = self.get_serializer(override)
+        return Response(serializer.data)
 
 
 class EmployeeShiftViewSet(viewsets.ModelViewSet):
@@ -392,10 +518,35 @@ class DailyAttendanceViewSet(viewsets.ModelViewSet):
     queryset = DailyAttendance.objects.all()
     serializer_class = DailyAttendanceSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['employee', 'date', 'status', 'schedule_type', 'is_absent', 'timetable']
-    search_fields = ['exception_reason']
-    ordering_fields = ['date', 'employee', 'status']
-    ordering = ['-date', 'employee']    
+    filterset_fields = {
+        'employee': ['exact'],
+        'employee__user_id': ['exact', 'icontains'],  # Search by employee user_id
+        'employee__name': ['exact', 'icontains'],      # Search by employee name
+        'date': ['exact', 'gte', 'lte', 'range'],      # Date range filtering
+        'status': ['exact', 'icontains'],
+        'schedule_type': ['exact'],
+        'is_absent': ['exact'],
+        'timetable': ['exact'],
+    }
+    search_fields = ['exception_reason', 'employee__name', 'employee__user_id']  # Full-text search
+    ordering_fields = ['date', 'employee__id', 'status']
+    ordering = ['-date', 'employee__id']
+
+    def get_queryset(self):
+        """Optimize queries with select_related and handle filters"""
+        queryset = DailyAttendance.objects.select_related('employee', 'timetable')
+        
+        # Support date range via query params
+        from_date = self.request.query_params.get('from_date')
+        to_date = self.request.query_params.get('to_date')
+        
+        if from_date:
+            queryset = queryset.filter(date__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(date__lte=to_date)
+            
+        return queryset
+    
     def get_permissions(self):
         """Custom permissions for shadow mode endpoint."""
         if self.action == 'shadow_comparison':

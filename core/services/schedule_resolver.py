@@ -305,7 +305,6 @@ def _build_resolved_schedule(
     
     Handles both fixed and flexible schedules.
     Correctly handles overnight shifts (off_duty < on_duty).
-    Handles CharField time fields (stored as HH:MM strings).
     
     Args:
         timetable: Timetable model
@@ -321,32 +320,27 @@ def _build_resolved_schedule(
     on_duty_dt = None
     off_duty_dt = None
     
-    # Helper function to parse time field (can be string or time object)
+    # Helper function to parse time field (time or string)
     def parse_time_field(field_value):
-        """Convert CharField time (HH:MM or HH:MM:SS) or time object to time object."""
+        """Parse time fields allowing HH:MM or HH:MM:SS strings."""
         if field_value is None:
             return None
-        
-        # Already a time object
+
         if isinstance(field_value, time):
             return field_value
-        
-        # Parse string format (supports both HH:MM and HH:MM:SS)
+
         if isinstance(field_value, str):
             field_value = field_value.strip()
-            if not field_value:  # Empty string
+            if not field_value:
                 return None
-            try:
-                # Try HH:MM:SS format first (most common from Timetable)
+            for fmt in ("%H:%M:%S", "%H:%M"):
                 try:
-                    return datetime.strptime(field_value, "%H:%M:%S").time()
+                    return datetime.strptime(field_value, fmt).time()
                 except ValueError:
-                    # Fallback to HH:MM format
-                    return datetime.strptime(field_value, "%H:%M").time()
-            except (ValueError, TypeError) as e:
-                logger.error(f"Cannot parse time field '{field_value}': {e}")
-                return None
-        
+                    continue
+            logger.error(f"Cannot parse time field '{field_value}'")
+            return None
+
         logger.error(f"Unexpected time field type: {type(field_value)}")
         return None
     
@@ -387,4 +381,172 @@ def _build_resolved_schedule(
         off_duty_dt=off_duty_dt,
         search_start=search_start,
         search_end=search_end,
+    )
+
+
+# =============================================================================
+# SCHEDULE COMPLIANCE VALIDATION (FASE 3)
+# =============================================================================
+
+@dataclass
+class ComplianceResult:
+    """Result of schedule compliance validation."""
+    is_compliant: bool
+    warning: bool
+    message: str
+    discrepancy_type: Optional[str]  # WRONG_HOURS, EARLY_IN, LATE_OUT, NO_CHECK_IN, NO_CHECK_OUT, INCOMPLETE
+    expected_schedule: dict
+    actual: dict
+
+
+def validate_schedule_compliance(
+    employee_id: int,
+    target_date: date,
+    in_time: Optional[datetime] = None,
+    out_time: Optional[datetime] = None,
+) -> ComplianceResult:
+    """
+    Validate if actual attendance matches expected schedule.
+    
+    This function:
+    1. Resolves the expected schedule for the employee on target_date
+    2. Compares with actual IN/OUT times
+    3. Returns compliance status with discrepancy details
+    
+    Args:
+        employee_id: Employee ID
+        target_date: Date to validate
+        in_time: Actual check-in datetime (optional)
+        out_time: Actual check-out datetime (optional)
+    
+    Returns:
+        ComplianceResult with validation details
+    
+    Example:
+        result = validate_schedule_compliance(emp_id=1, target_date=date.today())
+        if not result.is_compliant:
+            print(f"Warning: {result.message}")
+    """
+    # Step 1: Resolve expected schedule
+    resolved = resolve_schedule_unified(employee_id, target_date)
+    
+    # Build expected schedule info
+    expected_info = {
+        "on_duty": None,
+        "off_duty": None,
+        "shift_name": "Descanso",
+        "source": resolved.source.value,
+        "timetable_id": None,
+    }
+    
+    # Step 2: If no valid schedule (rest day or error), it's compliant
+    if not resolved.is_valid or resolved.source == ScheduleSource.IMPLICIT_REST:
+        return ComplianceResult(
+            is_compliant=True,
+            warning=False,
+            message="Día de descanso o sin horario asignado",
+            discrepancy_type=None,
+            expected_schedule=expected_info,
+            actual={"in_time": in_time, "out_time": out_time, "duration": None}
+        )
+    
+    # Step 3: Build expected schedule info
+    if resolved.timetable:
+        expected_info["shift_name"] = resolved.timetable.name
+        expected_info["timetable_id"] = resolved.timetable.id
+        
+        # Extract time strings for display
+        if resolved.on_duty_dt:
+            expected_info["on_duty"] = resolved.on_duty_dt.strftime("%H:%M")
+        
+        if resolved.off_duty_dt:
+            expected_info["off_duty"] = resolved.off_duty_dt.strftime("%H:%M")
+    
+    # Step 4: Validate actual times
+    actual_info = {
+        "in_time": in_time.strftime("%H:%M") if in_time else None,
+        "out_time": out_time.strftime("%H:%M") if out_time else None,
+        "duration": None,
+    }
+    
+    # No check-in
+    if not in_time:
+        return ComplianceResult(
+            is_compliant=False,
+            warning=True,
+            message="Sin registro de entrada",
+            discrepancy_type="NO_CHECK_IN",
+            expected_schedule=expected_info,
+            actual=actual_info
+        )
+    
+    # No check-out
+    if not out_time:
+        return ComplianceResult(
+            is_compliant=False,
+            warning=True,
+            message="Sin registro de salida - Día incompleto",
+            discrepancy_type="INCOMPLETE",
+            expected_schedule=expected_info,
+            actual=actual_info
+        )
+    
+    # Calculate actual duration
+    duration = out_time - in_time
+    actual_info["duration"] = str(duration)
+    
+    # Step 5: Compare times (tolerance: ±15 minutes)
+    tolerance = timedelta(minutes=15)
+    
+    expected_on = resolved.on_duty_dt
+    expected_off = resolved.off_duty_dt
+    
+    # Check if check-in is too early
+    early_delta = expected_on - in_time if expected_on else None
+    if early_delta and early_delta > tolerance:
+        return ComplianceResult(
+            is_compliant=False,
+            warning=True,
+            message=f"Entrada muy temprana: {in_time.strftime('%H:%M')} vs {expected_on.strftime('%H:%M')}",
+            discrepancy_type="EARLY_IN",
+            expected_schedule=expected_info,
+            actual=actual_info
+        )
+    
+    # Check if check-out is too late
+    late_delta = out_time - expected_off if expected_off else None
+    if late_delta and late_delta > tolerance:
+        return ComplianceResult(
+            is_compliant=False,
+            warning=True,
+            message=f"Salida muy tarde: {out_time.strftime('%H:%M')} vs {expected_off.strftime('%H:%M')}",
+            discrepancy_type="LATE_OUT",
+            expected_schedule=expected_info,
+            actual=actual_info
+        )
+    
+    # Check if hours are completely wrong (different shift)
+    # Example: Expected 8-16 but got 16-22
+    expected_hours = (expected_off - expected_on).total_seconds() / 3600 if expected_off and expected_on else 0
+    actual_hours = duration.total_seconds() / 3600
+    
+    # If duration differs by more than 2 hours, flags as wrong shift
+    if abs(expected_hours - actual_hours) > 2:
+        return ComplianceResult(
+            is_compliant=False,
+            warning=True,
+            message=f"Horario no correspondería: esperado ~{expected_hours:.0f}h, marcado {actual_hours:.0f}h",
+            discrepancy_type="WRONG_HOURS",
+            expected_schedule=expected_info,
+            actual=actual_info
+        )
+    
+    # Step 6: All checks passed
+    return ComplianceResult(
+        is_compliant=True,
+        warning=False,
+        message="Asistencia dentro del rango permitido",
+        discrepancy_type=None,
+        expected_schedule=expected_info,
+        actual=actual_info
     )

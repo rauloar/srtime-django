@@ -1,7 +1,7 @@
 """
 Attendance Calculation Views
 """
-from datetime import datetime
+from datetime import datetime, date
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -11,6 +11,7 @@ from django.db.models import Count, Q, F, Sum, Avg
 from core import models
 from core.serializers import DailyAttendanceSerializer
 from core.services import calculate_day, calculate_period
+from core.services.schedule_resolver import validate_schedule_compliance
 import json
 
 
@@ -191,12 +192,21 @@ def calculate_attendance_detailed(request):
 # @permission_classes([IsAuthenticated])
 def daily_reports(request):
     """
-    GET /api/v1/attendance/reports/daily/?from_date=2025-01-01&to_date=2025-01-07&employee_id=1&department_id=1
+    GET /api/v1/attendance/reports/daily/?from_date=2025-01-01&to_date=2025-01-07&employee_id=1&department_id=1&employee_user_id=EMP001&employee_name=John
+    
+    Supports:
+    - from_date, to_date: Date range (YYYY-MM-DD)
+    - employee_id: Filter by specific employee
+    - department_id: Filter by department
+    - employee_user_id: Filter by employee user_id (exact or partial match)
+    - employee_name: Filter by employee name (case-insensitive partial match)
     """
     from_date_str = request.query_params.get('from_date')
     to_date_str = request.query_params.get('to_date')
     employee_id = request.query_params.get('employee_id')
     department_id = request.query_params.get('department_id')
+    user_id_search = request.query_params.get('employee_user_id')
+    name_search = request.query_params.get('employee_name')
     
     if not from_date_str or not to_date_str:
         return Response(
@@ -213,6 +223,8 @@ def daily_reports(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
+    # Build query with all filters
+    from django.db.models import Q
     query = models.DailyAttendance.objects.filter(
         date__gte=from_date,
         date__lte=to_date
@@ -224,7 +236,14 @@ def daily_reports(request):
     if department_id:
         query = query.filter(employee__department_id=department_id)
     
-    records = query.select_related('employee').order_by('-date')
+    # Search filters (case-insensitive)
+    if user_id_search:
+        query = query.filter(employee__user_id__icontains=user_id_search)
+    
+    if name_search:
+        query = query.filter(employee__name__icontains=name_search)
+    
+    records = query.select_related('employee', 'timetable').order_by('-date', 'employee')
     serializer = DailyAttendanceSerializer(records, many=True)
     
     return Response(serializer.data)
@@ -335,3 +354,219 @@ def get_simple_day_view(request):
         "worked_minutes": worked_minutes,
         "logs": logs_data
     })
+
+
+@api_view(['GET'])
+def get_all_absences(request):
+    """
+    GET /api/v1/attendance/absences/
+    Retorna tanto absences manuales (Leave) como detectadas (DailyAttendance con status='Absent')
+    Query Params:
+    - from_date: YYYY-MM-DD (para absences detectadas)
+    - to_date: YYYY-MM-DD (para absences detectadas)
+    - employee_id: integer
+    - employee_user_id: string (icontains)
+    - employee_name: string (icontains)
+    """
+    # 1. Obtener absences manuales (Leave)
+    manual_absences = models.Leave.objects.select_related('employee').all()
+    
+    # 2. Obtener absences detectadas (DailyAttendance con status='Absent')
+    detected_absences = models.DailyAttendance.objects.filter(
+        status='Absent'
+    ).select_related('employee').all()
+    
+    # 3. Aplicar filtros query params
+    from_date = request.query_params.get('from_date')
+    to_date = request.query_params.get('to_date')
+    employee_id = request.query_params.get('employee_id')
+    employee_user_id = request.query_params.get('employee_user_id')
+    employee_name = request.query_params.get('employee_name')
+    
+    if from_date:
+        detected_absences = detected_absences.filter(date__gte=from_date)
+    if to_date:
+        detected_absences = detected_absences.filter(date__lte=to_date)
+    if employee_id:
+        manual_absences = manual_absences.filter(employee_id=int(employee_id))
+        detected_absences = detected_absences.filter(employee_id=int(employee_id))
+    if employee_user_id:
+        manual_absences = manual_absences.filter(employee__user_id__icontains=employee_user_id)
+        detected_absences = detected_absences.filter(employee__user_id__icontains=employee_user_id)
+    if employee_name:
+        manual_absences = manual_absences.filter(employee__name__icontains=employee_name)
+        detected_absences = detected_absences.filter(employee__name__icontains=employee_name)
+    
+    # 4. Transformar absences manuales al formato unificado
+    manual_data = []
+    for leave in manual_absences:
+        manual_data.append({
+            'id': leave.id,
+            'employee_id': leave.employee_id,
+            'employee_name': leave.employee.name,
+            'employee_user_id': leave.employee.user_id,
+            'type': leave.leave_type,
+            'source': 'Manual',  # Indica que es manual
+            'start_date': leave.start_time.date().isoformat(),
+            'end_date': leave.end_time.date().isoformat(),
+            'reason': leave.reason or leave.leave_type,
+            'status': leave.status,
+        })
+    
+    # 5. Transformar absences detectadas al formato unificado
+    detected_data = []
+    for daily in detected_absences:
+        detected_data.append({
+            'id': f"detected_{daily.id}",  # Prefijo para evitar conflicto con IDs manuales
+            'employee_id': daily.employee_id,
+            'employee_name': daily.employee.name,
+            'employee_user_id': daily.employee.user_id,
+            'type': 'Detected Absence',
+            'source': 'Detected',  # Indica que fue detectada automáticamente
+            'start_date': daily.date.isoformat(),
+            'end_date': daily.date.isoformat(),
+            'reason': daily.exception_reason or 'No logs found',
+            'status': 'Detected',
+        })
+    
+    # 6. Combinar y ordenar
+    all_absences = manual_data + detected_data
+    all_absences.sort(key=lambda x: x['start_date'], reverse=True)
+    
+    return Response(all_absences)
+
+
+@api_view(['GET'])
+def get_logs_with_validation(request):
+    """
+    GET /api/v1/attendance/logs-validated/?employee_id=1&date=2026-02-09
+    
+    Endpoint aditivo que obtiene logs del día con validación de compliance.
+    No modifica engines V1/V2, solo agrega capa de validación.
+    
+    REGLA DE ORO: Nunca devuelve 404, siempre 200. Sin errores en UI.
+    
+    Response (siempre 200 OK):
+    {
+        "employee": {
+            "id": 1,
+            "name": "Fulano",
+            "department": "Administración",
+            "user_id": "A001"
+        },
+        "date": "2026-02-09",
+        "logs": [
+            {"timestamp": "2026-02-09T16:00:00Z", "punch": 0, "time": "16:00"},
+            {"timestamp": "2026-02-09T22:00:00Z", "punch": 1, "time": "22:00"}
+        ],
+        "validation": {
+            "is_compliant": false,
+            "warning": true,
+            "message": "Horario marcado no correspondería",
+            "discrepancy_type": "WRONG_HOURS",
+            "expected_schedule": {
+                "on_duty": "08:00",
+                "off_duty": "16:00",
+                "shift_name": "Turno Mañana",
+                "source": "EMPLOYEE_SHIFT",
+                "timetable_id": 1
+            },
+            "actual": {
+                "in_time": "16:00",
+                "out_time": "22:00",
+                "duration": "06:00:00"
+            }
+        }
+    }
+    """
+    employee_id = request.query_params.get('employee_id')
+    date_str = request.query_params.get('date')
+    
+    # Validación de parámetros
+    if not employee_id or not date_str:
+        return Response({
+            "employee": None,
+            "date": date_str,
+            "logs": [],
+            "validation": None,
+            "error": "employee_id and date (YYYY-MM-DD) required"
+        }, status=status.HTTP_200_OK)
+    
+    # Validación del formato de fecha
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return Response({
+            "employee": None,
+            "date": date_str,
+            "logs": [],
+            "validation": None,
+            "error": "Invalid date format. Use YYYY-MM-DD"
+        }, status=status.HTTP_200_OK)
+    
+    # 1. Get Employee (sin 404 - retorna payload vacío)
+    try:
+        emp = models.Employee.objects.get(id=employee_id)
+    except (models.Employee.DoesNotExist, ValueError):
+        return Response({
+            "employee": None,
+            "date": date_str,
+            "logs": [],
+            "validation": None,
+            "error": f"Employee {employee_id} not found"
+        }, status=status.HTTP_200_OK)
+    
+    # 2. Get logs for the day (puede estar vacío, eso es OK)
+    logs_qs = models.AttendanceLog.objects.filter(
+        user_id=str(emp.user_id),
+        timestamp__date=target_date
+    ).order_by('timestamp')
+    
+    # Parse IN/OUT logs
+    in_time = None
+    out_time = None
+    logs_data = []
+    
+    for log in logs_qs:
+        log_time = log.timestamp
+        punch_type = "IN" if log.punch == 0 else "OUT"
+        
+        logs_data.append({
+            "timestamp": log.timestamp.isoformat(),
+            "punch": log.punch,
+            "time": log_time.strftime("%H:%M")
+        })
+        
+        # Track IN/OUT for validation
+        if log.punch == 0 and in_time is None:
+            in_time = log_time
+        elif log.punch == 1:
+            out_time = log_time
+    
+    # 3. Validate compliance (sin errores - siempre devuelve ComplianceResult)
+    compliance_result = validate_schedule_compliance(
+        employee_id=employee_id,
+        target_date=target_date,
+        in_time=in_time,
+        out_time=out_time
+    )
+    
+    # Build response (siempre 200 OK, nunca 404)
+    return Response({
+        "employee": {
+            "id": emp.id,
+            "name": emp.name,
+            "department": emp.department.name if emp.department else None,
+            "user_id": emp.user_id
+        },
+        "date": date_str,
+        "logs": logs_data,
+        "validation": {
+            "is_compliant": compliance_result.is_compliant,
+            "warning": compliance_result.warning,
+            "message": compliance_result.message,
+            "discrepancy_type": compliance_result.discrepancy_type,
+            "expected_schedule": compliance_result.expected_schedule,
+            "actual": compliance_result.actual
+        }
+    }, status=status.HTTP_200_OK)

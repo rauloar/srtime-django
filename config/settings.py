@@ -44,7 +44,8 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    # CSRF disabled for API: Using JWT authentication (stateless, no CSRF needed)
+    # 'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -107,9 +108,57 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
+# ============================================================================
+# SECURITY SETTINGS - DEVELOPMENT MODE
+# ============================================================================
+# ⚠️ WARNING: Current settings are configured for DEVELOPMENT ONLY
+# For PRODUCTION deployment, review and update ALL settings marked with [PROD]
+# ============================================================================
+
+# CORS Configuration
+# [DEV] Allow all origins for development convenience
+CORS_ALLOW_ALL_ORIGINS = True  # [PROD] Set to False and use CORS_ALLOWED_ORIGINS list
+# [PROD] Uncomment and configure:
+# CORS_ALLOWED_ORIGINS = [
+#     'https://yourdomain.com',
+#     'https://www.yourdomain.com',
+# ]
+CORS_ALLOW_CREDENTIALS = True  # Required for CSRF token cookies
+
+# CSRF Configuration
+# [DEV] Trust local development servers
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000', 
+    'http://127.0.0.1:3000', 
+    'http://localhost:9000', 
+    'http://127.0.0.1:9000'
+]
+# [PROD] Replace with production domains:
+# CSRF_TRUSTED_ORIGINS = ['https://yourdomain.com', 'https://www.yourdomain.com']
+
+# [DEV] Allow JavaScript to read CSRF token (required for React/SPA)
+CSRF_COOKIE_HTTPONLY = False  
+# [PROD] Consider keeping False if using SPA, or implement alternative CSRF strategy
+
+# [DEV] Lax allows cookies in some cross-site requests
+CSRF_COOKIE_SAMESITE = 'Lax'  
+# [PROD] Consider 'Strict' for maximum security, or keep 'Lax' for better UX
+
+# [DEV] Secure flag disabled for local HTTP development
+CSRF_COOKIE_SECURE = False  
+# [PROD] MUST set to True when using HTTPS in production
+
+# Additional Production Security Settings to Enable:
+# [PROD] Uncomment these for production:
+# SECURE_SSL_REDIRECT = True  # Redirect all HTTP to HTTPS
+# SESSION_COOKIE_SECURE = True  # Only send session cookie over HTTPS
+# SECURE_BROWSER_XSS_FILTER = True  # Enable browser XSS filter
+# SECURE_CONTENT_TYPE_NOSNIFF = True  # Prevent MIME type sniffing
+# SECURE_HSTS_SECONDS = 31536000  # HTTP Strict Transport Security (1 year)
+# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+# SECURE_HSTS_PRELOAD = True
+
+# ============================================================================
 
 # REST FRAMEWORK
 REST_FRAMEWORK = {
@@ -144,7 +193,7 @@ SIMPLE_JWT = {
 # ATTENDANCE ENGINE SHADOW MODE
 # Enable dual-engine validation: V1 (production) + V2 (shadow validation)
 # Shadow mode runs V2 in parallel without affecting production data
-ATTENDANCE_SHADOW_ENABLED = os.getenv('ATTENDANCE_SHADOW_ENABLED', 'False').lower() == 'true'
+ATTENDANCE_SHADOW_ENABLED = os.getenv('ATTENDANCE_SHADOW_ENABLED', 'True').lower() == 'true'
 ATTENDANCE_SHADOW_LOG_LEVEL = os.getenv('ATTENDANCE_SHADOW_LOG_LEVEL', 'WARNING')  # DEBUG, INFO, WARNING, ERROR
 
 # Shadow mode behavior:

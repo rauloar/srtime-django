@@ -233,3 +233,32 @@ def dashboard_summary(request):
             'limit': limit
         }
     }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def get_csrf_token(request):
+    """
+    Endpoint to get CSRF token.
+    The token is automatically set as a cookie by Django middleware.
+    """
+    from django.middleware.csrf import get_token
+    from django.views.decorators.csrf import ensure_csrf_cookie
+    
+    # DRF wraps the original HttpRequest - need to unwrap it
+    django_request = request._request if hasattr(request, '_request') else request
+    token = get_token(django_request)
+    
+    # Create response with token
+    response = Response({'csrfToken': token}, status=status.HTTP_200_OK)
+    
+    # Ensure the cookie is set in the response
+    response.set_cookie(
+        key='csrftoken',
+        value=token,
+        max_age=31449600,  # 1 year
+        secure=False,  # Set to True in production with HTTPS
+        httponly=False,  # Must be False for JavaScript to read it
+        samesite='Lax'
+    )
+    
+    return response

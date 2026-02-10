@@ -17,7 +17,7 @@ GUARANTEES:
 """
 
 import logging
-from datetime import date, datetime, time
+from datetime import date, datetime
 from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass, asdict
 
@@ -25,7 +25,6 @@ from django.conf import settings
 from django.utils import timezone
 
 from core import models
-from core.services.schedule_resolver import resolve_schedule_unified, ScheduleSource
 
 logger = logging.getLogger(__name__)
 shadow_logger = logging.getLogger('attendance.shadow')
@@ -153,52 +152,39 @@ class ShadowModeService:
     ) -> Dict[str, Any]:
         """
         Execute V2 engine calculation in shadow mode.
-        
-        For now, just returns status='PENDING' as shadow comparison.
-        This is placeholder for when V2 engine is activated as shadow.
+
+        Uses V2 calculation directly and maps the results into a
+        comparison-friendly dictionary. Never raises exceptions.
         """
         try:
+            from core.services.attendance_engine_v2 import calculate_day_v2
+
             employee = models.Employee.objects.filter(id=employee_id).first()
             if not employee:
                 return {'error': f'Employee {employee_id} not found'}
-            
-            # Get schedule using unified resolver
-            schedule = resolve_schedule_unified(employee_id, target_date)
-            
-            # Get attendance logs for this day
-            start_dt = datetime.combine(target_date, time.min)
-            end_dt = datetime.combine(target_date, time.max)
-            
-            logs = models.AttendanceLog.objects.filter(
-                employee=employee,
-                log_date__range=[start_dt, end_dt],
-            ).order_by('log_date')
-            
-            if not logs.exists():
-                return {
-                    'status': 'NO_LOGS',
-                    'worked_minutes': 0,
-                    'late_minutes': 0,
-                    'early_minutes': 0,
-                    'error': None,
-                }
-            
-            # TODO: Call V2 engine when fully implemented
-            # For now, shadow mode is logging-only
+
+            daily_v2 = calculate_day_v2(employee_id, target_date, persist=False)
+
             return {
-                'status': 'PENDING',
-                'worked_minutes': None,
-                'late_minutes': None,
-                'early_minutes': None,
-                'error': 'V2 engine shadow calculation not yet implemented',
+                'status': daily_v2.status,
+                'worked_minutes': daily_v2.worked_minutes,
+                'late_minutes': daily_v2.late_minutes,
+                'early_minutes': daily_v2.early_minutes,
+                'error': None,
             }
-            
+
         except Exception as e:
             logger.error(
                 f"V2 calculation execution failed for employee {employee_id}: {e}",
                 exc_info=True
             )
-            return {'error': str(e)}
+            return {
+                'status': None,
+                'worked_minutes': None,
+                'late_minutes': None,
+                'early_minutes': None,
+                'error': str(e),
+            }
     
     def _compare_results(
         self,
@@ -211,10 +197,13 @@ class ShadowModeService:
         differences = []
         tolerance = 1  # 1 minute tolerance for rounding
         
+        v2_status = v2_results.get('status')
+        v1_status = v1_results.get('status')
+
         # Compare status
-        if v1_results['status'] != v2_results['status']:
+        if v1_status != v2_status:
             differences.append(
-                f"Status mismatch: V1={v1_results['status']}, V2={v2_results['status']}"
+                f"Status mismatch: V1={v1_status}, V2={v2_status}"
             )
         
         # Compare worked minutes
@@ -244,12 +233,12 @@ class ShadowModeService:
         return ShadowComparison(
             employee_id=employee_id,
             target_date=target_date,
-            v1_status=v1_results['status'],
+            v1_status=v1_status,
             v1_worked_minutes=v1_worked,
             v1_late_minutes=v1_late,
             v1_early_minutes=v1_early,
             v1_error=v1_results.get('error'),
-            v2_status=v2_results['status'],
+            v2_status=v2_status,
             v2_worked_minutes=v2_worked,
             v2_late_minutes=v2_late,
             v2_early_minutes=v2_early,

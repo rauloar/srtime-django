@@ -40,9 +40,26 @@ def round_time(dt: datetime, rule: str, is_check_in: bool) -> datetime:
 def _build_context(tt: models.Timetable, target_date: date, source: str) -> DayContext:
     try:
         # Flexible
+        def parse_time_field(field_value, default_value=None):
+            if field_value is None:
+                return default_value
+            if isinstance(field_value, time):
+                return field_value
+            if isinstance(field_value, str):
+                field_value = field_value.strip()
+                if not field_value:
+                    return default_value
+                for fmt in ("%H:%M:%S", "%H:%M"):
+                    try:
+                        return datetime.strptime(field_value, fmt).time()
+                    except ValueError:
+                        continue
+                return default_value
+            return default_value
+
         if tt.is_flexible:
-            t_in_start = datetime.strptime(tt.check_in_start or "00:00", "%H:%M").time()
-            t_out_end = datetime.strptime(tt.check_out_end or "23:59", "%H:%M").time()
+            t_in_start = parse_time_field(tt.check_in_start, time(0, 0))
+            t_out_end = parse_time_field(tt.check_out_end, time(23, 59))
             
             dt_search_start = timezone.make_aware(datetime.combine(target_date, t_in_start))
             dt_search_end = timezone.make_aware(datetime.combine(target_date, t_out_end))
@@ -67,30 +84,13 @@ def _build_context(tt: models.Timetable, target_date: date, source: str) -> DayC
             )
 
         # Standard Fixed
-        # Parse time fields - handle both "HH:MM" and "HH:MM:SS" formats
-        def parse_time_field(time_str):
-            if not time_str:
-                return None
-            # Try HH:MM:SS format first
-            try:
-                return datetime.strptime(time_str, "%H:%M:%S").time()
-            except ValueError:
-                # Fall back to HH:MM format
-                return datetime.strptime(time_str, "%H:%M").time()
-        
         t_on = parse_time_field(tt.on_duty_time)
         t_off = parse_time_field(tt.off_duty_time)
-        
-        def parse_time(s, default):
-            if not s:
-                return default
-            try:
-                return parse_time_field(s)
-            except:
-                return default
-            
-        t_in_start = parse_time(tt.check_in_start, time.min)
-        t_out_end = parse_time(tt.check_out_end, time.max)
+        t_in_start = parse_time_field(tt.check_in_start, time.min)
+        t_out_end = parse_time_field(tt.check_out_end, time.max)
+
+        if not t_on or not t_off:
+            return DayContext.empty()
         
         dt_on = timezone.make_aware(datetime.combine(target_date, t_on))
         dt_off = timezone.make_aware(datetime.combine(target_date, t_off))

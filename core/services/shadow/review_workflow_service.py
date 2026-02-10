@@ -492,25 +492,27 @@ class ShadowReviewWorkflowService:
         Create an audit log entry for a review action.
         
         Uses CalculationAuditLog for consistency with existing audit infrastructure.
+        NOTE: Audit logging disabled - legal audit module not implemented
         """
-        try:
-            # Import here to avoid circular dependency
-            from core.models import CalculationAuditLog
-            
-            CalculationAuditLog.objects.create(
-                action_type=action,
-                actor=actor,
-                reference_type='ShadowDifferenceAnalysis',
-                reference_id=analysis_id,
-                metadata={
-                    'previous_status': previous_status,
-                    'new_status': new_status,
-                    **(metadata or {}),
-                },
-            )
-        except Exception as e:
-            # Never fail the main operation due to audit logging
-            logger.error(f"Failed to create audit log: {e}")
+        pass  # Audit logging disabled
+        # try:
+        #     # Import here to avoid circular dependency
+        #     from core.models import CalculationAuditLog
+        #     
+        #     CalculationAuditLog.objects.create(
+        #         action_type=action,
+        #         actor=actor,
+        #         reference_type='ShadowDifferenceAnalysis',
+        #         reference_id=analysis_id,
+        #         metadata={
+        #             'previous_status': previous_status,
+        #             'new_status': new_status,
+        #             **(metadata or {}),
+        #         },
+        #     )
+        # except Exception as e:
+        #     # Never fail the main operation due to audit logging
+        #     logger.error(f"Failed to create audit log: {e}")
 
 
 # =============================================================================

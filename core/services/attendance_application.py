@@ -52,7 +52,8 @@ from typing import Optional, Tuple, List, Set
 from django.utils import timezone
 
 from core import models
-from core.models_audit import CalculationAuditLog, AuditEventType
+# NOTE: CalculationAuditLog/AuditEventType were planned for legal audit module but not implemented
+# from core.models_audit import CalculationAuditLog, AuditEventType
 from core.domain.flexible import FlexPolicy, Punch, Confidence
 from core.domain.flexible.result import DailyCalculationResult
 
@@ -576,17 +577,18 @@ class AttendanceApplicationService:
                 date=target_date,
             ).first()
             
-            if existing:
-                CalculationAuditLog.objects.create(
-                    daily_attendance=existing,
-                    event_type='CREATED',  # Closest available type
-                    engine_version=self.ENGINE_VERSION,
-                    metadata={
-                        'error': error_message,
-                        'error_type': 'PROCESSING_ERROR',
-                    },
-                    actor=actor,
-                )
+            # NOTE: CalculationAuditLog disabled - legal audit module not implemented
+            # if existing:
+            #     CalculationAuditLog.objects.create(
+            #         daily_attendance=existing,
+            #         event_type='CREATED',  # Closest available type
+            #         engine_version=self.ENGINE_VERSION,
+            #         metadata={
+            #             'error': error_message,
+            #             'error_type': 'PROCESSING_ERROR',
+            #         },
+            #         actor=actor,
+            #     )
         except Exception:
             pass  # Don't fail on error logging
     

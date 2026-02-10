@@ -14,8 +14,8 @@ from .auth_views import (
     auth_login, auth_users_list, auth_user_delete, auth_user_password_update,
     server_info
 )
-from .views import enums_list, dashboard_summary
-from .views_attendance import calculate_attendance, daily_reports, calculate_single_day, get_simple_day_view, calculate_attendance_detailed
+from .views import enums_list, dashboard_summary, get_csrf_token
+from .views_attendance import calculate_attendance, daily_reports, calculate_single_day, get_simple_day_view, calculate_attendance_detailed, get_all_absences, get_logs_with_validation
 from .views_devices import (
     test_connection, test_connection_sync, import_attendance,
     clear_attendance, download_users, sync_users, clear_all_data,
@@ -75,6 +75,9 @@ urlpatterns = [
 
     # Dashboard summary (historical only)
     path('dashboard/summary/', dashboard_summary, name='dashboard_summary'),
+    
+    # CSRF Token endpoint
+    path('csrf/', get_csrf_token, name='get_csrf_token'),
     
     # Auth endpoints compatibles con frontend React (DISABLED FOR DEV MODE)
     # path('auth/login', auth_login, name='auth_login'),
@@ -145,10 +148,12 @@ urlpatterns = [
     # Minimal Day View (Rollback Feature)
     path('attendance/day/', get_simple_day_view, name='simple_day_view'),
     
+    # Attendance Logs with Validation (FASE 4)
+    path('attendance/logs-validated/', get_logs_with_validation, name='logs_validated'),
     # Day View Stubs (DEV MODE - Frontend compatibility)
     path('attendance/<int:employee_id>/timeline/<str:date>/', stub_timeline, name='stub_timeline'),
     path('attendance/<int:employee_id>/explanation/<str:date>/', stub_explanation, name='stub_explanation'),
     
     # Endpoints de compatibilidad (Alias)
-    path('attendance/absences/', LeaveViewSet.as_view({'get': 'list'}), name='attendance_absences_alias'),
+    path('attendance/absences/', get_all_absences, name='attendance_absences_alias'),
 ]

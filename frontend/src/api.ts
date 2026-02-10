@@ -18,14 +18,32 @@ const API_URL = (() => {
 
 export const api = axios.create({
     baseURL: API_URL,
+    withCredentials: true, // Enable cookies for CSRF
 });
 
-// Add request interceptor to inject Authorization header
+// Helper to get CSRF token from cookies
+function getCookie(name: string): string | null {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+    return null;
+}
+
+// Add request interceptor to inject Authorization header and CSRF token
 api.interceptors.request.use((config) => {
     const token = sessionStorage.getItem('auth_token');
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Add CSRF token for POST, PUT, PATCH, DELETE requests
+    if (['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase() || '')) {
+        const csrfToken = getCookie('csrftoken');
+        if (csrfToken) {
+            config.headers['X-CSRFToken'] = csrfToken;
+        }
+    }
+    
     return config;
 }, (error) => {
     return Promise.reject(error);
@@ -237,12 +255,65 @@ export const getAttendanceLogs = async (params: {
     user_id?: string; 
     from_date?: string; 
     to_date?: string;
+    name?: string;  // Search by user_name via backend search
+    search?: string;  // Alternative search parameter
     page?: number;
     page_size?: number;
 }) => {
     const response = await api.get<{ count: number; next: string | null; previous: string | null; results: AttendanceLog[] }>('/attendance/', { params });
     return response.data;
 };
+
+// Schedule Compliance Validation
+export interface ExpectedSchedule {
+    on_duty: string | null;
+    off_duty: string | null;
+    shift_name: string;
+    source: string;
+    timetable_id: number | null;
+}
+
+export interface ActualTimes {
+    in_time: string | null;
+    out_time: string | null;
+    duration: string | null;
+}
+
+export interface ScheduleValidation {
+    is_compliant: boolean;
+    warning: boolean;
+    message: string;
+    discrepancy_type: string | null;
+    expected_schedule: ExpectedSchedule;
+    actual: ActualTimes;
+}
+
+export interface LogsWithValidation {
+    employee: {
+        id: number;
+        name: string;
+        department: string | null;
+        user_id: string;
+    } | null;
+    date: string;
+    logs: Array<{
+        timestamp: string;
+        punch: number;
+        time: string;
+    }>;
+    validation: ScheduleValidation | null;
+    error?: string;
+}
+
+export const getLogsWithValidation = async (employee_id: number, date: string) => {
+    const response = await api.get<LogsWithValidation>('/attendance/logs-validated/', {
+        params: { employee_id, date }
+    });
+    return response.data;
+};
+
+export const updateAttendanceLog = async (id: number, data: Partial<AttendanceLog>) => 
+    (await api.put<AttendanceLog>(`/attendance/${id}/`, data)).data;
 
 // Settings & Jobs
 export const getSettings = async () => (await api.get<Setting[]>('/settings/')).data;
@@ -321,19 +392,50 @@ export interface Employee {
     department_name?: string; // Read-only
     privilege?: number;
     active?: boolean;
+
+    current_shift?: {
+        id: number;
+        name: string;
+        scope: 'EMPLOYEE' | 'DEPARTMENT';
+        start_date: string;
+        end_date?: string | null;
+    } | null;
+    current_timetable?: {
+        id: number;
+        name: string;
+        on_duty_time?: string | null;
+        off_duty_time?: string | null;
+        is_flexible?: boolean;
+        break_minutes?: number;
+        late_allow_minutes?: number;
+        early_leave_allow_minutes?: number;
+        overtime_threshold_minutes?: number;
+    } | null;
+    schedule_source?: {
+        is_valid: boolean;
+        source?: string | null;
+        error?: string | null;
+        description?: string | null;
+    } | null;
 }
 
 export const getDepartments = async () => (await api.get<Department[]>('/departments/')).data;
 export const createDepartment = async (dept: Department) => (await api.post<Department>('/departments/', dept)).data;
-export const updateDepartment = async (id: number, dept: Department) => (await api.put<Department>(`/departments/${id}`, dept)).data;
-export const deleteDepartment = async (id: number) => (await api.delete(`/departments/${id}`)).data;
+export const updateDepartment = async (id: number, dept: Department) => (await api.put<Department>(`/departments/${id}/`, dept)).data;
+export const deleteDepartment = async (id: number) => (await api.delete(`/departments/${id}/`)).data;
 
 export const getEmployees = async (skip = 0, limit = 100) => (await api.get<Employee[]>('/employees/', { params: { skip, limit } })).data;
+export const getEmployeesByDate = async (date: string, skip = 0, limit = 100) => (
+    await api.get<Employee[]>('/employees/', { params: { skip, limit, date } })
+).data;
 export const searchEmployees = async (query: string) => (await api.get<Employee[]>('/employees/', { params: { search: query } })).data;
-export const getEmployee = async (id: number) => (await api.get<Employee>(`/employees/${id}`)).data;
+export const getEmployee = async (id: number) => (await api.get<Employee>(`/employees/${id}/`)).data;
+export const getEmployeeByDate = async (id: number, date: string) => (
+    await api.get<Employee>(`/employees/${id}/`, { params: { date } })
+).data;
 export const createEmployee = async (emp: Employee) => (await api.post<Employee>('/employees/', emp)).data;
-export const updateEmployee = async (id: number, emp: Employee) => (await api.put<Employee>(`/employees/${id}`, emp)).data;
-export const deleteEmployee = async (id: number) => (await api.delete(`/employees/${id}`)).data;
+export const updateEmployee = async (id: number, emp: Employee) => (await api.put<Employee>(`/employees/${id}/`, emp)).data;
+export const deleteEmployee = async (id: number) => (await api.delete(`/employees/${id}/`)).data;
 
 export interface ImportResult {
     success: number;
@@ -376,8 +478,8 @@ export interface Shift {
 
 export const getTimetables = async () => (await api.get<Timetable[]>('/schedules/timetables/')).data;
 export const createTimetable = async (tt: Timetable) => (await api.post<Timetable>('/schedules/timetables/', tt)).data;
-export const updateTimetable = async (id: number, tt: Timetable) => (await api.put<Timetable>(`/schedules/timetables/${id}`, tt)).data;
-export const deleteTimetable = async (id: number) => (await api.delete(`/schedules/timetables/${id}`)).data;
+export const updateTimetable = async (id: number, tt: Timetable) => (await api.put<Timetable>(`/timetables/${id}/`, tt)).data;
+export const deleteTimetable = async (id: number) => (await api.delete(`/timetables/${id}/`)).data;
 
 export const getShifts = async () => (await api.get<Shift[]>('/shifts/')).data;
 export const createShift = async (shift: Shift) => (await api.post<Shift>('/shifts/', shift)).data;
@@ -436,6 +538,28 @@ export const getAssignments = async (startDate: string, endDate: string, departm
     return (await api.get<ShiftAssignment[]>('/employee-shifts/', { params })).data;
 };
 
+export interface ScheduleOverride {
+    id: number;
+    employee: number;
+    employee_name?: string;
+    timetable: number;
+    timetable_name?: string;
+    date: string;
+}
+
+export const getScheduleOverrides = async (startDate: string, endDate: string, employeeId?: number) => {
+    const params: any = { 'date__gte': startDate, 'date__lte': endDate };
+    if (employeeId) params.employee = employeeId;
+    return (await api.get<ScheduleOverride[]>('/schedule-overrides/', { params })).data;
+};
+
+export const createScheduleOverrideFromShift = async (payload: {
+    employee_id: number;
+    shift_id: number;
+    date: string;
+    start_date?: string;
+}) => (await api.post<ScheduleOverride>('/schedule-overrides/from-shift/', payload)).data;
+
 // Calculation & Reports
 export interface DailyAttendance {
     id: number;
@@ -452,7 +576,8 @@ export interface DailyAttendance {
     overtime_minutes: number; // Added
     status: string;
     exception_reason?: string;
-    employee_name?: string; // Derived from serializer
+    employee_name?: string; // From serializer (employee.name)
+    employee_user_id?: string; // From serializer (employee.user_id)
     
     // Status color and label from backend
     status_info?: {
@@ -498,27 +623,38 @@ export const getDashboardSummary = async (limit = 5) => {
 };
 
 export const calculateAttendance = async (startDate: string, endDate: string, departmentId?: number) => {
-    const params: any = { start_date: startDate, end_date: endDate };
-    if (departmentId) params.department_id = departmentId;
-    return (await api.post('/attendance/calculate', null, { params })).data;
+    const payload: any = { start_date: startDate, end_date: endDate };
+    if (departmentId) payload.department_id = departmentId;
+    return (await api.post('/attendance/calculate/', payload)).data;
 };
 
-export const getDailyReports = async (fromDate: string, toDate: string, departmentId?: number) => {
+export const getDailyReports = async (
+    fromDate: string, 
+    toDate: string, 
+    departmentId?: number,
+    userIdFilter?: string,
+    nameFilter?: string
+) => {
     const params: any = { from_date: fromDate, to_date: toDate };
     if (departmentId) params.department_id = departmentId;
+    if (userIdFilter?.trim()) params.employee_user_id = userIdFilter.trim();
+    if (nameFilter?.trim()) params.employee_name = nameFilter.trim();
     return (await api.get<DailyAttendance[]>('/attendance/reports/daily/', { params })).data;
 };
 
 // Absences
 export interface Absence {
-    id?: number;
+    id?: number | string;
     employee_id: number;
     employee_name?: string; // Read only
+    employee_user_id?: string; // From backend
     start_date: string;
     end_date: string;
     type: string;
     reason?: string;
     approved?: boolean;
+    source?: 'Manual' | 'Detected'; // Manual (Leave) or Detected (DailyAttendance)
+    status?: string; // Pending, Approved, Rejected, Detected
 }
 
 export const getAbsences = async () => {

@@ -1,4 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import { api } from './api';
 import { MainLayout } from './components/layout/MainLayout';
 import { Dashboard } from './pages/Dashboard';
 import { Analytics } from './pages/Analytics';
@@ -12,7 +14,6 @@ import { Settings } from './pages/system/Settings';
 import { Logs } from './pages/Logs';
 // import { Login } from './pages/auth/Login';  // DEV: Auth disabled
 import { PrivateRoute } from './components/auth/PrivateRoute';
-import { Company } from './pages/organization/Company';
 import { Positions } from './pages/organization/Positions';
 import { Zones } from './pages/organization/Zones';
 import { Timetables } from './pages/asistencia/Timetables';
@@ -33,6 +34,19 @@ function AppContent() {
   const location = useLocation();
   const locationState = location.state as { message?: string } | null;
   useSessionSecurity();
+
+  // Fetch CSRF token on app load
+  useEffect(() => {
+    const fetchCSRFToken = async () => {
+      try {
+        await api.get('/csrf/');
+        // Token is automatically set as cookie by Django
+      } catch (error) {
+        console.error('Failed to fetch CSRF token:', error);
+      }
+    };
+    fetchCSRFToken();
+  }, []);
 
   return (
     <>
@@ -71,13 +85,12 @@ function AppContent() {
           <Route path="devices/:id" element={<DeviceDetail />} />
           <Route path="devices/:id/users" element={<Users />} />
 
-          {/* Personnel Module (RRHH) - Complete Organization Management */}
-          <Route path="personnel" element={<Navigate to="/personnel/employees" replace />} />
-          <Route path="personnel/company" element={<Company />} />
+          {/* Personnel Module - Organization Management (Hierarchical Order) */}
+          <Route path="personnel" element={<Navigate to="/personnel/departments" replace />} />
           <Route path="personnel/departments" element={<Departments />} />
-          <Route path="personnel/employees" element={<Employees />} />
           <Route path="personnel/shifts" element={<Shifts />} />
           <Route path="personnel/timetables" element={<Timetables />} />
+          <Route path="personnel/employees" element={<Employees />} />
 
           {/* Attendance Module */}
           <Route path="attendance" element={<Navigate to="/attendance/logs" replace />} />
@@ -93,7 +106,7 @@ function AppContent() {
           </Route>
 
           {/* Organization Module (Legacy routes for Positions/Zones) */}
-          <Route path="access" element={<Navigate to="/personnel/company" replace />} />
+          <Route path="access" element={<Navigate to="/personnel/departments" replace />} />
           <Route path="access/positions" element={<Positions />} />
           <Route path="access/zones" element={<Zones />} />
 

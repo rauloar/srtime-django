@@ -136,7 +136,7 @@ export const Employees: React.FC = () => {
         {
             field: 'user_id',
             header: 'ID Usuario',
-            width: '120px',
+            width: '100px',
             render: (emp) => <span style={{ fontWeight: 500 }}>{emp.user_id}</span>
         },
         {
@@ -145,25 +145,15 @@ export const Employees: React.FC = () => {
             render: (emp) => emp.name || '-'
         },
         {
-            field: 'department_id',
+            field: 'department_name',
             header: 'Departamento',
-            render: (emp) => getDeptName(emp.department_id)
-        },
-        {
-            field: 'card',
-            header: 'Tarjeta',
-            render: (emp) => emp.card || '-'
-        },
-        {
-            field: 'privilege',
-            header: 'Privilegio',
-            render: (emp) => emp.privilege === 14 ? 'Admin' : 'Usuario'
+            render: (emp) => emp.department_name || '-'
         },
         {
             field: 'actions',
             header: 'Acciones',
             align: 'right',
-            width: '100px',
+            width: '80px',
             render: (emp) => (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '5px' }}>
                     <button

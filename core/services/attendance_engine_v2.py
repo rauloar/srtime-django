@@ -18,6 +18,7 @@ from typing import List, Optional, Set
 import logging
 
 from django.db.models import Q
+from django.utils import timezone
 
 from core import models
 from .day_context import DayContext
@@ -36,30 +37,57 @@ logger = logging.getLogger(__name__)
 def _build_context(tt: models.Timetable, target_date: date, source: str) -> DayContext:
     """Build DayContext from Timetable for a given date."""
     # Calculate search window
-    search_start = datetime.combine(target_date, time(0, 0))
-    search_end = datetime.combine(target_date + timedelta(days=1), time(0, 0))
+    search_start = timezone.make_aware(datetime.combine(target_date, time(0, 0)))
+    search_end = timezone.make_aware(datetime.combine(target_date + timedelta(days=1), time(0, 0)))
     
     # Calculate on_duty and off_duty datetimes
     on_duty_dt = None
     off_duty_dt = None
-    
-    if tt.on_duty_time:
-        on_duty_dt = datetime.combine(target_date, tt.on_duty_time)
-    
-    if tt.off_duty_time:
-        off_duty_dt = datetime.combine(target_date, tt.off_duty_time)
+    is_cross_day = False
+
+    def parse_time_field(field_value):
+        if field_value is None:
+            return None
+        if isinstance(field_value, time):
+            return field_value
+        if isinstance(field_value, str):
+            field_value = field_value.strip()
+            if not field_value:
+                return None
+            for fmt in ("%H:%M:%S", "%H:%M"):
+                try:
+                    return datetime.strptime(field_value, fmt).time()
+                except ValueError:
+                    continue
+            return None
+        return None
+
+    on_time = parse_time_field(tt.on_duty_time)
+    off_time = parse_time_field(tt.off_duty_time)
+
+    if on_time:
+        on_duty_dt = timezone.make_aware(datetime.combine(target_date, on_time))
+
+    if off_time:
+        off_duty_dt = timezone.make_aware(datetime.combine(target_date, off_time))
         # Handle overnight shifts
-        if tt.on_duty_time and tt.off_duty_time < tt.on_duty_time:
-            off_duty_dt = datetime.combine(target_date + timedelta(days=1), tt.off_duty_time)
+        if on_time and off_time < on_time:
+            is_cross_day = True
+            off_duty_dt = timezone.make_aware(
+                datetime.combine(target_date + timedelta(days=1), off_time)
+            )
     
     return DayContext(
         is_valid=True,
+        obligation=True,
         timetable=tt,
-        source=source,
-        search_start=search_start,
-        search_end=search_end,
         on_duty_dt=on_duty_dt,
         off_duty_dt=off_duty_dt,
+        search_start=search_start,
+        search_end=search_end,
+        is_cross_day=is_cross_day,
+        source=source,
+        resolved_obligation=None,
     )
 
 
@@ -155,7 +183,11 @@ def get_processor(is_flexible: bool):
 # MAIN CALCULATION FUNCTION
 # =============================================================================
 
-def calculate_day_v2(employee_id: int, target_date: date) -> models.DailyAttendance:
+def calculate_day_v2(
+    employee_id: int,
+    target_date: date,
+    persist: bool = True,
+) -> models.DailyAttendance:
     """
     Calculate attendance for an employee on a given date.
     
@@ -166,13 +198,20 @@ def calculate_day_v2(employee_id: int, target_date: date) -> models.DailyAttenda
         target_date: Date to calculate
     
     Returns:
-        DailyAttendance model instance (saved)
+        DailyAttendance model instance (saved when persist=True)
     """
+    def _maybe_save(record: models.DailyAttendance) -> None:
+        if persist:
+            record.save()
+
     # 1. Get or create attendance record
-    daily, _ = models.DailyAttendance.objects.get_or_create(
-        employee_id=employee_id,
-        date=target_date
-    )
+    if persist:
+        daily, _ = models.DailyAttendance.objects.get_or_create(
+            employee_id=employee_id,
+            date=target_date
+        )
+    else:
+        daily = models.DailyAttendance(employee_id=employee_id, date=target_date)
     
     # 2. Reset values
     _reset_daily_attendance(daily)
@@ -184,20 +223,20 @@ def calculate_day_v2(employee_id: int, target_date: date) -> models.DailyAttenda
         daily.status = "Absent"
         daily.schedule_type = "NONE"
         daily.is_absent = True
-        daily.save()
+        _maybe_save(daily)
         return daily
     
     tt = ctx.timetable
     if not tt:
         daily.is_absent = True
-        daily.save()
+        _maybe_save(daily)
         return daily
     
     # 4. Get employee logs
     emp = models.Employee.objects.filter(id=employee_id).first()
     if not emp or not emp.user_id:
         daily.is_absent = True
-        daily.save()
+        _maybe_save(daily)
         return daily
     
     logs = get_logs(emp.user_id, ctx.search_start, ctx.search_end)
@@ -234,7 +273,7 @@ def calculate_day_v2(employee_id: int, target_date: date) -> models.DailyAttenda
     _map_result_to_model(daily, result, ctx, tt)
     
     # 10. Save and return
-    daily.save()
+    _maybe_save(daily)
     return daily
 
 

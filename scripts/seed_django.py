@@ -5,7 +5,7 @@ Adaptado de ZKTimeWeb/tests/seed_data.py para Django
 import sys
 import os
 import random
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, time
 import django
 
 # Setup Django
@@ -13,218 +13,231 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
+from django.utils import timezone
+
 from core.models import (
     Company, Department, Employee, Device, User,
     Timetable, Shift, ShiftTimetable, EmployeeShift,
-    AttendanceLog, Zone, Position
+    AttendanceLog, Zone, Position, DailyAttendance,
+    ScheduleOverride, Leave, Holiday
 )
 
 def seed():
-    print("🌱 Seeding database...")
+    print("🌱 Seeding database (alpha test scenario)...")
+    random.seed(2026)
+
+    # 0. Clean database for a controlled test case
+    print("🧹 Cleaning existing data...")
+    AttendanceLog.objects.all().delete()
+    DailyAttendance.objects.all().delete()
+    ScheduleOverride.objects.all().delete()
+    Leave.objects.all().delete()
+    Holiday.objects.all().delete()
+    EmployeeShift.objects.all().delete()
+    ShiftTimetable.objects.all().delete()
+    Shift.objects.all().delete()
+    Timetable.objects.all().delete()
+    User.objects.all().delete()
+    Employee.objects.all().delete()
+    Department.objects.all().delete()
+    Position.objects.all().delete()
+    Zone.objects.all().delete()
+    Device.objects.all().delete()
+    Company.objects.all().delete()
 
     # 1. Company
-    if not Company.objects.exists():
-        print("Creating Company...")
-        company = Company.objects.create(
-            name="SR Time Demo Corp",
-            code="SR001",
-            address="123 Tech Park",
-            website="www.srtime.com"
-        )
-    else:
-        company = Company.objects.first()
-    
-    # 2. Zones
-    zones_data = ["Administración", "Producción", "Ventas"]
-    zones = []
-    for z_name in zones_data:
-        zone, created = Zone.objects.get_or_create(name=z_name)
-        zones.append(zone)
-    
-    # 3. Positions
-    positions_data = ["Gerente", "Analista", "Técnico", "Asistente"]
-    positions = []
-    for p_name in positions_data:
-        position, created = Position.objects.get_or_create(name=p_name)
-        positions.append(position)
-    
-    # 4. Departments
-    depts_data = ["Recursos Humanos", "Desarrollo", "Ventas", "Soporte"]
-    db_depts = []
-    for d_name in depts_data:
-        dept, created = Department.objects.get_or_create(
-            name=d_name,
-            defaults={'code': d_name[:3].upper()}
-        )
-        db_depts.append(dept)
-
-    # 5. Devices
-    device, created = Device.objects.get_or_create(
-        ip="192.168.1.201",
-        defaults={
-            'name': "Puerta Principal",
-            'port': 4370,
-            'enabled': True,
-            'device_name': "iClock S880",
-            'serialnumber': "SN882233",
-            'zone_rel': random.choice(zones) if zones else None
-        }
+    company = Company.objects.create(
+        name="SRTime Alpha Corp",
+        code="ALPHA001",
+        address="Av. Laboratorio 123",
+        website="www.srtime.dev"
     )
 
-    # 6. Employees & Users
-    names = ["Juan Perez", "Maria Garcia", "Carlos Lopez", "Ana Martinez", "Luis Rodriguez"]
+    # 2. Department
+    department = Department.objects.create(
+        name="Operaciones",
+        code="OPS",
+        company=company,
+    )
+
+    # 3. Position (single for simplicity)
+    position = Position.objects.create(
+        name="Operario",
+        code="OPR",
+    )
+
+    # 4. Device
+    device = Device.objects.create(
+        name="Terminal Alpha",
+        ip="192.168.1.201",
+        port=4370,
+        enabled=True,
+        device_name="iClock S880",
+        serialnumber="SN-ALPHA-001",
+    )
+
+    # 5. Timetables (3 horarios)
+    timetables = {
+        "Morning": Timetable.objects.create(
+            name="Tm_Morn_06-14",
+            on_duty_time=time(6, 0, 0),
+            off_duty_time=time(14, 0, 0),
+            check_in_start=time(5, 30, 0),
+            check_in_end=time(9, 0, 0),
+            check_out_start=time(13, 0, 0),
+            check_out_end=time(15, 30, 0),
+            late_allow_minutes=10,
+            early_leave_allow_minutes=10,
+            work_days=1,
+            is_flexible=False,
+        ),
+        "Afternoon": Timetable.objects.create(
+            name="Tm_Aft_14-22",
+            on_duty_time=time(14, 0, 0),
+            off_duty_time=time(22, 0, 0),
+            check_in_start=time(13, 0, 0),
+            check_in_end=time(17, 0, 0),
+            check_out_start=time(21, 0, 0),
+            check_out_end=time(23, 30, 0),
+            late_allow_minutes=10,
+            early_leave_allow_minutes=10,
+            work_days=1,
+            is_flexible=False,
+        ),
+        "Night": Timetable.objects.create(
+            name="Tm_Night_22-06",
+            on_duty_time=time(22, 0, 0),
+            off_duty_time=time(6, 0, 0),
+            check_in_start=time(21, 0, 0),
+            check_in_end=time(23, 59, 59),
+            check_out_start=time(4, 0, 0),
+            check_out_end=time(8, 0, 0),
+            late_allow_minutes=10,
+            early_leave_allow_minutes=10,
+            work_days=1,
+            is_flexible=False,
+        ),
+    }
+
+    # 6. Shifts (3 turnos) linked to timetables
+    shifts = {}
+    for key, tt in timetables.items():
+        shift = Shift.objects.create(name=f"Shift_{key}")
+        shifts[key] = shift
+        for day_idx in range(7):
+            ShiftTimetable.objects.create(
+                shift=shift,
+                timetable=tt,
+                day_index=day_idx,
+            )
+
+    # 7. Employees & Users (10 personas)
     employees = []
-    
-    for i, name in enumerate(names):
-        uid = i + 1
-        user_id = str(1000 + i)
-        
-        # User (biometric user from device)
-        user, created = User.objects.get_or_create(
+    for i in range(1, 11):
+        user_id = f"EMP{i:03d}"
+        name = f"Empleado {i:02d}"
+
+        User.objects.create(
             device=device,
-            uid=uid,
-            defaults={
-                'name': name,
-                'privilege': 0,
-                'user_id': user_id,
-                'card': str(556600+i)
-            }
-        )
-        
-        # Employee
-        emp, created = Employee.objects.get_or_create(
+            uid=i,
+            name=name,
+            privilege=0,
             user_id=user_id,
-            defaults={
-                'name': name,
-                'department': random.choice(db_depts),
-                'position': random.choice(positions) if positions else None,
-                'email': f"{name.split()[0].lower()}@demo.com",
-                'phone': f"+57 300 {random.randint(100, 999)} {random.randint(1000, 9999)}",
-                'mobile_phone': f"+57 310 {random.randint(100, 999)} {random.randint(1000, 9999)}",
-                'country': "Colombia",
-                'birthday': date(1990 + i, random.randint(1, 12), random.randint(1, 28)),
-                'active': True
-            }
+            card=f"CARD{i:04d}",
+        )
+
+        emp = Employee.objects.create(
+            user_id=user_id,
+            name=name,
+            department=department,
+            position=position,
+            email=f"emp{i:02d}@alpha.local",
+            active=True,
         )
         employees.append(emp)
-    
-    print(f"✅ Created {len(employees)} employees")
 
-    # 7. Timetables (Horarios)
-    timetables_data = [
-        {"name": "Tm_Morn_06-14", "on": "06:00", "off": "14:00", "flex": False},
-        {"name": "Tm_Aft_14-22", "on": "14:00", "off": "22:00", "flex": False},
-        {"name": "Tm_Night_22-06", "on": "22:00", "off": "06:00", "flex": False},
-        {"name": "Tm_Flex", "on": "09:00", "off": "18:00", "flex": True}
-    ]
-    
-    created_tts = {}
-    print("Creating Timetables...")
-    for tt_data in timetables_data:
-        tt, created = Timetable.objects.get_or_create(
-            name=tt_data["name"],
-            defaults={
-                'on_duty_time': tt_data["on"],
-                'off_duty_time': tt_data["off"],
-                'check_in_start': "05:00" if "Morn" in tt_data["name"] else "13:00" if "Aft" in tt_data["name"] else "20:00" if "Night" in tt_data["name"] else "00:00",
-                'check_in_end': "10:00" if "Morn" in tt_data["name"] else "18:00" if "Aft" in tt_data["name"] else "23:59" if "Night" in tt_data["name"] else "23:59",
-                'check_out_start': "10:00" if "Morn" in tt_data["name"] else "18:00" if "Aft" in tt_data["name"] else "03:00" if "Night" in tt_data["name"] else "00:00",
-                'check_out_end': "18:00" if "Morn" in tt_data["name"] else "23:59" if "Aft" in tt_data["name"] else "09:00" if "Night" in tt_data["name"] else "23:59",
-                'late_allow_minutes': 15,
-                'early_leave_allow_minutes': 15,
-                'work_days': 1,
-                'is_flexible': tt_data["flex"]
-            }
+    # 8. Assign shifts (round-robin)
+    shift_keys = list(shifts.keys())
+    start_date = date(2026, 1, 11)
+    end_date = date(2026, 2, 9)
+    for idx, emp in enumerate(employees):
+        shift_key = shift_keys[idx % len(shift_keys)]
+        EmployeeShift.objects.create(
+            scope="EMPLOYEE",
+            employee=emp,
+            shift=shifts[shift_key],
+            start_date=start_date,
+            end_date=end_date,
         )
-        created_tts[tt_data["name"]] = tt
-    
-    print(f"✅ Created {len(created_tts)} timetables")
 
-    # 8. Shifts (Turnos) con horarios para cada día
-    shifts_map = {
-        "Shift_Morning": "Tm_Morn_06-14",
-        "Shift_Afternoon": "Tm_Aft_14-22",
-        "Shift_Night": "Tm_Night_22-06",
-        "Shift_Flex": "Tm_Flex"
-    }
-    
-    created_shifts = {}
-    print("Creating Shifts...")
-    for s_name, tt_name in shifts_map.items():
-        tt = created_tts.get(tt_name)
-        if not tt:
-            continue
-        
-        shift, created = Shift.objects.get_or_create(name=s_name)
-        created_shifts[s_name] = shift
-        
-        # Crear ShiftTimetables para cada día de la semana
-        for day_idx in range(7):  # 0=Lunes, 6=Domingo
-            ShiftTimetable.objects.get_or_create(
-                shift=shift,
-                day_index=day_idx,
-                defaults={'timetable': tt}
-            )
-    
-    print(f"✅ Created {len(created_shifts)} shifts")
-
-    # 9. Asignar turnos a empleados
-    print("Assigning shifts to employees...")
-    shift_list = list(created_shifts.values())
-    if shift_list and employees:
-        for emp in employees:
-            # Asignar turno aleatorio con scope EMPLOYEE
-            shift = random.choice(shift_list)
-            EmployeeShift.objects.get_or_create(
-                scope='EMPLOYEE',
-                employee=emp,
-                shift=shift,
-                defaults={'start_date': date.today()}
-            )
-    
-    # 10. Crear logs de asistencia de prueba (últimos 7 días)
-    print("Creating sample attendance logs...")
+    # 9. Attendance logs (30 days from 2026-02-09 backwards)
+    print("📥 Creating attendance logs (30 days)...")
     log_count = 0
-    for emp in employees:
-        user_id = emp.user_id
-        for days_ago in range(7, 0, -1):
-            log_date = datetime.now() - timedelta(days=days_ago)
-            # Entrada
-            check_in = log_date.replace(hour=8, minute=random.randint(0, 30), second=0, microsecond=0)
-            AttendanceLog.objects.get_or_create(
-                device=device,
-                user_id=user_id,
-                timestamp=check_in,
-                defaults={
-                    'status': 0,
-                    'punch': 0,
-                    'verify_mode': 1
-                }
+    tz = timezone.get_current_timezone()
+    base_date = date(2026, 2, 9)
+
+    for offset in range(0, 30):
+        day = base_date - timedelta(days=offset)
+        for emp in employees:
+            has_forced_absence = (
+                emp.user_id in {"EMP003", "EMP007"}
+                and day.weekday() < 5
+                and offset % 5 == 0
             )
-            log_count += 1
-            
-            # Salida
-            check_out = log_date.replace(hour=17, minute=random.randint(0, 30), second=0, microsecond=0)
-            AttendanceLog.objects.get_or_create(
+            random_absence = random.random() < 0.08
+
+            if has_forced_absence or random_absence:
+                continue
+
+            shift_key = shift_keys[(emp.id - 1) % len(shift_keys)]
+            tt = timetables[shift_key]
+
+            in_seconds = random.randint(0, 59)
+            out_seconds = random.randint(0, 59)
+
+            is_late_case = emp.user_id in {"EMP002", "EMP005"} and day.weekday() < 5 and offset % 4 == 1
+            is_overtime_case = emp.user_id in {"EMP004", "EMP008"} and day.weekday() < 5 and offset % 6 == 2
+
+            late_minutes = random.randint(5, 25) if is_late_case else 0
+            overtime_minutes = random.randint(30, 90) if is_overtime_case else 0
+
+            check_in = datetime.combine(day, tt.on_duty_time).replace(second=in_seconds)
+            if late_minutes:
+                check_in += timedelta(minutes=late_minutes)
+            check_out_day = day
+
+            if tt.off_duty_time <= tt.on_duty_time:
+                check_out_day = day + timedelta(days=1)
+
+            check_out = datetime.combine(check_out_day, tt.off_duty_time).replace(second=out_seconds)
+            if overtime_minutes:
+                check_out += timedelta(minutes=overtime_minutes)
+
+            AttendanceLog.objects.create(
                 device=device,
-                user_id=user_id,
-                timestamp=check_out,
-                defaults={
-                    'status': 0,
-                    'punch': 1,
-                    'verify_mode': 1
-                }
+                user_id=emp.user_id,
+                timestamp=timezone.make_aware(check_in, tz),
+                status=0,
+                punch=0,
+                verify_mode=1,
             )
-            log_count += 1
-    
+            AttendanceLog.objects.create(
+                device=device,
+                user_id=emp.user_id,
+                timestamp=timezone.make_aware(check_out, tz),
+                status=1,
+                punch=1,
+                verify_mode=1,
+            )
+            log_count += 2
+
     print(f"✅ Created {log_count} attendance logs")
-    
-    print("\n" + "="*60)
+
+    print("\n" + "=" * 60)
     print("🎉 Database seeded successfully!")
-    print("="*60)
+    print("=" * 60)
     print("\nSummary:")
     print(f"  - Companies: {Company.objects.count()}")
-    print(f"  - Zones: {Zone.objects.count()}")
     print(f"  - Departments: {Department.objects.count()}")
     print(f"  - Positions: {Position.objects.count()}")
     print(f"  - Employees: {Employee.objects.count()}")

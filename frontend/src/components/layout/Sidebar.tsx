@@ -17,30 +17,29 @@ const MENU_STRUCTURE: { [key: string]: { title: string, items: MenuItem[] } } = 
             { label: 'Empleados', path: '/employees' },
         ]
     },
+    'personnel': {
+        title: 'Organización',
+        items: [
+            { label: 'Departamentos', path: '/personnel/departments' },
+            { label: 'Horarios', path: '/personnel/timetables' },
+            { label: 'Turnos', path: '/personnel/shifts' },
+            { label: 'Empleados', path: '/personnel/employees' },
+            { label: 'Asignación Individual', path: '/attendance/schedule' },
+        ]
+    },
     'attendance': {
         title: 'Asistencia',
         items: [
             { label: 'Marcaciones', path: '/attendance/logs' },
             { label: 'Reporte Diario', path: '/attendance/reports' },
-            { label: 'Calendario', path: '/attendance/schedule' },
             { label: 'Ausencias', path: '/attendance/absences' },
-            // Removed technical: Timetables, Shifts, Calculation
         ]
     },
-    'personnel': {
-        title: 'RRHH',
-        items: [
-            { label: 'Lista Empleados', path: '/personnel/employees' },
-        ]
-    },
-    'system': { // Maps to "Configuración" conceptually
+    'system': {
         title: 'Configuración',
         items: [
-            // { label: 'Usuarios', path: '/system/users' },  // DEV: Auth disabled
             { label: 'Ajustes', path: '/system/settings' },
-            { label: 'Terminales', path: '/devices' }, // Devices moved here
-            { label: 'Turnos', path: '/attendance/shifts' }, // Technical config here
-            { label: 'Horarios', path: '/attendance/timetables' }, // Technical config here
+            { label: 'Terminales', path: '/devices' },
         ]
     }
 };
@@ -48,39 +47,20 @@ const MENU_STRUCTURE: { [key: string]: { title: string, items: MenuItem[] } } = 
 export const Sidebar: React.FC = () => {
     const location = useLocation();
 
-    const systemItems: MenuItem[] = [
-        { label: 'Ajustes', path: '/system/settings' },
-        { label: 'Terminales', path: '/devices' },
-        { label: 'Turnos', path: '/attendance/shifts' },
-        { label: 'Horarios', path: '/attendance/timetables' },
-    ];
-
     // Determine active module from path
     const pathSegments = location.pathname.split('/').filter(Boolean);
     let activeModule = pathSegments[0] || 'dashboard';
 
-    // Map legacy/other paths to the 4 main sections
+    // Map legacy/other paths to main sections
     if (activeModule === 'employees') activeModule = 'employees';
     if (activeModule === 'devices') activeModule = 'system';
     if (activeModule === 'access') activeModule = 'system';
+    if (activeModule === 'attendance' && pathSegments[1] === 'schedule') activeModule = 'personnel';
 
     const menu = MENU_STRUCTURE[activeModule];
-    const isSystemSettings = location.pathname.startsWith('/system/settings');
-    const isDevices = location.pathname.startsWith('/devices');
-
-    const resolvedMenu = activeModule === 'system'
-        ? {
-            ...menu,
-            items: isSystemSettings
-                ? systemItems.filter(item => item.path === '/system/settings')
-                : isDevices
-                    ? systemItems.filter(item => item.path === '/devices' || item.path === '/system/settings')
-                    : systemItems
-        }
-        : menu;
 
     // Don't show sidebar for dashboard
-    if (activeModule === 'dashboard' || !resolvedMenu) return null;
+    if (activeModule === 'dashboard' || !menu) return null;
 
     return (
         <aside style={{
@@ -98,11 +78,11 @@ export const Sidebar: React.FC = () => {
                 borderBottom: '1px solid var(--border-color)',
                 marginBottom: '10px'
             }}>
-                {resolvedMenu.title} <span style={{ fontSize: '10px', color: 'red' }}>DEBUG v2.0</span>
+                {menu.title}
             </div>
 
             <nav style={{ display: 'flex', flexDirection: 'column' }}>
-                {resolvedMenu.items.map((item) => (
+                {menu.items.map((item) => (
                     <NavLink
                         key={item.path}
                         to={item.path}

@@ -354,15 +354,15 @@ class Timetable(models.Model):
     ]
 
     name = models.CharField(max_length=100, verbose_name='Nombre')
-    on_duty_time = models.CharField(max_length=10, verbose_name='Hora Entrada')  # "09:00"
-    off_duty_time = models.CharField(max_length=10, verbose_name='Hora Salida')  # "18:00"
+    on_duty_time = models.TimeField(verbose_name='Hora Entrada')
+    off_duty_time = models.TimeField(verbose_name='Hora Salida')
     late_allow_minutes = models.IntegerField(default=0, verbose_name='Tolerancia Llegada Tarde (min)')
     early_leave_allow_minutes = models.IntegerField(default=0, verbose_name='Tolerancia Salida Temprano (min)')
     
-    check_in_start = models.CharField(max_length=10, null=True, blank=True, verbose_name='Inicio Ventana Entrada')
-    check_in_end = models.CharField(max_length=10, null=True, blank=True, verbose_name='Fin Ventana Entrada')
-    check_out_start = models.CharField(max_length=10, null=True, blank=True, verbose_name='Inicio Ventana Salida')
-    check_out_end = models.CharField(max_length=10, null=True, blank=True, verbose_name='Fin Ventana Salida')
+    check_in_start = models.TimeField(null=True, blank=True, verbose_name='Inicio Ventana Entrada')
+    check_in_end = models.TimeField(null=True, blank=True, verbose_name='Fin Ventana Entrada')
+    check_out_start = models.TimeField(null=True, blank=True, verbose_name='Inicio Ventana Salida')
+    check_out_end = models.TimeField(null=True, blank=True, verbose_name='Fin Ventana Salida')
     
     break_minutes = models.IntegerField(default=0, verbose_name='Minutos de Descanso')
     rounding_rule = models.CharField(max_length=50, choices=ROUNDING_CHOICES, default='none', verbose_name='Regla de Redondeo')
@@ -382,7 +382,9 @@ class Timetable(models.Model):
         ordering = ['name']
 
     def __str__(self):
-        return f"{self.name} ({self.on_duty_time}-{self.off_duty_time})"
+        on_time = self.on_duty_time.strftime("%H:%M:%S") if self.on_duty_time else "--:--:--"
+        off_time = self.off_duty_time.strftime("%H:%M:%S") if self.off_duty_time else "--:--:--"
+        return f"{self.name} ({on_time}-{off_time})"
 
 
 class Shift(models.Model):
@@ -606,3 +608,10 @@ class DailyAttendance(models.Model):
     def __str__(self):
         return f"{self.employee.name} - {self.date} - {self.status}"
 
+
+# Import shadow models to make them discoverable by Django migrations
+# These models are for V1 vs V2 engine comparison and analysis
+from core.models_shadow import (  # noqa: F401, E402
+    ShadowCalculation,
+    DifferenceType,
+)

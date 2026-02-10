@@ -12,9 +12,16 @@ Rules:
   att_shift → Shift
   hr_employee → Employee
   att_punches → AttendanceLog
-  att_employee_shift → EmployeeShift
+  att_employee_shift → EmployeeShift (DEPARTMENT scope - hierarchy model)
+
+Hierarchy Model:
+- Individual employee→shift assignments are grouped by department
+- Creates DEPARTMENT-level shift assignments
+- Employees automatically inherit shift from their department
+- Follows: Department → Shift → Employees inherit
 """
 import re
+from datetime import datetime, time
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
@@ -75,7 +82,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--skip-employee-shifts",
             action="store_true",
-            help="Skip EmployeeShift creation",
+            help="Skip Department shift assignment creation (grouped from employee assignments)",
         )
         parser.add_argument(
             "--limit-employees",
@@ -136,7 +143,8 @@ class Command(BaseCommand):
         self.stdout.write(f"SQL file: {sql_path}")
         self.stdout.write(f"Dry-run: {dry_run}\n")
 
-        # Dependency order: Company → Department → Zone → Timetable → Shift → Employee → EmployeeShift → AttendanceLog
+        # Dependency order: Company → Department → Zone → Timetable → Shift → Employee → DepartmentShift → AttendanceLog
+        # EmployeeShift with scope='DEPARTMENT' assigned to departments (employees inherit)
 
         company_id_map: Dict[int, int] = {}
         if not options["skip_companies"]:
@@ -183,10 +191,10 @@ class Command(BaseCommand):
                 employee_id_map = self._build_employee_id_map(sql_path)
 
         if not options["skip_employee_shifts"]:
-            self.stdout.write(self.style.SUCCESS("[7/8] Importing employee shifts..."))
-            self._import_employee_shifts(sql_path, employee_id_map, shift_id_map, dry_run)
+            self.stdout.write(self.style.SUCCESS("[7/8] Importing department shift assignments..."))
+            self._import_employee_shifts(sql_path, employee_id_map, shift_id_map, dept_id_map, dry_run)
         else:
-            self.stdout.write(self.style.WARNING("[7/8] Employee shifts import skipped."))
+            self.stdout.write(self.style.WARNING("[7/8] Department shift assignments import skipped."))
 
         if not options["skip_logs"]:
             self.stdout.write(self.style.SUCCESS("[8/8] Importing attendance logs..."))
@@ -335,11 +343,23 @@ class Command(BaseCommand):
             if not name:
                 continue
 
-            # Extract time fields (truncate to HH:MM format if longer)
-            on_duty_raw = safe_str(row.get("timetable_start")) or "09:00"
-            off_duty_raw = safe_str(row.get("timetable_end")) or "18:00"
-            on_duty = on_duty_raw[:10]  # Limit to 10 chars max (HH:MM:SS)
-            off_duty = off_duty_raw[:10]
+            def parse_time_value(raw_value, default_value, field_name):
+                raw_value = safe_str(raw_value) or ""
+                raw_value = raw_value.strip()
+                if not raw_value:
+                    return default_value
+                for fmt in ("%H:%M:%S", "%H:%M"):
+                    try:
+                        return datetime.strptime(raw_value, fmt).time()
+                    except ValueError:
+                        continue
+                raise CommandError(
+                    f"Invalid time format for {field_name}: '{raw_value}'. Expected HH:MM."
+                )
+
+            # Extract time fields
+            on_duty = parse_time_value(row.get("timetable_start"), time(9, 0), "timetable_start")
+            off_duty = parse_time_value(row.get("timetable_end"), time(18, 0), "timetable_end")
 
             if not dry_run:
                 timetable, _ = Timetable.objects.get_or_create(
@@ -460,58 +480,134 @@ class Command(BaseCommand):
         sql_path: Path,
         employee_id_map: Dict[int, str],
         shift_id_map: Dict[int, int],
+        dept_id_map: Dict[int, int],
         dry_run: bool,
     ) -> None:
         """
-        Import employee shift assignments from att_employee_shift.
-        Links Employee (by user_id) to Shift.
+        Import department shift assignments from att_employee_shift.
+        
+        NEW HIERARCHY MODEL:
+        - Analyzes employee shift assignments from SQL
+        - Groups employees by department
+        - Creates DEPARTMENT-level shift assignments
+        - Employees automatically inherit shift from their department
+        
+        This replaces individual EMPLOYEE assignments with departmental hierarchy.
         """
-        count = 0
-        skipped = 0
-
+        from collections import defaultdict
+        from datetime import date as date_class
+        
+        # Step 1: Parse all employee-shift assignments from SQL
+        employee_shifts = []
+        skipped_parse = 0
+        
         for columns, values in iter_insert_rows(sql_path, "att_employee_shift"):
             row = dict(zip(columns, values))
 
-            emp_zk_id = to_int(row.get("employee_id"))  # Fixed: was emp_id
+            emp_zk_id = to_int(row.get("employee_id"))
             user_id = employee_id_map.get(emp_zk_id)
             if not user_id:
-                skipped += 1
+                skipped_parse += 1
                 continue
 
             shift_zk_id = to_int(row.get("shift_id"))
             shift_id = shift_id_map.get(shift_zk_id)
             if not shift_id:
-                skipped += 1
+                skipped_parse += 1
                 continue
 
-            start_date = parse_date_safe(row.get("startDate"))  # Fixed: was start_date
+            start_date = parse_date_safe(row.get("startDate"))
             if not start_date:
-                skipped += 1
+                skipped_parse += 1
                 continue
 
-            if not dry_run:
-                try:
-                    employee = Employee.objects.get(user_id=user_id)
-                    shift = Shift.objects.get(id=shift_id)
-                    
-                    EmployeeShift.objects.get_or_create(
-                        employee=employee,
-                        shift=shift,
-                        start_date=start_date,
-                        defaults={
-                            "scope": "EMPLOYEE",
-                            "end_date": parse_date_safe(row.get("endDate")),  # Fixed: was end_date
-                        },
-                    )
-                except (Employee.DoesNotExist, Shift.DoesNotExist):
-                    skipped += 1
+            employee_shifts.append({
+                'user_id': user_id,
+                'shift_id': shift_id,
+                'start_date': start_date,
+                'end_date': parse_date_safe(row.get("endDate"))
+            })
+
+        self.stdout.write(f"  Employee-shift assignments parsed: {len(employee_shifts)}")
+        if skipped_parse:
+            self.stdout.write(f"  Skipped during parse: {skipped_parse}")
+
+        if dry_run or not employee_shifts:
+            return
+
+        # Step 2: Group by department and shift
+        # Structure: {(dept_id, shift_id): {'employees': [...], 'earliest_start': date, 'latest_end': date}}
+        dept_shift_map = defaultdict(lambda: {
+            'employees': [],
+            'earliest_start': None,
+            'latest_end': None
+        })
+        
+        skipped_grouping = 0
+        
+        for es in employee_shifts:
+            try:
+                employee = Employee.objects.get(user_id=es['user_id'])
+                
+                if not employee.department_id:
+                    skipped_grouping += 1
                     continue
+                
+                key = (employee.department_id, es['shift_id'])
+                dept_shift_map[key]['employees'].append(employee.user_id)
+                
+                # Track earliest start date
+                if dept_shift_map[key]['earliest_start'] is None or es['start_date'] < dept_shift_map[key]['earliest_start']:
+                    dept_shift_map[key]['earliest_start'] = es['start_date']
+                
+                # Track latest end date
+                if es['end_date']:
+                    if dept_shift_map[key]['latest_end'] is None or es['end_date'] > dept_shift_map[key]['latest_end']:
+                        dept_shift_map[key]['latest_end'] = es['end_date']
+                        
+            except Employee.DoesNotExist:
+                skipped_grouping += 1
+                continue
 
-            count += 1
+        self.stdout.write(f"  Department-shift combinations found: {len(dept_shift_map)}")
+        if skipped_grouping:
+            self.stdout.write(f"  Skipped during grouping: {skipped_grouping}")
 
-        self.stdout.write(f"EmployeeShifts parsed: {count}")
-        if skipped:
-            self.stdout.write(f"EmployeeShifts skipped: {skipped}")
+        # Step 3: Create DEPARTMENT-level shift assignments
+        created_count = 0
+        updated_count = 0
+        
+        for (dept_id, shift_id), data in dept_shift_map.items():
+            try:
+                department = Department.objects.get(id=dept_id)
+                shift = Shift.objects.get(id=shift_id)
+                
+                assignment, created = EmployeeShift.objects.get_or_create(
+                    department=department,
+                    shift=shift,
+                    scope='DEPARTMENT',
+                    defaults={
+                        'start_date': data['earliest_start'],
+                        'end_date': data['latest_end'],
+                    }
+                )
+                
+                if created:
+                    created_count += 1
+                    self.stdout.write(
+                        f"  ✓ {department.name} → {shift.name} "
+                        f"({len(data['employees'])} employees inherit)"
+                    )
+                else:
+                    updated_count += 1
+                    
+            except (Department.DoesNotExist, Shift.DoesNotExist) as e:
+                self.stdout.write(self.style.WARNING(f"  ⚠ Skip: {e}"))
+                continue
+
+        self.stdout.write(self.style.SUCCESS(
+            f"✅ Department shift assignments: {created_count} created, {updated_count} existing"
+        ))
 
     def _import_logs(
         self,

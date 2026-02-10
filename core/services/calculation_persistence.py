@@ -37,7 +37,9 @@ from django.db import transaction
 from django.utils import timezone
 
 from core import models
-from core.models_audit import PolicySnapshot, CalculationAuditLog, AuditEventType
+# NOTE: PolicySnapshot/CalculationAuditLog/AuditEventType were planned for legal audit module but not implemented
+# This system is for time tracking information, not a complete HR CRM
+# from core.models_audit import PolicySnapshot, CalculationAuditLog, AuditEventType
 from core.domain.flexible.result import DailyCalculationResult
 
 
@@ -147,11 +149,12 @@ class CalculationPersistenceService:
         4. Handle based on existence and fingerprint match
         5. Log audit event
         """
-        # Step 1: Policy snapshot
-        policy_snapshot = self._get_or_create_policy_snapshot(
-            policy_dict=context.policy_dict,
-            source='TIMETABLE',
-        )
+        # Step 1: Policy snapshot (DISABLED - legal audit module not implemented)
+        # policy_snapshot = self._get_or_create_policy_snapshot(
+        #     policy_dict=context.policy_dict,
+        #     source='TIMETABLE',
+        # )
+        policy_snapshot = None
         
         # Step 2: Compute fingerprint
         fingerprint = self._compute_fingerprint(
@@ -159,7 +162,7 @@ class CalculationPersistenceService:
             target_date=context.target_date,
             punch_ids=context.punch_ids,
             engine_version=context.engine_version,
-            policy_hash=policy_snapshot.policy_hash,
+            policy_hash=policy_snapshot.policy_hash if policy_snapshot else 'NO_POLICY_HASH',
         )
         
         # Step 3: Find existing CALCULATED record
@@ -172,25 +175,27 @@ class CalculationPersistenceService:
         if existing is None:
             # Case A: No existing record - create new
             daily = self._create_new_record(context, policy_snapshot, fingerprint)
-            self._log_audit_event(
-                daily=daily,
-                event_type=AuditEventType.CREATED,
-                actor=context.actor,
-                metadata={'source': 'initial_calculation'},
-            )
+            # NOTE: Audit logging disabled - legal audit module not implemented
+            # self._log_audit_event(
+            #     daily=daily,
+            #     event_type=AuditEventType.CREATED,
+            #     actor=context.actor,
+            #     metadata={'source': 'initial_calculation'},
+            # )
             return daily, PersistenceResult.CREATED
         
         elif existing.calculation_fingerprint == fingerprint:
             # Case B: Same fingerprint - idempotent, skip
-            self._log_audit_event(
-                daily=existing,
-                event_type=AuditEventType.CREATED,  # Use CREATED as NO_CHANGE proxy
-                actor=context.actor,
-                metadata={
-                    'source': 'idempotent_skip',
-                    'fingerprint_match': True,
-                },
-            )
+            # NOTE: Audit logging disabled - legal audit module not implemented
+            # self._log_audit_event(
+            #     daily=existing,
+            #     event_type=AuditEventType.CREATED,  # Use CREATED as NO_CHANGE proxy
+            #     actor=context.actor,
+            #     metadata={
+            #         'source': 'idempotent_skip',
+            #         'fingerprint_match': True,
+            #     },
+            # )
             return existing, PersistenceResult.NO_CHANGE
         
         else:
@@ -207,28 +212,29 @@ class CalculationPersistenceService:
     # PRIVATE - POLICY SNAPSHOT
     # =========================================================================
     
-    def _get_or_create_policy_snapshot(
-        self,
-        policy_dict: Dict[str, Any],
-        source: str = 'COMPANY_DEFAULT',
-    ) -> PolicySnapshot:
-        """
-        Get existing snapshot or create new one.
-        
-        Snapshots are immutable and reused by hash.
-        """
-        policy_hash = self._compute_policy_hash(policy_dict)
-        
-        snapshot, created = PolicySnapshot.objects.get_or_create(
-            policy_hash=policy_hash,
-            defaults={
-                'policy_json': policy_dict,
-                'policy_type': 'FLEX',
-                'source': source,
-            }
-        )
-        
-        return snapshot
+    # NOTE: PolicySnapshot methods disabled - legal audit module not implemented
+    # def _get_or_create_policy_snapshot(
+    #     self,
+    #     policy_dict: Dict[str, Any],
+    #     source: str = 'COMPANY_DEFAULT',
+    # ) -> PolicySnapshot:
+    #     """
+    #     Get existing snapshot or create new one.
+    #     
+    #     Snapshots are immutable and reused by hash.
+    #     """
+    #     policy_hash = self._compute_policy_hash(policy_dict)
+    #     
+    #     snapshot, created = PolicySnapshot.objects.get_or_create(
+    #         policy_hash=policy_hash,
+    #         defaults={
+    #             'policy_json': policy_dict,
+    #             'policy_type': 'FLEX',
+    #             'source': source,
+    #         }
+    #     )
+    #     
+    #     return snapshot
     
     def _compute_policy_hash(self, policy_dict: Dict[str, Any]) -> str:
         """
@@ -297,7 +303,7 @@ class CalculationPersistenceService:
     def _create_new_record(
         self,
         context: PersistenceContext,
-        policy_snapshot: PolicySnapshot,
+        policy_snapshot: Any,  # was PolicySnapshot, now disabled
         fingerprint: str,
         supersedes: Optional[models.DailyAttendance] = None,
     ) -> models.DailyAttendance:
@@ -360,7 +366,7 @@ class CalculationPersistenceService:
         self,
         existing: models.DailyAttendance,
         context: PersistenceContext,
-        policy_snapshot: PolicySnapshot,
+        policy_snapshot: Any,  # was PolicySnapshot, now disabled
         fingerprint: str,
     ) -> models.DailyAttendance:
         """
@@ -386,18 +392,18 @@ class CalculationPersistenceService:
         existing.superseded_by = new_daily
         existing.save(update_fields=['calculation_state', 'superseded_by'])
         
-        # Log recalculation event
-        self._log_audit_event(
-            daily=new_daily,
-            event_type=AuditEventType.RECALCULATED,
-            actor=context.actor,
-            metadata={
-                'previous_id': existing.id,
-                'previous_fingerprint': existing.calculation_fingerprint,
-                'previous_values': previous_values,
-                'reason': context.recalculation_reason,
-            },
-        )
+        # NOTE: Audit logging disabled - legal audit module not implemented
+        # self._log_audit_event(
+        #     daily=new_daily,
+        #     event_type=AuditEventType.RECALCULATED,
+        #     actor=context.actor,
+        #     metadata={
+        #         'previous_id': existing.id,
+        #         'previous_fingerprint': existing.calculation_fingerprint,
+        #         'previous_values': previous_values,
+        #         'reason': context.recalculation_reason,
+        #     },
+        # )
         
         return new_daily
     
@@ -420,28 +426,29 @@ class CalculationPersistenceService:
     # PRIVATE - AUDIT LOG
     # =========================================================================
     
-    def _log_audit_event(
-        self,
-        daily: models.DailyAttendance,
-        event_type: AuditEventType,
-        actor: Optional[models.User],
-        metadata: Dict[str, Any],
-    ) -> CalculationAuditLog:
-        """
-        Create an audit log entry.
-        
-        Every persistence operation gets logged.
-        """
-        log = CalculationAuditLog(
-            daily_attendance=daily,
-            event_type=event_type.value,
-            engine_version=daily.engine_version,
-            calculation_fingerprint=daily.calculation_fingerprint,
-            metadata=metadata,
-            actor=actor,
-        )
-        log.save()
-        return log
+    # NOTE: Audit logging disabled - legal audit module not implemented
+    # def _log_audit_event(
+    #     self,
+    #     daily: models.DailyAttendance,
+    #     event_type: AuditEventType,
+    #     actor: Optional[models.User],
+    #     metadata: Dict[str, Any],
+    # ) -> CalculationAuditLog:
+    #     """
+    #     Create an audit log entry.
+    #     
+    #     Every persistence operation gets logged.
+    #     """
+    #     log = CalculationAuditLog(
+    #         daily_attendance=daily,
+    #         event_type=event_type.value,
+    #         engine_version=daily.engine_version,
+    #         calculation_fingerprint=daily.calculation_fingerprint,
+    #         metadata=metadata,
+    #         actor=actor,
+    #     )
+    #     log.save()
+    #     return log
 
 
 # Singleton instance for convenience

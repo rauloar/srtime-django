@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { getDailyReports, getDepartments, type DailyAttendance, type Department } from '../../api';
+import { getDailyReports, getDepartments, calculateAttendance, type DailyAttendance, type Department } from '../../api';
 import { DataGrid, type Column } from '../../components/ui/DataGrid';
-import { Download } from 'lucide-react';
+import { Download, Play, CheckCircle, AlertCircle } from 'lucide-react';
 
 // ... imports
 import { Building, Clock, UserX, UserCheck } from 'lucide-react';
@@ -21,6 +21,13 @@ export const Reports: React.FC = () => {
 
     const [data, setData] = useState<DailyAttendance[]>([]);
     const [loading, setLoading] = useState(false);
+    const [userIdFilter, setUserIdFilter] = useState('');
+    const [nameFilter, setNameFilter] = useState('');
+
+    // Calculation State
+    const [calculating, setCalculating] = useState(false);
+    const [calcResult, setCalcResult] = useState<{ count: number; message: string } | null>(null);
+    const [calcError, setCalcError] = useState<string | null>(null);
 
     // Grouping State
     // No explicit state needed if we compute on render, but memo is better
@@ -31,13 +38,20 @@ export const Reports: React.FC = () => {
 
     useEffect(() => {
         fetchData();
-    }, [startDate, endDate, departmentId]);
+    }, []);
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const res = await getDailyReports(startDate, endDate, departmentId ? parseInt(departmentId) : undefined);
-            // Sort by Department then Date?
+            // Pass filters directly to backend (no client-side filtering needed)
+            const res = await getDailyReports(
+                startDate, 
+                endDate, 
+                departmentId ? parseInt(departmentId) : undefined,
+                userIdFilter,
+                nameFilter
+            );
+            // Sort by Department then Date
             res.sort((a, b) => (a.employee?.department_name || '').localeCompare(b.employee?.department_name || '') || a.date.localeCompare(b.date));
             setData(res);
         } catch (e) {
@@ -47,6 +61,42 @@ export const Reports: React.FC = () => {
         }
     };
 
+    const handleFilter = () => {
+        fetchData();
+    };
+
+    const handleCalculate = async () => {
+        setCalculating(true);
+        setCalcResult(null);
+        setCalcError(null);
+        try {
+            const res = await calculateAttendance(
+                startDate, 
+                endDate, 
+                departmentId ? parseInt(departmentId) : undefined
+            );
+            setCalcResult(res);
+            // Refresh data after calculation
+            setTimeout(() => fetchData(), 500);
+        } catch (e: any) {
+            setCalcError(e.response?.data?.detail || "Calculation failed");
+        } finally {
+            setCalculating(false);
+        }
+    };
+
+    const handleClear = () => {
+        const todayLocal = new Date();
+        const lastWeekLocal = new Date(todayLocal);
+        lastWeekLocal.setDate(todayLocal.getDate() - 6);
+        setStartDate(lastWeekLocal.toISOString().split('T')[0]);
+        setEndDate(todayLocal.toISOString().split('T')[0]);
+        setDepartmentId('');
+        setUserIdFilter('');
+        setNameFilter('');
+        fetchData();
+    };
+
     // Columns Definition (Generic for all groups)
     const columns: Column<DailyAttendance>[] = [
         { field: 'date', header: 'Fecha', width: '100px' },
@@ -54,9 +104,9 @@ export const Reports: React.FC = () => {
             field: 'employee',
             header: 'Empleado',
             render: (r) => (
-                <div>
-                    <div>{r.employee?.name || r.employee_id}</div>
-                    <small className="text-muted">{r.employee?.user_id}</small>
+                <div style={{ fontSize: '14px' }}>
+                    <div style={{ fontWeight: 500 }}>{r.employee_user_id || r.employee_id}</div>
+                    <small style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{r.employee_name || '-'}</small>
                 </div>
             )
         },
@@ -123,31 +173,68 @@ export const Reports: React.FC = () => {
         }
     ];
 
-    // Compute Groups
+    // Backend now handles all filtering - no client-side filtering needed
+    const filteredData = React.useMemo(() => {
+        // All filtering is done on backend now, just return data as-is
+        return data;
+    }, [data]);
+
     const groups = React.useMemo(() => {
         const g: { [key: string]: DailyAttendance[] } = {};
-        data.forEach(item => {
+        filteredData.forEach(item => {
             const deptName = item.employee?.department_name || 'Sin Departamento';
             if (!g[deptName]) g[deptName] = [];
             g[deptName].push(item);
         });
         return g;
-    }, [data]);
+    }, [filteredData]);
 
     return (
         <div className="flex-col gap-4" style={{ height: '100%', overflow: 'hidden' }}>
             <div className="flex-row space-between wrap">
                 <h2>Reporte Diario</h2>
-                <div className="flex-row gap-2">
-                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="form-control" />
-                    <span>-</span>
-                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="form-control" />
-
-                    <select className="form-control" value={departmentId} onChange={e => setDepartmentId(e.target.value)}>
-                        <option value="">Todos los Departamentos</option>
-                        {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                    </select>
-
+                <div className="card" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'end' }}>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 500 }}>Desde</label>
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="form-control" />
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 500 }}>Hasta</label>
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="form-control" />
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 500 }}>Departamento</label>
+                        <select className="form-control" value={departmentId} onChange={e => setDepartmentId(e.target.value)}>
+                            <option value="">Todos</option>
+                            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 500 }}>User ID</label>
+                        <input
+                            type="text"
+                            placeholder="ej: EMP003"
+                            value={userIdFilter}
+                            onChange={e => setUserIdFilter(e.target.value)}
+                            style={{ width: '120px' }}
+                            className="form-control"
+                        />
+                    </div>
+                    <div style={{ flex: '1 1 0%', minWidth: '180px' }}>
+                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 500 }}>Nombre/Búsqueda</label>
+                        <input
+                            type="text"
+                            placeholder="Buscar por nombre..."
+                            value={nameFilter}
+                            onChange={e => setNameFilter(e.target.value)}
+                            className="form-control"
+                        />
+                    </div>
+                    <button className="primary" onClick={handleFilter}>Filtrar</button>
+                    <button onClick={handleClear}>Limpiar</button>
+                    <button className="primary" onClick={handleCalculate} disabled={calculating} title="Procesar marcaciones y generar reportes diarios">
+                        {calculating ? "Calculando..." : <><Play size={16} style={{ marginRight: '4px' }} /> Calcular</>}
+                    </button>
                     <button className="secondary" title="Exportar (TBD)">
                         <Download size={16} />
                     </button>
@@ -155,6 +242,26 @@ export const Reports: React.FC = () => {
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px', paddingRight: '5px' }}>
+                {calcResult && (
+                    <div style={{ background: '#e8f5e9', color: '#2e7d32', padding: '15px', borderRadius: '4px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <CheckCircle size={20} />
+                        <div>
+                            <strong>Cálculo Completado</strong><br />
+                            {calcResult.message}
+                        </div>
+                    </div>
+                )}
+
+                {calcError && (
+                    <div style={{ background: '#ffebee', color: '#c62828', padding: '15px', borderRadius: '4px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <AlertCircle size={20} />
+                        <div>
+                            <strong>Error</strong><br />
+                            {calcError}
+                        </div>
+                    </div>
+                )}
+
                 {loading && <div style={{ padding: '20px', textAlign: 'center' }}>Cargando datos...</div>}
 
                 {!loading && Object.keys(groups).length === 0 && (

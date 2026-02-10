@@ -32,7 +32,8 @@ from django.utils import timezone
 
 from core import models
 from core.models_shadow import ShadowCalculation, DifferenceType
-from core.models_audit import PolicySnapshot
+# NOTE: PolicySnapshot was planned for legal audit module but not implemented
+# from core.models_audit import PolicySnapshot
 from core.domain.flexible import FlexPolicy, Punch
 from core.domain.flexible.result import DailyCalculationResult
 
@@ -95,8 +96,9 @@ class ShadowComparisonService:
                 logger.warning(f"Shadow: V2 calculation failed for {employee.id} @ {target_date}")
                 return None
             
-            # Step 3: Create policy snapshot (if not exists)
-            policy_snapshot = self._create_policy_snapshot(context['policy'])
+            # Step 3: Create policy snapshot (DISABLED - legal audit module not implemented)
+            # policy_snapshot = self._create_policy_snapshot(context['policy'])
+            policy_snapshot = None
             
             # Step 4: Compute fingerprint
             fingerprint = self._compute_fingerprint(
@@ -257,29 +259,30 @@ class ShadowComparisonService:
     # PRIVATE - TRACEABILITY
     # =========================================================================
     
-    def _create_policy_snapshot(self, policy: FlexPolicy) -> Optional[PolicySnapshot]:
-        """Create or reuse policy snapshot."""
-        try:
-            policy_dict = {
-                'daily_regular_minutes': policy.daily_regular_minutes,
-                'daily_max_minutes': policy.daily_max_minutes,
-                'break_threshold_minutes': policy.break_threshold_minutes,
-                'break_duration_minutes': policy.break_duration_minutes,
-                'night_start_hour': policy.night_start_hour,
-                'night_end_hour': policy.night_end_hour,
-            }
-            
-            snapshot, created = PolicySnapshot.get_or_create_from_policy(
-                policy_dict=policy_dict,
-                policy_type='FLEX',
-                source='TIMETABLE',
-            )
-            
-            return snapshot
-            
-        except Exception as e:
-            logger.error(f"Shadow: Policy snapshot failed: {e}")
-            return None
+    # NOTE: PolicySnapshot methods disabled - legal audit module not implemented
+    # def _create_policy_snapshot(self, policy: FlexPolicy) -> Optional[PolicySnapshot]:
+    #     """Create or reuse policy snapshot."""
+    #     try:
+    #         policy_dict = {
+    #             'daily_regular_minutes': policy.daily_regular_minutes,
+    #             'daily_max_minutes': policy.daily_max_minutes,
+    #             'break_threshold_minutes': policy.break_threshold_minutes,
+    #             'break_duration_minutes': policy.break_duration_minutes,
+    #             'night_start_hour': policy.night_start_hour,
+    #             'night_end_hour': policy.night_end_hour,
+    #         }
+    #         
+    #         snapshot, created = PolicySnapshot.get_or_create_from_policy(
+    #             policy_dict=policy_dict,
+    #             policy_type='FLEX',
+    #             source='TIMETABLE',
+    #         )
+    #         
+    #         return snapshot
+    #         
+    #     except Exception as e:
+    #         logger.error(f"Shadow: Policy snapshot failed: {e}")
+    #         return None
     
     def _compute_fingerprint(
         self,

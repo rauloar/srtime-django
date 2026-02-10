@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { getEmployees, getAssignments, getShifts, assignShift, getDepartments } from '../../api';
-import type { Employee, ShiftAssignment, Shift, Department } from '../../api';
+import { getEmployees, getAssignments, getShifts, getDepartments, getScheduleOverrides, createScheduleOverrideFromShift, getEmployeeByDate, assignShift } from '../../api';
+import type { Employee, ShiftAssignment, Shift, Department, ScheduleOverride } from '../../api';
 import { ChevronLeft, ChevronRight, Users, X } from 'lucide-react';
 import { PageToolbar } from '../../components/ui/PageToolbar';
 
 export function EmployeeSchedule() {
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [assignments, setAssignments] = useState<ShiftAssignment[]>([]);
+    const [overrides, setOverrides] = useState<ScheduleOverride[]>([]);
     const [shifts, setShifts] = useState<Shift[]>([]);
     const [departments, setDepartments] = useState<Department[]>([]);
 
@@ -45,10 +46,11 @@ export function EmployeeSchedule() {
 
     const loadData = async () => {
         const deptId = selectedDept ? parseInt(selectedDept) : undefined;
-        const [emps, dynShifts, depts] = await Promise.all([
+        const [emps, dynShifts, depts, weekOverrides] = await Promise.all([
             getEmployees(0, 1000), // Fetch all (or paginated, but for matrix all is better)
             getShifts(),
-            getDepartments()
+            getDepartments(),
+            getScheduleOverrides(weekStart.toISOString().split('T')[0], weekEnd.toISOString().split('T')[0])
         ]);
 
         // Filter employees if dept selected (client side if API doesn't support yet, or pass param)
@@ -57,6 +59,7 @@ export function EmployeeSchedule() {
         setEmployees(filteredEmps);
         setShifts(dynShifts);
         setDepartments(depts);
+        setOverrides(weekOverrides);
 
         // Fetch Assignments for range
         const data = await getAssignments(weekStart.toISOString().split('T')[0], weekEnd.toISOString().split('T')[0], deptId);
@@ -87,25 +90,39 @@ export function EmployeeSchedule() {
         );
     };
 
+    const getDayOverride = (emp: Employee, date: Date) => {
+        const dateStr = date.toISOString().split('T')[0];
+        return overrides.find(o => o.employee === emp.id && o.date === dateStr);
+    };
+
     const [selectedCell, setSelectedCell] = useState<{ empId: number, date: Date } | null>(null);
 
-    const handleCellClick = (empId: number, date: Date) => {
+    const [selectedScheduleInfo, setSelectedScheduleInfo] = useState<Employee | null>(null);
+
+    const handleCellClick = async (empId: number, date: Date) => {
         setSelectedCell({ empId, date });
+        try {
+            const dateStr = date.toISOString().split('T')[0];
+            const emp = await getEmployeeByDate(empId, dateStr);
+            setSelectedScheduleInfo(emp);
+        } catch (e) {
+            setSelectedScheduleInfo(null);
+        }
     };
 
     const handleAssign = async (shiftId: number) => {
         if (!selectedCell) return;
         try {
-            await assignShift({
+            await createScheduleOverrideFromShift({
                 employee_id: selectedCell.empId,
                 shift_id: shiftId,
-                start_date: selectedCell.date.toISOString().split('T')[0],
-                // indefinite end
+                date: selectedCell.date.toISOString().split('T')[0]
             });
             loadData();
             setSelectedCell(null);
+            setSelectedScheduleInfo(null);
         } catch (e) {
-            alert("Failed to assign shift");
+            alert("No se pudo aplicar el cambio de turno para este día");
         }
     };
 
@@ -199,6 +216,7 @@ export function EmployeeSchedule() {
                                     <div className="schedule-employee-id">{emp.user_id}</div>
                                 </td>
                                 {days.map(d => {
+                                    const override = getDayOverride(emp, d);
                                     const assign = getDayAssignment(emp, d);
                                     return (
                                         <td
@@ -206,7 +224,11 @@ export function EmployeeSchedule() {
                                             className="schedule-data-cell"
                                             onClick={() => handleCellClick(emp.id!, d)}
                                         >
-                                            {assign ? (
+                                            {override ? (
+                                                <div className="schedule-cell-assigned" title={override.timetable_name || 'Override'}>
+                                                    {override.timetable_name || 'Override'}
+                                                </div>
+                                            ) : assign ? (
                                                 <div className="schedule-cell-assigned" title={assign.shift_name}>
                                                     {assign.shift_name}
                                                 </div>
@@ -223,12 +245,19 @@ export function EmployeeSchedule() {
             </div>
 
             {selectedCell && (
-                <div className="shift-assignment-modal" onClick={() => setSelectedCell(null)}>
+                <div className="shift-assignment-modal" onClick={() => { setSelectedCell(null); setSelectedScheduleInfo(null); }}>
                     <div className="shift-assignment-modal-content" onClick={e => e.stopPropagation()}>
-                        <h4 style={{ marginTop: 0 }}>Asignar Turno</h4>
+                        <h4 style={{ marginTop: 0 }}>Cambiar Turno por Día</h4>
                         <p className="shift-assignment-modal-date">
                             {selectedCell?.date.toLocaleDateString()}
                         </p>
+                        {selectedScheduleInfo && (
+                            <div style={{ marginBottom: '12px', fontSize: '13px' }}>
+                                <div><strong>Turno actual:</strong> {selectedScheduleInfo.current_shift?.name || 'Sin turno'}</div>
+                                <div><strong>Horario actual:</strong> {selectedScheduleInfo.current_timetable?.name || 'Sin horario'}</div>
+                                <div><strong>Origen:</strong> {selectedScheduleInfo.schedule_source?.description || 'N/A'}</div>
+                            </div>
+                        )}
                         <div className="shift-assignment-modal-list">
                             {shifts.map(s => (
                                 <button

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { getAttendanceLogs, getDevices } from '../api';
+import { getAttendanceLogs, getDevices, updateAttendanceLog } from '../api';
 import type { Device, AttendanceLog } from '../api';
 import { DataGrid, type Column } from '../components/ui/DataGrid';
+import { Edit2, RefreshCw } from 'lucide-react';
 
 export function Logs() {
     const [logs, setLogs] = useState<AttendanceLog[]>([]);
@@ -11,6 +12,13 @@ export function Logs() {
     const [totalCount, setTotalCount] = useState(0);
     const pageSize = 50;
     const totalPages = Math.ceil(totalCount / pageSize);
+    
+    // Edit Modal State
+    const [editingLog, setEditingLog] = useState<AttendanceLog | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editFormData, setEditFormData] = useState<Partial<AttendanceLog>>({});
+    const [isSaving, setIsSaving] = useState(false);
+    const [editError, setEditError] = useState<string | null>(null);
     
     const [filters, setFilters] = useState({
         device_id: '',
@@ -36,17 +44,14 @@ export function Logs() {
             if (filters.user_id) params.user_id = filters.user_id;
             if (filters.from_date) params.from_date = new Date(filters.from_date).toISOString();
             if (filters.to_date) params.to_date = new Date(filters.to_date).toISOString();
+            // Use search param for name (handled by backend via search_fields)
+            if (filters.name) params.search = filters.name;
 
             const response = await getAttendanceLogs(params);
             setTotalCount(response.count);
 
-            let data = response.results || [];
-
-            // Client-side filtering for Name (since backend doesn't support it yet)
-            if (filters.name) {
-                const search = filters.name.toLowerCase();
-                data = data.filter(log => (log.user_name || '').toLowerCase().includes(search));
-            }
+            const data = response.results || [];
+            // Backend now handles all filtering - no client-side filtering needed
             setLogs(data);
         } catch (e) {
             console.error(e);
@@ -62,6 +67,44 @@ export function Logs() {
     const handleFilter = () => {
         setCurrentPage(1); // Reset to first page when filtering
         loadLogs(1);
+    };
+
+    const handleOpenEditModal = (log: AttendanceLog) => {
+        setEditingLog(log);
+        setEditFormData({
+            timestamp: log.timestamp,
+            punch: log.punch,
+        });
+        setEditError(null);
+        setIsModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setEditingLog(null);
+        setEditFormData({});
+        setEditError(null);
+    };
+
+    const handleEditFormChange = (key: string, value: any) => {
+        setEditFormData(prev => ({ ...prev, [key]: value }));
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingLog) return;
+        
+        setIsSaving(true);
+        setEditError(null);
+        try {
+            await updateAttendanceLog(editingLog.id, editFormData);
+            // Refresh logs after update
+            await loadLogs(currentPage);
+            handleCloseModal();
+        } catch (e: any) {
+            setEditError(e.response?.data?.detail || "Error al guardar los cambios");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     // Format Helpers
@@ -83,12 +126,11 @@ export function Logs() {
         .replace(/>/g, '&gt;');
 
     const exportCsv = () => {
-        const headers = ['ID', 'Dispositivo', 'Usuario', 'Nombre', 'Fecha', 'Hora', 'Estado', 'Origen', 'Verificación'];
+        const headers = ['ID', 'Dispositivo', 'Empleado', 'Fecha', 'Hora', 'Estado', 'Origen', 'Verificación'];
         const rows = logs.map(log => [
             log.id,
             getDeviceName(log.device_id),
-            log.user_id,
-            log.user_name || '-',
+            `${log.user_id} - ${log.user_name || '-'}`,
             formatDate(log.timestamp),
             formatTime(log.timestamp),
             log.status_label || `Estado ${log.status}`,
@@ -111,12 +153,11 @@ export function Logs() {
 
     const exportExcel = async () => {
         const XLSX = await import('xlsx');
-        const headers = ['ID', 'Dispositivo', 'Usuario', 'Nombre', 'Fecha', 'Hora', 'Estado', 'Origen', 'Verificación'];
+        const headers = ['ID', 'Dispositivo', 'Empleado', 'Fecha', 'Hora', 'Estado', 'Origen', 'Verificación'];
         const rows = logs.map(log => [
             log.id,
             getDeviceName(log.device_id),
-            log.user_id,
-            log.user_name || '-',
+            `${log.user_id} - ${log.user_name || '-'}`,
             formatDate(log.timestamp),
             formatTime(log.timestamp),
             log.status_label || `Estado ${log.status}`,
@@ -138,13 +179,12 @@ export function Logs() {
     };
 
     const printLogs = () => {
-        const headers = ['ID', 'Dispositivo', 'Usuario', 'Nombre', 'Fecha', 'Hora', 'Estado', 'Origen', 'Verificación'];
+        const headers = ['ID', 'Dispositivo', 'Empleado', 'Fecha', 'Hora', 'Estado', 'Origen', 'Verificación'];
         const rowsHtml = logs.map(log => `
             <tr>
                 <td>${escapeHtml(String(log.id ?? ''))}</td>
                 <td>${escapeHtml(String(getDeviceName(log.device_id)))}</td>
-                <td>${escapeHtml(String(log.user_id ?? ''))}</td>
-                <td>${escapeHtml(String(log.user_name || '-'))}</td>
+                <td>${escapeHtml(`${String(log.user_id ?? '')} - ${String(log.user_name || '-')}`)}</td>
                 <td>${escapeHtml(formatDate(log.timestamp))}</td>
                 <td>${escapeHtml(formatTime(log.timestamp))}</td>
                 <td>${escapeHtml(log.status_label || `Estado ${log.status}`)}</td>
@@ -190,13 +230,37 @@ export function Logs() {
     const columns: Column<AttendanceLog>[] = [
         { field: 'id', header: 'ID', width: '90px' },
         { field: 'device_id', header: 'Dispositivo', render: log => getDeviceName(log.device_id) },
-        { field: 'user_id', header: 'Usuario', width: '120px' },
-        { field: 'user_name', header: 'Nombre', render: log => log.user_name || '-' },
+        { 
+            field: 'employee',
+            header: 'Empleado',
+            width: '180px',
+            render: log => (
+                <div style={{ fontSize: '14px' }}>
+                    <div style={{ fontWeight: 500 }}>{log.user_id}</div>
+                    <small style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{log.user_name || '-'}</small>
+                </div>
+            )
+        },
         { field: 'timestamp', header: 'Fecha', width: '120px', render: log => formatDate(log.timestamp) },
         { field: 'timestamp', header: 'Hora', width: '100px', render: log => formatTime(log.timestamp) },
         { field: 'status', header: 'Estado', render: log => log.status_label || `Estado ${log.status}` },
         { field: 'punch_source', header: 'Origen', render: log => log.punch_source || 'Terminal' },
-        { field: 'verify_mode', header: 'Verificación', render: log => log.verify_mode_label || '-' }
+        { field: 'verify_mode', header: 'Verificación', render: log => log.verify_mode_label || '-' },
+        { 
+            field: 'actions', 
+            header: 'Acciones', 
+            width: '80px', 
+            render: log => (
+                <button 
+                    className="primary" 
+                    style={{ padding: '4px 8px', fontSize: '12px' }}
+                    onClick={() => handleOpenEditModal(log)}
+                    title="Editar registro"
+                >
+                    <Edit2 size={14} />
+                </button>
+            )
+        }
     ];
 
     return (
@@ -258,6 +322,9 @@ export function Logs() {
                 </div>
                 <button className="primary" onClick={handleFilter}>Aplicar Rango</button>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button onClick={() => loadLogs(currentPage)} disabled={loading} title="Recargar registros">
+                        <RefreshCw size={16} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+                    </button>
                     <button onClick={exportCsv}>📥 Exportar CSV</button>
                     <button onClick={exportExcel}>📊 Exportar Excel</button>
                     <button onClick={printLogs}>🖨️ Imprimir</button>
@@ -305,6 +372,107 @@ export function Logs() {
                     </button>
                 </div>
             </div>
+
+            {/* Edit Modal */}
+            {isModalOpen && editingLog && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0, 0, 0, 0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000
+                }}>
+                    <div className="card" style={{ maxWidth: '500px', width: '90%', maxHeight: '80vh', overflow: 'auto' }}>
+                        <h3>Editar Registro (ID: {editingLog.id})</h3>
+                        
+                        <div style={{ display: 'grid', gap: '15px', marginTop: '15px' }}>
+                            {/* Read-only info */}
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Dispositivo</label>
+                                <input 
+                                    type="text" 
+                                    value={getDeviceName(editingLog.device_id)} 
+                                    disabled 
+                                    className="form-control"
+                                    style={{ opacity: 0.6 }}
+                                />
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Usuario</label>
+                                <input 
+                                    type="text" 
+                                    value={`${editingLog.user_id} - ${editingLog.user_name || 'N/A'}`} 
+                                    disabled 
+                                    className="form-control"
+                                    style={{ opacity: 0.6 }}
+                                />
+                            </div>
+
+                            {/* Editable fields */}
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Fecha y Hora</label>
+                                <input 
+                                    type="datetime-local" 
+                                    value={editFormData.timestamp ? new Date(editFormData.timestamp).toISOString().slice(0, 16) : ''}
+                                    onChange={e => {
+                                        const dt = new Date(e.target.value);
+                                        handleEditFormChange('timestamp', dt.toISOString());
+                                    }}
+                                    className="form-control"
+                                />
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Tipo (Punch)</label>
+                                <select 
+                                    value={editFormData.punch || 0}
+                                    onChange={e => handleEditFormChange('punch', parseInt(e.target.value))}
+                                    className="form-control"
+                                >
+                                    <option value={0}>Entrada/Salida (Auto)</option>
+                                    <option value={1}>Entrada</option>
+                                    <option value={2}>Salida</option>
+                                </select>
+                            </div>
+
+                            {editError && (
+                                <div style={{ 
+                                    background: '#ffebee', 
+                                    color: '#c62828', 
+                                    padding: '10px', 
+                                    borderRadius: '4px', 
+                                    fontSize: '14px' 
+                                }}>
+                                    <strong>Error:</strong> {editError}
+                                </div>
+                            )}
+
+                            {/* Buttons */}
+                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
+                                <button 
+                                    onClick={handleCloseModal}
+                                    disabled={isSaving}
+                                >
+                                    Cancelar
+                                </button>
+                                <button 
+                                    className="primary"
+                                    onClick={handleSaveEdit}
+                                    disabled={isSaving}
+                                >
+                                    {isSaving ? 'Guardando...' : 'Guardar'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

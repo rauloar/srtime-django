@@ -69,6 +69,8 @@ export const Absences: React.FC = () => {
 
     const filteredAbsences = absences.filter(a =>
         a.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (a.employee_name && a.employee_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (a.employee_user_id && a.employee_user_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
         getEmployeeName(a.employee_id).toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -77,7 +79,37 @@ export const Absences: React.FC = () => {
             field: 'employee_id',
             header: 'Empleado',
             render: (a) => (
-                <div style={{ fontWeight: 500 }}>{getEmployeeName(a.employee_id)}</div>
+                <div>
+                    <div style={{ fontWeight: 600, fontSize: '14px' }}>{a.employee_user_id || getEmployeeName(a.employee_id)}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{a.employee_name || getEmployeeName(a.employee_id)}</div>
+                </div>
+            )
+        },
+        {
+            field: 'source',
+            header: 'Origen',
+            render: (a) => (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {a.source === 'Detected' ? (
+                        <span style={{ 
+                            padding: '2px 8px', 
+                            borderRadius: '4px', 
+                            backgroundColor: 'var(--status-warning-bg)', 
+                            color: 'var(--status-warning)',
+                            fontSize: '11px',
+                            fontWeight: 600
+                        }}>AUTO</span>
+                    ) : (
+                        <span style={{ 
+                            padding: '2px 8px', 
+                            borderRadius: '4px', 
+                            backgroundColor: 'var(--status-info-bg)', 
+                            color: 'var(--status-info)',
+                            fontSize: '11px',
+                            fontWeight: 600
+                        }}>MANUAL</span>
+                    )}
+                </div>
             )
         },
         {
@@ -111,13 +143,17 @@ export const Absences: React.FC = () => {
             align: 'right',
             width: '80px',
             render: (a) => (
-                <button
-                    className="icon-btn danger"
-                    onClick={(e) => { e.stopPropagation(); a.id && confirmDelete(a.id); }}
-                    title="Eliminar"
-                >
-                    <Trash2 size={16} />
-                </button>
+                a.source !== 'Detected' ? (
+                    <button
+                        className="icon-btn danger"
+                        onClick={(e) => { e.stopPropagation(); a.id && confirmDelete(Number(a.id)); }}
+                        title="Eliminar"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                ) : (
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Auto</span>
+                )
             )
         }
     ];

@@ -113,14 +113,16 @@ class ShadowCalculation(models.Model):
         default='2.0.0',
         verbose_name='Versión Motor V2'
     )
-    policy_snapshot = models.ForeignKey(
-        'PolicySnapshot',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='shadow_calculations',
-        verbose_name='Snapshot de Política'
-    )
+    # NOTE: PolicySnapshot model was planned for legal audit module but not implemented
+    # This system is for time tracking information, not a complete HR CRM
+    # policy_snapshot = models.ForeignKey(
+    #     'PolicySnapshot',
+    #     on_delete=models.SET_NULL,
+    #     null=True,
+    #     blank=True,
+    #     related_name='shadow_calculations',
+    #     verbose_name='Snapshot de Política'
+    # )
     
     # === METADATA ===
     created_at = models.DateTimeField(
