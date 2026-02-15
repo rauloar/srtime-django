@@ -5,6 +5,8 @@ interface AuthContextType {
   token: string | null;
   username: string | null;
   role: string | null;
+  groups: string[];
+  isSuperuser: boolean;
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
@@ -23,6 +25,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
   const [role, setRole] = useState<string | null>(() => {
     return sessionStorage.getItem('auth_role');
+  });
+  const [groups, setGroups] = useState<string[]>(() => {
+    const raw = sessionStorage.getItem('auth_groups');
+    return raw ? JSON.parse(raw) : [];
+  });
+  const [isSuperuser, setIsSuperuser] = useState<boolean>(() => {
+    return sessionStorage.getItem('auth_is_superuser') === 'true';
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,12 +60,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Agregar token a headers para futuras peticiones
       api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
 
+      // Obtener grupos y estado de superuser
+      try {
+        const me = await api.get('/auth/me');
+        const nextGroups: string[] = me.data?.groups || [];
+        const nextIsSuperuser = !!me.data?.is_superuser;
+        sessionStorage.setItem('auth_groups', JSON.stringify(nextGroups));
+        sessionStorage.setItem('auth_is_superuser', String(nextIsSuperuser));
+        setGroups(nextGroups);
+        setIsSuperuser(nextIsSuperuser);
+      } catch (err) {
+        sessionStorage.setItem('auth_groups', JSON.stringify([]));
+        sessionStorage.setItem('auth_is_superuser', 'false');
+        setGroups([]);
+        setIsSuperuser(false);
+      }
+
       // Obtener y guardar el tiempo de inicio del servidor
       try {
         const serverInfo = await api.get('/auth/server-info');
         sessionStorage.setItem('server_start_time', serverInfo.data.start_time);
       } catch (err) {
-        console.warn('No se pudo obtener información del servidor');
+        return;
       }
     } catch (err: any) {
       let errorMsg = 'Error al iniciar sesión';
@@ -94,10 +119,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     sessionStorage.removeItem('auth_token');
     sessionStorage.removeItem('auth_username');
     sessionStorage.removeItem('auth_role');
+    sessionStorage.removeItem('auth_groups');
+    sessionStorage.removeItem('auth_is_superuser');
     sessionStorage.removeItem('device_id');
     setToken(null);
     setUsername(null);
     setRole(null);
+    setGroups([]);
+    setIsSuperuser(false);
     delete api.defaults.headers.common['Authorization'];
   }, []);
 
@@ -106,39 +135,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const savedToken = sessionStorage.getItem('auth_token');
     const savedUsername = sessionStorage.getItem('auth_username');
     const savedRole = sessionStorage.getItem('auth_role');
+    const savedGroups = sessionStorage.getItem('auth_groups');
+    const savedIsSuperuser = sessionStorage.getItem('auth_is_superuser');
 
     if (savedToken) {
       setToken(savedToken);
       setUsername(savedUsername);
       setRole(savedRole);
+      setGroups(savedGroups ? JSON.parse(savedGroups) : []);
+      setIsSuperuser(savedIsSuperuser === 'true');
       api.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
-
-      // DEV MODE: Skip server check to avoid 403s on disabled endpoints
-      /*
-      // Verificar si el servidor se reinició
-      const checkServerStatus = async () => {
-        try {
-          const serverStartTime = sessionStorage.getItem('server_start_time');
-          const response = await api.get('/auth/server-info');
-          const currentServerTime = response.data.start_time;
-          
-          // Si el servidor se reinició, cerrar sesión
-          if (serverStartTime && serverStartTime !== currentServerTime) {
-            console.log('🔄 Servidor reiniciado - Cerrando sesión...');
-            logout();
-          } else {
-            // Guardar el tiempo de inicio del servidor actual
-            sessionStorage.setItem('server_start_time', currentServerTime);
-          }
-        } catch (err) {
-          // Si no puede conectar con el servidor, cerrar sesión
-          console.log('❌ No se puede verificar el servidor - Cerrando sesión...');
-          logout();
-        }
-      };
-      
-      checkServerStatus();
-      */
+      api.get('/auth/me').then((me) => {
+        const nextGroups: string[] = me.data?.groups || [];
+        const nextIsSuperuser = !!me.data?.is_superuser;
+        sessionStorage.setItem('auth_groups', JSON.stringify(nextGroups));
+        sessionStorage.setItem('auth_is_superuser', String(nextIsSuperuser));
+        setGroups(nextGroups);
+        setIsSuperuser(nextIsSuperuser);
+      }).catch(() => {
+        return;
+      });
     }
   }, [logout]);
 
@@ -146,6 +162,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     token,
     username,
     role,
+    groups,
+    isSuperuser,
     isAuthenticated: !!token,
     login,
     logout,

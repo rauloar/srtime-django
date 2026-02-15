@@ -1,24 +1,13 @@
 import axios from 'axios';
+import type { DayViewResponse } from './types/contracts';
 
-// Detectar automáticamente la URL de la API según el ambiente
-const API_URL = (() => {
-    // Prioridad: variable de entorno
-    if (import.meta.env.VITE_API_BASE_URL) {
-        return import.meta.env.VITE_API_BASE_URL;
-    }
-
-    // Dev fallback explícito
-    if (import.meta.env.DEV) {
-        return 'http://127.0.0.1:9000/api/v1';
-    }
-
-    // Prod fallback: mismo host/puerto (embedded)
-    return '/api/v1';
-})();
+// Usar siempre ruta relativa ya que Django sirve el frontend
+const API_URL = '/api/v1';
 
 export const api = axios.create({
     baseURL: API_URL,
     withCredentials: true, // Enable cookies for CSRF
+    timeout: 300000, // 5 minutes for long-running operations
 });
 
 // Helper to get CSRF token from cookies
@@ -35,7 +24,7 @@ api.interceptors.request.use((config) => {
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
-    
+
     // Add CSRF token for POST, PUT, PATCH, DELETE requests
     if (['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase() || '')) {
         const csrfToken = getCookie('csrftoken');
@@ -43,9 +32,36 @@ api.interceptors.request.use((config) => {
             config.headers['X-CSRFToken'] = csrfToken;
         }
     }
-    
+
     return config;
 }, (error) => {
+    return Promise.reject(error);
+});
+
+api.interceptors.response.use((response) => response, (error) => {
+    if (error?.code === 'ECONNABORTED') {
+        return Promise.reject(new Error('Tiempo de espera agotado'));
+    }
+
+    if (!error?.response) {
+        return Promise.reject(new Error('Error de conexión'));
+    }
+
+    const status = error.response.status;
+
+    if (status === 401) {
+        sessionStorage.removeItem('auth_token');
+        return Promise.reject(new Error('Sesión expirada'));
+    }
+
+    if (status === 403) {
+        return Promise.reject(new Error('Acceso denegado'));
+    }
+
+    if (status >= 500) {
+        return Promise.reject(new Error('Error del servidor'));
+    }
+
     return Promise.reject(error);
 });
 
@@ -90,7 +106,7 @@ export interface AttendanceLog {
     workcode?: number;
     punch_source?: string;
     user_name?: string;
-    
+
     // Labels from backend (source of truth)
     status_label?: string;
     verify_mode_label?: string;
@@ -134,6 +150,22 @@ export interface JobLog {
     timestamp: string;
 }
 
+export interface User {
+    id: number;
+    device: number;
+    uid: number;
+    name: string | null;
+    privilege: number | null;
+    password: string | null;
+    group_id: number | null;
+    user_id: string | null;
+    card: string | null;
+    finger_count: number;
+    face_count: number;
+    updated_at: string;
+    device_name?: string;
+}
+
 export interface Setting {
     key: string;
     value: string;
@@ -168,6 +200,17 @@ export const getMemoryInfo = async (id: number) => (await api.get<MemoryInfo>(`/
 export const clearAllData = async (id: number) => (await api.post<JobResponse>(`/devices/${id}/clear-all-data`)).data;
 export const getRecentAttendance = async (id: number, limit: number = 50) => (await api.get<RecentAttendanceResponse>(`/devices/${id}/attendance/recent?limit=${limit}`)).data;
 export const getDeviceTemplates = async (id: number) => (await api.post<TemplatesResponse>(`/devices/${id}/templates`)).data;
+export const getNextUid = async (id: number) => (await api.get<{ next_uid: number }>(`/devices/${id}/next-uid/`)).data;
+
+// Attendance Day View
+export const getDayView = async (
+    employeeId: string,
+    date: string
+): Promise<DayViewResponse> => {
+    return (await api.get<DayViewResponse>('/attendance/day/', {
+        params: { employee_id: employeeId, date }
+    })).data;
+};
 
 // Response Types for New Endpoints
 export interface DeviceConnectionStatus {
@@ -193,6 +236,8 @@ export interface CommandResponse {
     success: boolean;
     message: string;
 }
+
+// DayViewResponse re-exported from contracts.ts (see line 610)
 
 export interface MemoryInfo {
     success: boolean;
@@ -250,10 +295,10 @@ export interface DeviceUser {
     group_id?: number;
 }
 
-export const getAttendanceLogs = async (params: { 
-    device_id?: number; 
-    user_id?: string; 
-    from_date?: string; 
+export const getAttendanceLogs = async (params: {
+    device_id?: number;
+    user_id?: string;
+    from_date?: string;
     to_date?: string;
     name?: string;  // Search by user_name via backend search
     search?: string;  // Alternative search parameter
@@ -312,7 +357,7 @@ export const getLogsWithValidation = async (employee_id: number, date: string) =
     return response.data;
 };
 
-export const updateAttendanceLog = async (id: number, data: Partial<AttendanceLog>) => 
+export const updateAttendanceLog = async (id: number, data: Partial<AttendanceLog>) =>
     (await api.put<AttendanceLog>(`/attendance-logs/${id}/`, data)).data;
 
 // Settings & Jobs
@@ -321,9 +366,20 @@ export const updateSetting = async (setting: Setting) => (await api.put<Setting>
 export const getJob = async (jobId: string) => (await api.get<Job>(`/jobs/${jobId}`)).data;
 export const getJobLogs = async (jobId: string) => (await api.get<JobLog[]>(`/jobs/${jobId}/logs`)).data;
 
-// Organization Module
+// Personnel
+export interface Department {
+    id?: number;
+    name: string;
+    code?: string;
+    company?: number;
+    company_name?: string;
+    parent_id?: number;
+    parent_name?: string;
+    children?: Department[];
+}
+
 export interface Company {
-    id: number;
+    id?: number;
     name: string;
     code?: string;
     address?: string;
@@ -331,45 +387,10 @@ export interface Company {
     logo_path?: string;
 }
 
-export const getCompany = async () => (await api.get<Company[]>('/companies/')).data;
-export const updateCompany = async (company: Company) => (await api.put<Company>(`/companies/${company.id}/`, company)).data;
-
-export interface Position {
-    id?: number;
-    name: string;
-    code?: string;
-    description?: string;
-}
-
-export const getPositions = async () => (await api.get<Position[]>('/positions/')).data;
-export const createPosition = async (pos: Position) => (await api.post<Position>('/positions/', pos)).data;
-export const updatePosition = async (id: number, pos: Position) => (await api.put<Position>(`/positions/${id}/`, pos)).data;
-export const deletePosition = async (id: number) => (await api.delete(`/positions/${id}/`)).data;
-
-export interface Zone {
-    id?: number;
-    name: string;
-    code?: string;
-    description?: string;
-}
-
-export const getZones = async () => (await api.get<Zone[]>('/zones/')).data;
-export const createZone = async (z: Zone) => (await api.post<Zone>('/zones/', z)).data;
-export const updateZone = async (id: number, z: Zone) => (await api.put<Zone>(`/zones/${id}/`, z)).data;
-export const deleteZone = async (id: number) => (await api.delete(`/zones/${id}/`)).data;
-
-
-// Personnel
-export interface Department {
-    id?: number;
-    name: string;
-    code?: string;
-    parent_id?: number;
-    children?: Department[];
-}
-
 export interface Employee {
     id?: number;
+    device?: number; // Device ID (required for updates)
+    uid?: number;    // Internal Device ID (required for updates)
     user_id: string; // Global ID
     name?: string;
     email?: string;
@@ -421,8 +442,15 @@ export interface Employee {
 
 export const getDepartments = async () => (await api.get<Department[]>('/departments/')).data;
 export const createDepartment = async (dept: Department) => (await api.post<Department>('/departments/', dept)).data;
-export const updateDepartment = async (id: number, dept: Department) => (await api.put<Department>(`/departments/${id}/`, dept)).data;
+export const updateDepartment = async (id: number, dept: Partial<Department>) => (await api.put<Department>(`/departments/${id}/`, dept)).data;
 export const deleteDepartment = async (id: number) => (await api.delete(`/departments/${id}/`)).data;
+
+export const getCompanies = async () => (await api.get<Company[]>('/companies/')).data;
+export const getCompany = async (id: number) => (await api.get<Company>(`/companies/${id}/`)).data;
+export const createCompany = async (company: Company) => (await api.post<Company>('/companies/', company)).data;
+export const updateCompany = async (id: number, company: Partial<Company>) => (await api.put<Company>(`/companies/${id}/`, company)).data;
+export const deleteCompany = async (id: number) => (await api.delete(`/companies/${id}/`)).data;
+
 
 export const getEmployees = async (skip = 0, limit = 100) => (await api.get<Employee[]>('/employees/', { params: { skip, limit } })).data;
 export const getEmployeesByDate = async (date: string, skip = 0, limit = 100) => (
@@ -449,6 +477,9 @@ const serializeEmployeePayload = (emp: Employee) => ({
     city: emp.city,
     country: emp.country,
     photo_path: (emp as { photo_path?: string }).photo_path,
+    // Critical fields for UserSerializer
+    device: emp.device,
+    uid: emp.uid,
 });
 
 export const createEmployee = async (emp: Employee) => (
@@ -583,39 +614,11 @@ export const createScheduleOverrideFromShift = async (payload: {
 }) => (await api.post<ScheduleOverride>('/schedule-overrides/from-shift/', payload)).data;
 
 // Calculation & Reports
-export interface DailyAttendance {
-    id: number;
-    employee_id: number;
-    date: string;
-    timetable_id?: number;
-    check_in?: string;
-    check_out?: string;
-    on_duty?: string;
-    off_duty?: string;
-    late_minutes: number;
-    early_minutes: number;
-    worked_minutes: number;
-    overtime_minutes: number; // Added
-    status: string;
-    exception_reason?: string;
-    employee_name?: string; // From serializer (employee.name)
-    employee_user_id?: string; // From serializer (employee.user_id)
-    
-    // Status color and label from backend
-    status_info?: {
-        label: string;
-        display: string;
-        color: string;
-        color_dark?: string;
-        icon?: string;
-    };
-    // Audit
-    schedule_type?: string;
-    source_logs_count?: number;
-    is_absent?: boolean;
-
-    employee?: Employee;
-}
+// ============================================================================
+// CONTRATO FORMAL: Re-exportado desde types/contracts.ts
+// NO modificar aquí - editar contracts.ts para cambios de contrato
+// ============================================================================
+export type { DailyAttendance, DayViewResponse, StatusCode, StatusInfo } from './types/contracts';
 
 export interface DashboardSummaryReport {
     date: string;
@@ -650,18 +653,50 @@ export const calculateAttendance = async (startDate: string, endDate: string, de
     return (await api.post('/attendance/calculate/', payload)).data;
 };
 
-export const getDailyReports = async (
-    fromDate: string, 
-    toDate: string, 
+// ============================================================================
+// V2 API - DOMINIO FUERTE (CONTRATO FORMAL)
+// ============================================================================
+
+import type {
+    StatusCode as StatusCodeV2,
+    DailyAttendanceV2Response
+} from './types/contractsV2';
+
+export {
+    type DailyAttendanceV2,
+    type DailyAttendanceV2Response
+} from './types/contractsV2';
+
+export type { StatusCodeV2 };
+
+/**
+ * V2 - Obtener reportes de asistencia diaria con dominio fuerte
+ * 
+ * ENDPOINT: GET /api/v2/attendance/reports/daily/
+ * 
+ * CONTRATO GARANTIZADO:
+ * - Estructura jerárquica (identity, status, metrics, schedule, employee)
+ * - Campos numéricos NUNCA null
+ * - status.code siempre en formato UPPER_CASE
+ * - Backend garantiza integridad (no fallbacks defensivos)
+ * 
+ * DIFERENCIAS DE V1:
+ * - Usa estructura v2 (no campos planos)
+ * - status es objeto (no string textual)
+ * - Lógica: usar status.code === "LATE" (no strings)
+ */
+export const getDailyReportsV2 = async (
+    fromDate: string,
+    toDate: string,
     departmentId?: number,
     userIdFilter?: string,
     nameFilter?: string
-) => {
+): Promise<DailyAttendanceV2Response> => {
     const params: any = { from_date: fromDate, to_date: toDate };
     if (departmentId) params.department_id = departmentId;
     if (userIdFilter?.trim()) params.employee_user_id = userIdFilter.trim();
     if (nameFilter?.trim()) params.employee_name = nameFilter.trim();
-    return (await api.get<DailyAttendance[]>('/attendance/reports/daily/', { params })).data;
+    return (await api.get<DailyAttendanceV2Response>('/attendance/reports/daily/v2/', { params })).data;
 };
 
 // Absences
@@ -713,7 +748,14 @@ export interface LoginResponse {
     role: string;
 }
 
+export interface AuthMeResponse {
+    username: string;
+    groups: string[];
+    is_superuser: boolean;
+}
+
 export const login = async (username: string, password: string) => (await api.post<LoginResponse>('/auth/login', { username, password })).data;
+export const getAuthMe = async () => (await api.get<AuthMeResponse>('/auth/me')).data;
 export const getAuthUsers = async () => (await api.get<AuthUser[]>('/auth/users')).data;
 export const createAuthUser = async (user: Partial<AuthUser> & { password: string }) => (await api.post<AuthUser>('/auth/users', user)).data;
 export const deleteAuthUser = async (id: number) => (await api.delete(`/auth/users/${id}`)).data;

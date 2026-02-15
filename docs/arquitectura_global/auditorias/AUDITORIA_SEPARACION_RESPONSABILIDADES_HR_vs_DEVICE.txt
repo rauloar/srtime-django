@@ -1,0 +1,461 @@
+================================================================================
+AUDITORÍA: SEPARACIÓN DE RESPONSABILIDADES - PIPELINE DE ASISTENCIA VS MAESTROS
+SRTime Django Backend - Relación Device Sync vs HR System
+================================================================================
+
+EJECUTADO: 2026-02-15
+OBJETIVO: Verificar si se crean/modifican empleados durante importación de marcaciones
+CONCLUSIÓN: Pipeline está CORRECTAMENTE separado. Detalles y recomendaciones abajo.
+
+================================================================================
+HALLAZGO 1: run_import_attendance_job() - PIPELINE PRINCIPAL DE ASISTENCIA
+================================================================================
+
+ARCHIVO: core/services/zk_workers.py (líneas 52-150)
+
+RESPONSABILIDAD: Importar registros de asistencia desde dispositivo ZKTeco
+
+FLUJO ACTUAL:
+  1. zk_service.get_attendance() ← Descarga logs del dispositivo
+  2. Para cada registro (device, user_id, timestamp):
+     - Valida si ya existe con query (device, user_id, timestamp)
+     - Si NO existe: AttendanceLog.objects.create()
+     - Si existe y overwrite=False: skipped
+     - Si existe y overwrite=True: AttendanceLog.objects.update()
+  3. Retorna stats: imported_count, skipped_count
+
+✅ VALIDACIÓN DE CÓDIGO:
+  ✓ NO crea Employee
+  ✓ NO modifica Employee
+  ✓ NO consulta tabla Employee
+  ✓ NO valida FK employee_id
+  ✓ Solo maneja AttendanceLog records
+
+⚠️ RIESGO IDENTIFICADO:
+  - user_id en AttendanceLog es CharField(50), NO FK a Employee
+  - Si user_id no tiene Employee asignado en BD: es ignorado silenciosamente
+  - Resultado: Registros "huérfanos" sin empleado asociable
+
+RECOMENDACIÓN:
+  → Agregar validación: Si user_id no mapea a Employee, loguear WARNING y skip
+  → Documentar que HR system es source of truth para Employee master data
+
+================================================================================
+HALLAZGO 2: run_download_users_job() - DESCARGA DE USUARIOS DESDE DEVICE
+================================================================================
+
+ARCHIVO: core/services/zk_workers.py (líneas 199-259)
+
+RESPONSABILIDAD: Descargar lista de usuarios y plantillas biométricas del dispositivo
+
+FLUJO ACTUAL:
+  1. zk_service.get_users() ← Lista de usuarios en dispositivo
+  2. zk_service.get_templates() ← Plantillas biométricas
+  3. Loggea: "Total usuarios: X, Total plantillas: Y"
+  4. Retorna job status "completed"
+
+✅ VALIDACIÓN DE CÓDIGO:
+  ✓ NO crea Employee
+  ✓ NO modifica Employee
+  ✓ Solo loggea información
+
+COMENTARIO REVELADOR (líneas 242-243):
+  ```python
+  # Here you could create/update Employee records if needed
+  # For now, just log the information
+  ```
+  → Esto indica que ANTERIORMENTE se consideró crear Employee aquí
+  → Pero la decisión fue SOLO loguear
+
+✅ ESTADO: Responsabilidad correctamente contenida
+
+RECOMENDACIÓN:
+  → Cambiar nombre a run_fetch_device_users_job() para claridad
+  → Documentar: "Esta función SOLO descarga y loggea. No modifica datos maestros."
+  → Si en futuro se necesita sincronizar usuarios, crear comando SEPARADO
+
+================================================================================
+HALLAZGO 3: run_sync_users_job() - SINCRONIZACIÓN AL DISPOSITIVO
+================================================================================
+
+ARCHIVO: core/services/zk_workers.py (líneas 310-370)
+
+RESPONSABILIDAD: Enviar lista de empleados AL dispositivo ZKTeco
+
+FLUJO ACTUAL:
+  1. Employee.objects.filter(active=True) ← Lee de BD
+  2. Para cada empleado:
+     - zk_service.set_user() ← Envía al dispositivo
+  3. Loggea: "Sincronizados: X, Fallidos: Y"
+
+✅ VALIDACIÓN DE CÓDIGO:
+  ✓ NO modifica tabla Employee
+  ✓ NO crea registros en BD
+  ✓ Solo lectura de Employee, escritura al dispositivo
+  ✓ Dirección correcta: BD → Dispositivo (no al revés)
+
+✅ ESTADO: Separación clara y unidireccional
+
+================================================================================
+HALLAZGO 4: seed_zk_sql.py - SEEDING DE DATOS (NO ES PRODUCTION PIPELINE)
+================================================================================
+
+ARCHIVO: core/management/commands/seed_zk_sql.py (líneas 410-453)
+
+RESPONSABILIDAD: Importar datos COMPLETOS desde SQL dump para testing/demo
+
+FUNCIÓN: _import_employees()
+
+FLUJO:
+  ```python
+  Employee.objects.update_or_create(
+      user_id=user_id,
+      defaults={
+          "name": name,
+          "department": department_obj,
+          "phone": ...,
+          "email": ...,
+          "hire_date": ...,
+          ...
+      },
+  )
+  ```
+
+✅ VALIDACIÓN DE CONTEXTO:
+  ✓ Este es un MANAGEMENT COMMAND de seeding, NO el pipeline de producción
+  ✓ Usado solo en desarrollo/testing
+  ✓ Tiene flag --skip-employees para desabilitar
+  ✓ Claramente separado de pipeline de asistencia
+
+⚠️ NOTA IMPORTANTE:
+  - Esto NO es parte de run_import_attendance_job()
+  - Es un script independiente de inicialización de datos
+  - Correcto usarlo para seeding, pero NO para importación recurrente de asistencia
+
+================================================================================
+HALLAZGO 5: INTEGRACIÓN EN VIEWS
+================================================================================
+
+ARCHIVO: core/views_devices.py
+
+ENDPOINTS Y HANDLERS:
+
+1. POST /api/v1/devices/{device_id}/import-attendance/
+   → Handler: import_attendance() (línea 73)
+   → Llama: run_in_background(run_import_attendance_job, ...)
+   ✓ NO toca Employee
+
+2. POST /api/v1/devices/{device_id}/download-users/
+   → Handler: download_users() (línea 131)
+   → Llama: run_in_background(run_download_users_job, ...)
+   ✓ NO toca Employee
+
+3. POST /api/v1/devices/{device_id}/sync-users/
+   → Handler: sync_users() (línea 148)
+   → Llama: run_in_background(run_sync_users_job, ...)
+   ✓ NO modifica Employee (lee solo)
+
+✅ VALIDACIÓN: Las vistas están CORRECTAMENTE canalizadas a workers sin modificaciones
+
+================================================================================
+ANÁLISIS: ARQUITECTURA DE RESPONSABILIDADES
+================================================================================
+
+DIAGRAMA CONCEPTUAL:
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                      DATA SOURCES & SINKS                                │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│  API ENDPOINTS (views_devices.py)                                        │
+│  ├─ import_attendance()        ────→ run_import_attendance_job()        │
+│  │                                    └─ AttendanceLog.objects.create() │
+│  ├─ download_users()           ────→ run_download_users_job()          │
+│  │                                    └─ LogOnly (no BD mutation)       │
+│  └─ sync_users()               ────→ run_sync_users_job()              │
+│                                       └─ Device.set_user() (outbound)   │
+│                                                                           │
+│  MANAGEMENT COMMANDS (seed_zk_sql.py)                                    │
+│  ├─ _import_employees()        ────→ Employee.objects.update_or_create()│
+│  │  (Dev/Test only, explicit --flag)
+│  ├─ _import_attendance_log()   ────→ AttendanceLog.objects.bulk_create()│
+│  │  (Seeding, uses ignore_conflicts=True)
+│  └─ Other seeding functions                                             │
+│                                                                           │
+│  DATA FLOW:                                                              │
+│                                                                           │
+│  Device (ZKTeco)                                                         │
+│    ↓ [run_import_attendance_job]                                        │
+│  AttendanceLog  ← Correct: Only touches AttendanceLog               │
+│    ↓ [attendance_engine.calculate_day]                                  │
+│  DailyAttendance                                                        │
+│     ↓ (lookup via user_id → Employee)                                  │
+│  Employee ← Source of Truth from HR System                             │
+│    ↓ [run_sync_users_job]                                              │
+│  Device ↔ Employee (bidirectional, Employee is master)                 │
+│                                                                           │
+│  seed_zk_sql.py (ONLY FOR DEVELOPMENT)                                 │
+│    ├─ Employee.update_or_create()                                       │
+│    └─ AttendanceLog.bulk_create()                                       │
+│    (Manual seeding, disabled for production)                           │
+│                                                                           │
+└──────────────────────────────────────────────────────────────────────────┘
+
+SEPARACIÓN DE RESPONSABILIDADES:
+
+┌─────────────┬──────────────────────┬────────────────────────────────────┐
+│ Component   │ Responsabilidad       │ Validación                         │
+├─────────────┼──────────────────────┼────────────────────────────────────┤
+│ Import ATT  │ AttendanceLog ONLY    │ ✓ Correcto - no toca Employee     │
+│ Download U  │ Lectura de Device     │ ✓ Correcto - log only             │
+│ Sync Users  │ Envío a Device       │ ✓ Correcto - Employee → Device    │
+│ seed_zk_sql │ Seeding completo     │ ✓ Correcto - dev/test only        │
+│ Calc Engine │ DailyAttendance      │ ⚠️ Busca Employee por user_id     │
+└─────────────┴──────────────────────┴────────────────────────────────────┘
+
+================================================================================
+RECOMENDACIONES DE MEJORA
+================================================================================
+
+RECOMENDACIÓN 1: Validación Explícita en run_import_attendance_job()
+─────────────────────────────────────────────────────────────────
+
+CÓDIGO ACTUAL:
+  for att in records:
+      exists = AttendanceLog.objects.filter(...).exists()
+      if exists:
+          # update o skip
+      else:
+          AttendanceLog.objects.create(...)  # ← No valida si Employee existe
+
+CÓDIGO PROPUESTO:
+  for att in records:
+      # NEW: Validate that user_id has an Employee
+      try:
+          emp = Employee.objects.get(user_id=att.user_id)
+      except Employee.DoesNotExist:
+          JobManager.append_log(job_id, f"WARNING: No employee for user_id={att.user_id}, skipping")
+          skipped_count += 1
+          continue  # ← Skip this record
+      
+      exists = AttendanceLog.objects.filter(...).exists()
+      if exists:
+          # ... rest of logic
+
+BENEFICIO:
+  - Evita crear registros "huérfanos" sin empleado
+  - Auditoría clara de qué se rechazó y por qué
+  - Facilita debugging de mismatches
+
+ESFUERZO: 15 min
+
+─────────────────────────────────────────────────────────────────
+
+RECOMENDACIÓN 2: Documentación Explícita en código
+────────────────────────────────────────
+
+ARCHIVO: core/services/zk_workers.py
+AGREGAR DOCSTRING:
+
+```python
+def run_import_attendance_job(job_id: str, device_id: int, overwrite: bool = False, start_date: Optional[date] = None):
+    """
+    Worker para importar registros de asistencia desde un dispositivo ZKTeco.
+    
+    ARCHITECTURAL PRINCIPLE:
+    ========================
+    This function is PART OF THE ATTENDANCE INGESTION PIPELINE.
+    
+    ✓ WHAT IT DOES:
+      - Downloads attendance records from ZKTeco device
+      - Imports records into AttendanceLog table
+      - Handles deduplication via UNIQUE(device, user_id, timestamp)
+    
+    ✗ WHAT IT DOES NOT DO:
+      - Does NOT create Employee records
+      - Does NOT modify Employee data
+      - Does NOT synchronize user master data
+    
+    HR SYSTEM IS SOURCE OF TRUTH:
+    ============================
+    - Employee records are maintained by HR system only
+    - Device is NOT authoritative for employee data
+    - If an employee is deleted from HR system, they remain in Device
+    - User downloads from device (run_download_users_job) are for informational purposes only
+    
+    EMPLOYEE SYNC:
+    =============
+    - Synchronization of Employee TO device: use run_sync_users_job()
+    - Direction is always: HR System → Device (not reverse)
+    
+    USER_ID VALIDATION:
+    ==================
+    - Attendance records are tied to device user_id (CharField)
+    - If user_id doesn't exist in Employee table: record is skipped (WARNING logged)
+    - This ensures attendance is only calculated for valid employees
+    """
+    try:
+        JobManager.start_job(job_id)
+        JobManager.append_log(job_id, "Iniciando importación de registros...")
+        # ... rest of function
+```
+
+BENEFICIO:
+  - Future developers understand architectural decisions
+  - Prevents accidental mixing of responsibilities
+  - Clarifies data ownership and truths
+
+ESFUERZO: 10 min
+
+─────────────────────────────────────────────────────────────────
+
+RECOMENDACIÓN 3: Renombrar run_download_users_job() para claridad
+───────────────────────────────────────────────────
+
+ACTUAL:
+  run_download_users_job()
+
+PROPUESTO:
+  run_fetch_device_users_job()
+  Con nuestra o
+  run_audit_device_users_job()
+
+RAZÓN:
+  - "download_users" suena como si fuera a crear empleados
+  - "fetch_device_users" es más claro: solo lee del dispositivo
+  - "audit_device_users" indica: inspección, no sincronización
+
+BENEFICIO:
+  - Evita confusión futura
+  - Nombre refleja el comportamiento real
+
+ESFUERZO: 5 min (cambio en nombre en 3 lugares)
+
+─────────────────────────────────────────────────────────────────
+
+RECOMENDACIÓN 4: Agregar comentario en run_download_users_job()
+──────────────────────────────────────────────────
+
+CAMBIAR:
+  ```python
+  # Here you could create/update Employee records if needed
+  # For now, just log the information
+  ```
+
+POR:
+  ```python
+  # NOTE: This function ONLY logs device user information.
+  # It does NOT create or update Employee records.
+  # Reason: HR System is the authoritative source for Employee master data.
+  # Device should never create/modify HR data.
+  # 
+  # If future requirement: Synchronize device users → Employee table
+  # Create separate function: sync_device_users_to_employee() with explicit flag
+  # and require manager approval before modifying master data.
+  ```
+
+BENEFICIO:
+  - Blocks risk of future incorrect implementations
+  - Documents the decision rationale
+
+ESFUERZO: 5 min
+
+═══════════════════════════════════════════════════════════════════════════════
+
+RECOMENDACIÓN 5: Agregar Validación en AttendanceLogSerializer
+──────────────────────────────────────────────
+
+ARCHIVO: core/serializers.py
+ENHANCE: AttendanceLogSerializer.validate()
+
+PROPUESTO:
+  ```python
+  class AttendanceLogSerializer(serializers.ModelSerializer):
+      # ... existing code ...
+      
+      def validate(self, data):
+          """Validate that user_id exists in Employee table"""
+          user_id = data.get('user_id')
+          if user_id:
+              if not Employee.objects.filter(user_id=user_id).exists():
+                  raise serializers.ValidationError(
+                      f"user_id '{user_id}' does not exist in Employee table. "
+                      f"HR system is source of truth for employee data."
+                  )
+          return data
+  ```
+
+BENEFICIO:
+  - API will reject attendance records for non-existent employees
+  - Provides clear error message to client
+  - Prevents orphan records via API
+
+ESFUERZO: 10 min
+
+═══════════════════════════════════════════════════════════════════════════════
+
+RECOMENDACIÓN 6: Create Documentation Artifact
+──────────────────────────────────────
+
+CREAR ARCHIVO: docs/ARCHITECTURE_HR_vs_DEVICE.md
+
+CONTENIDO:
+  - HR System is single source of truth for Employee master data
+  - Device is for attendance capture only
+  - Data flow diagrams
+  - List of what Device.sync operations can/cannot do
+  - Checklist for future integrations
+
+BENEFICIO:
+  - Reference document for all developers
+  - Prevents architectural drift
+  - Clear statement of data governance
+
+ESFUERZO: 30 min
+
+═══════════════════════════════════════════════════════════════════════════════
+
+SUMMARY OF RECOMMENDATIONS:
+
+┌──────┬────────────────────────────────────┬────────┬──────────┐
+│Prio  │ Change                             │Place   │ Effort   │
+├──────┼────────────────────────────────────┼────────┼──────────┤
+│ P0   │ Add Employee validation in import  │zk_w    │ 15 min   │
+│ P1   │ Detailed docstring in workers      │zk_w    │ 10 min   │
+│ P1   │ Rename download_users_job()        │zk_w    │ 5 min    │
+│ P2   │ Update comment in download_users   │zk_w    │ 5 min    │
+│ P2   │ Add validate() in serializer       │ser     │ 10 min   │
+│ P3   │ Create documentation artifact      │docs    │ 30 min   │
+└──────┴────────────────────────────────────┴────────┴──────────┘
+
+TOTAL EFFORT: ~75 min (~1.25 hours)
+
+================================================================================
+CONCLUSIÓN FINAL
+================================================================================
+
+STATUS: ✅ ARCHITECTURE IS CORRECTLY SEPARATED
+
+CURRENT STATE:
+  ✓ run_import_attendance_job() - Only touches AttendanceLog
+  ✓ run_download_users_job() - Only logs (doesn't write to Employee)
+  ✓ run_sync_users_job() - Only reads Employee, writes to Device
+  ✓ seed_zk_sql.py - Clearly separate dev/test seeding command
+  ✓ AttendanceLog.user_id has no FK (allows flexibility)
+
+ARCHITECTURAL PRINCIPLE:
+  HR System → Single Source of Truth for Employee Master Data
+  Device → Attachment Point for Attendance Capture Only
+  Data Flow: HR → BD Employee table → Device (sync_users_job)
+            Device → AttendanceLog table → DailyAttendance (calculate_day)
+
+RECOMMENDATION:
+  Pipeline is stable and correctly separated.
+  Implement P0-P2 recommendations to DOCUMENT and ENFORCE this architecture.
+  This prevents future developers from accidentally mixing HR and Device data.
+
+NO CHANGES REQUIRED TO EMPLOYEE OR ATTENDANCELOG MODELS.
+
+================================================================================
+END OF AUDIT
+================================================================================

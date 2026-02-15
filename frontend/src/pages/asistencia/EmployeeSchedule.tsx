@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getEmployees, getAssignments, getShifts, getDepartments, getScheduleOverrides, createScheduleOverrideFromShift, getEmployeeByDate, assignShift } from '../../api';
+import { EMPLOYEE_PAGE_SIZE } from '../../config/paging';
 import type { Employee, ShiftAssignment, Shift, Department, ScheduleOverride } from '../../api';
-import { ChevronLeft, ChevronRight, Users, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { PageToolbar } from '../../components/ui/PageToolbar';
 
 export function EmployeeSchedule() {
@@ -11,11 +12,13 @@ export function EmployeeSchedule() {
     const [shifts, setShifts] = useState<Shift[]>([]);
     const [departments, setDepartments] = useState<Department[]>([]);
 
-    // Filters
-    const [selectedDept, setSelectedDept] = useState<string>('');
-    const [showBatchModal, setShowBatchModal] = useState(false);
+    // Multi-selection states
+    const [selectedEmployees, setSelectedEmployees] = useState<number[]>([]);
+    const [selectedShifts, setSelectedShifts] = useState<number[]>([]);
+    const [expandedDepts, setExpandedDepts] = useState<number[]>([]);
 
-    // Unified Batch Form State
+    // Batch assignment modal
+    const [showBatchModal, setShowBatchModal] = useState(false);
     const [batchForm, setBatchForm] = useState({
         targetType: 'DEPARTMENT',
         deptId: '',
@@ -25,57 +28,51 @@ export function EmployeeSchedule() {
         endDate: ''
     });
 
-    const [currentDate, setCurrentDate] = useState(new Date()); // Start of view
+    const [currentMonth, setCurrentMonth] = useState(new Date()); // Current month view
 
-    // Helper: Get Week Range (Mon-Sun)
-    const getWeekRange = (date: Date) => {
-        const start = new Date(date);
-        const day = start.getDay() || 7; // 1-7 (Mon-Sun)
-        if (day !== 1) start.setHours(-24 * (day - 1));
-
-        const end = new Date(start);
-        end.setDate(end.getDate() + 6);
+    // Helper: Get Month Range (first day to last day)
+    const getMonthRange = (date: Date) => {
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        const start = new Date(year, month, 1);
+        const end = new Date(year, month + 1, 0);
         return { start, end };
     };
 
-    const { start: weekStart, end: weekEnd } = getWeekRange(currentDate);
+    const { start: monthStart, end: monthEnd } = getMonthRange(currentMonth);
 
     useEffect(() => {
         loadData();
-    }, [currentDate, selectedDept]);
+    }, [currentMonth]);
 
     const loadData = async () => {
-        const deptId = selectedDept ? parseInt(selectedDept) : undefined;
-        const [emps, dynShifts, depts, weekOverrides] = await Promise.all([
-            getEmployees(0, 1000), // Fetch all (or paginated, but for matrix all is better)
+        const [emps, dynShifts, depts, monthOverrides] = await Promise.all([
+            getEmployees(0, EMPLOYEE_PAGE_SIZE),
             getShifts(),
             getDepartments(),
-            getScheduleOverrides(weekStart.toISOString().split('T')[0], weekEnd.toISOString().split('T')[0])
+            getScheduleOverrides(monthStart.toISOString().split('T')[0], monthEnd.toISOString().split('T')[0])
         ]);
 
-        // Filter employees if dept selected (client side if API doesn't support yet, or pass param)
-        // API getEmployees doesn't filter by dept yet, so filter here:
-        const filteredEmps = deptId ? emps.filter(e => e.department_id === deptId) : emps;
-        setEmployees(filteredEmps);
+        setEmployees(emps);
         setShifts(dynShifts);
         setDepartments(depts);
-        setOverrides(weekOverrides);
+        setOverrides(monthOverrides);
 
-        // Fetch Assignments for range
-        const data = await getAssignments(weekStart.toISOString().split('T')[0], weekEnd.toISOString().split('T')[0], deptId);
+        // Fetch Assignments for month range
+        const data = await getAssignments(monthStart.toISOString().split('T')[0], monthEnd.toISOString().split('T')[0]);
         setAssignments(data);
     };
 
-    const handlePrevWeek = () => {
-        const newDate = new Date(currentDate);
-        newDate.setDate(newDate.getDate() - 7);
-        setCurrentDate(newDate);
+    const handlePrevMonth = () => {
+        const newDate = new Date(currentMonth);
+        newDate.setMonth(newDate.getMonth() - 1);
+        setCurrentMonth(newDate);
     };
 
-    const handleNextWeek = () => {
-        const newDate = new Date(currentDate);
-        newDate.setDate(newDate.getDate() + 7);
-        setCurrentDate(newDate);
+    const handleNextMonth = () => {
+        const newDate = new Date(currentMonth);
+        newDate.setMonth(newDate.getMonth() + 1);
+        setCurrentMonth(newDate);
     };
 
     const getDayAssignment = (emp: Employee, date: Date) => {
@@ -96,7 +93,6 @@ export function EmployeeSchedule() {
     };
 
     const [selectedCell, setSelectedCell] = useState<{ empId: number, date: Date } | null>(null);
-
     const [selectedScheduleInfo, setSelectedScheduleInfo] = useState<Employee | null>(null);
 
     const handleCellClick = async (empId: number, date: Date) => {
@@ -121,12 +117,15 @@ export function EmployeeSchedule() {
             loadData();
             setSelectedCell(null);
             setSelectedScheduleInfo(null);
-        } catch (e) {
-            alert("No se pudo aplicar el cambio de turno para este día");
+        } catch (error: any) {
+            const message =
+                error?.response?.data?.shift ||
+                error?.response?.data?.detail ||
+                "No se pudo aplicar el cambio de turno para este día";
+            alert(message);
         }
     };
 
-    // Unified Batch Assign Logic
     const handleBatchAssign = async () => {
         if (!batchForm.shiftId || !batchForm.startDate) return alert("Complete los campos requeridos");
 
@@ -151,108 +150,225 @@ export function EmployeeSchedule() {
             setShowBatchModal(false);
             loadData();
             alert("Asignación completada");
-        } catch (e) {
-            console.error(e);
-            alert("Error al asignar");
+        } catch (error: any) {
+            const message =
+                error?.response?.data?.shift ||
+                error?.response?.data?.detail ||
+                "Error al asignar";
+            alert(message);
         }
     };
 
-    // Generate days for header
-    const days: Date[] = [];
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(weekStart);
-        d.setDate(d.getDate() + i);
-        days.push(d);
+    // Multi-selection handlers
+    const toggleEmployee = (empId: number) => {
+        setSelectedEmployees(prev =>
+            prev.includes(empId) ? prev.filter(id => id !== empId) : [...prev, empId]
+        );
+    };
+
+    const toggleDepartment = (deptId: number) => {
+        const deptEmps = employees.filter(e => e.department_id === deptId).map(e => e.id!);
+        const allSelected = deptEmps.every(id => selectedEmployees.includes(id));
+
+        if (allSelected) {
+            setSelectedEmployees(prev => prev.filter(id => !deptEmps.includes(id)));
+        } else {
+            setSelectedEmployees(prev => [...new Set([...prev, ...deptEmps])]);
+        }
+    };
+
+    const toggleAllEmployees = () => {
+        if (selectedEmployees.length === employees.length) {
+            setSelectedEmployees([]);
+        } else {
+            setSelectedEmployees(employees.map(e => e.id!));
+        }
+    };
+
+    const toggleShift = (shiftId: number) => {
+        setSelectedShifts(prev =>
+            prev.includes(shiftId) ? prev.filter(id => id !== shiftId) : [...prev, shiftId]
+        );
+    };
+
+    const toggleDeptExpand = (deptId: number) => {
+        setExpandedDepts(prev =>
+            prev.includes(deptId) ? prev.filter(id => id !== deptId) : [...prev, deptId]
+        );
+    };
+
+    // Generate days for month
+    const daysInMonth: Date[] = [];
+    const current = new Date(monthStart);
+    while (current <= monthEnd) {
+        daysInMonth.push(new Date(current));
+        current.setDate(current.getDate() + 1);
     }
 
+    // Filter displayed employees
+    const displayedEmployees = selectedEmployees.length > 0
+        ? employees.filter(e => selectedEmployees.includes(e.id!))
+        : employees;
+
+    // Month name
+    const monthName = currentMonth.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+
     return (
-        <div style={{ width: '100%' }}>
+        <div className="w-full" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <PageToolbar
-                title="Programación"
-                subtitle="Asignación de turnos a empleados"
+                title="Programación de Turnos"
+                subtitle={`Vista mensual: ${monthName}`}
                 actions={
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                        <button className="primary" onClick={() => setShowBatchModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <Users size={16} /> Asignar Turno Múltiple
-                        </button>
-                        <select
-                            className="form-control"
-                            value={selectedDept}
-                            onChange={e => setSelectedDept(e.target.value)}
-                            style={{ height: '36px', minWidth: '200px' }}
-                        >
-                            <option value="">Todos los Departamentos</option>
-                            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                        </select>
-                        <div className="flex-row gap-2" style={{ background: 'white', padding: '4px', borderRadius: '4px', border: '1px solid #ddd' }}>
-                            <button className="icon-btn" onClick={handlePrevWeek}><ChevronLeft size={16} /></button>
-                            <span style={{ minWidth: '150px', textAlign: 'center', fontWeight: 500, fontSize: '14px' }}>
-                                {weekStart.toLocaleDateString()} - {weekEnd.toLocaleDateString()}
-                            </span>
-                            <button className="icon-btn" onClick={handleNextWeek}><ChevronRight size={16} /></button>
+                    <div className="flex-row gap-3">
+                        <div className="flex-row gap-2 week-nav-control">
+                            <button className="icon-btn" onClick={handlePrevMonth}><ChevronLeft size={16} /></button>
+                            <span className="week-range-text">{monthName}</span>
+                            <button className="icon-btn" onClick={handleNextMonth}><ChevronRight size={16} /></button>
                         </div>
                     </div>
                 }
             />
 
-            <div className="schedule-table-wrapper">
-                <table className="schedule-table">
-                    <thead>
-                        <tr>
-                            <th>Empleado</th>
-                            {days.map(d => (
-                                <th key={d.toISOString()} className="schedule-day-header">
-                                    <div className="schedule-day-header-day">{d.toLocaleDateString(undefined, { weekday: 'short' })}</div>
-                                    <div className="schedule-day-header-date">{d.getDate()}</div>
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {employees.map(emp => (
-                            <tr key={emp.id}>
-                                <td className="schedule-employee-cell">
-                                    <div className="schedule-employee-name">{emp.name}</div>
-                                    <div className="schedule-employee-id">{emp.user_id}</div>
-                                </td>
-                                {days.map(d => {
-                                    const override = getDayOverride(emp, d);
-                                    const assign = getDayAssignment(emp, d);
-                                    return (
-                                        <td
-                                            key={d.toISOString()}
-                                            className="schedule-data-cell"
-                                            onClick={() => handleCellClick(emp.id!, d)}
+            <div style={{ display: 'flex', flex: 1, gap: '16px', padding: '16px', overflow: 'hidden' }}>
+                {/* Left Sidebar: Employee + Shift Selectors */}
+                <div style={{ width: '280px', display: 'flex', flexDirection: 'column', gap: '16px', flexShrink: 0 }}>
+                    {/* Employee Selector */}
+                    <div className="card" style={{ padding: '16px', maxHeight: '50%', overflow: 'auto' }}>
+                        <h4 style={{ margin: '0 0 12px 0' }}>Empleados</h4>
+                        <div className="flex-row gap-2 mb-3">
+                            <input
+                                type="checkbox"
+                                checked={selectedEmployees.length === employees.length && employees.length > 0}
+                                onChange={toggleAllEmployees}
+                            />
+                            <label style={{ fontWeight: 500 }}>
+                                Todos ({selectedEmployees.length}/{employees.length})
+                            </label>
+                        </div>
+
+                        {departments.map(dept => {
+                            const deptEmps = employees.filter(e => e.department_id === dept.id);
+                            if (deptEmps.length === 0) return null;
+                            const isExpanded = expandedDepts.includes(dept.id!);
+                            const allDeptSelected = deptEmps.every(e => selectedEmployees.includes(e.id!));
+
+                            return (
+                                <div key={dept.id} style={{ marginBottom: '8px' }}>
+                                    <div className="flex-row gap-2" style={{ cursor: 'pointer', padding: '4px' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={allDeptSelected}
+                                            onChange={() => toggleDepartment(dept.id!)}
+                                        />
+                                        <label
+                                            onClick={() => toggleDeptExpand(dept.id!)}
+                                            style={{ flex: 1, fontWeight: 500 }}
                                         >
-                                            {override ? (
-                                                <div className="schedule-cell-assigned" title={override.timetable_name || 'Override'}>
-                                                    {override.timetable_name || 'Override'}
-                                                </div>
-                                            ) : assign ? (
-                                                <div className="schedule-cell-assigned" title={assign.shift_name}>
-                                                    {assign.shift_name}
-                                                </div>
-                                            ) : (
-                                                <span className="schedule-cell-empty">+</span>
-                                            )}
-                                        </td>
-                                    );
-                                })}
-                            </tr>
+                                            {dept.name} ({deptEmps.length})
+                                        </label>
+                                        <span onClick={() => toggleDeptExpand(dept.id!)}>{isExpanded ? '▼' : '▶'}</span>
+                                    </div>
+
+                                    {isExpanded && deptEmps.map(emp => (
+                                        <div key={emp.id} className="flex-row gap-2" style={{ paddingLeft: '24px', padding: '2px 2px 2px 24px' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedEmployees.includes(emp.id!)}
+                                                onChange={() => toggleEmployee(emp.id!)}
+                                            />
+                                            <label style={{ fontSize: '13px' }}>{emp.name} ({emp.user_id})</label>
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Shift Selector */}
+                    <div className="card" style={{ padding: '16px' }}>
+                        <h4 style={{ margin: '0 0 12px 0' }}>Filtrar Turnos</h4>
+                        {shifts.map(shift => (
+                            <div key={shift.id} className="flex-row gap-2" style={{ marginBottom: '6px' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={selectedShifts.includes(shift.id!)}
+                                    onChange={() => toggleShift(shift.id!)}
+                                />
+                                <label>{shift.name}</label>
+                            </div>
                         ))}
-                    </tbody>
-                </table>
+                        <button
+                            className="primary w-full mt-3"
+                            onClick={() => setShowBatchModal(true)}
+                        >
+                            Asignación Masiva
+                        </button>
+                    </div>
+                </div>
+
+                {/* Right: Month Calendar */}
+                <div className="card" style={{ flex: 1, padding: '16px', overflow: 'auto' }}>
+                    <div className="month-calendar-wrapper">
+                        <table className="month-calendar-table">
+                            <thead>
+                                <tr>
+                                    <th style={{ position: 'sticky', left: 0, zIndex: 20, background: 'var(--bg-card)' }}>Empleado</th>
+                                    {daysInMonth.map(day => (
+                                        <th key={day.toISOString()} className="month-day-header">
+                                            <div className="month-day-weekday">{day.toLocaleDateString('es-ES', { weekday: 'short' })}</div>
+                                            <div className="month-day-number">{day.getDate()}</div>
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {displayedEmployees.map(emp => (
+                                    <tr key={emp.id}>
+                                        <td className="month-employee-cell" style={{ position: 'sticky', left: 0, zIndex: 10, background: 'var(--bg-card)' }}>
+                                            <div className="month-employee-name">{emp.name}</div>
+                                            <div className="month-employee-id">{emp.user_id}</div>
+                                        </td>
+                                        {daysInMonth.map(day => {
+                                            const override = getDayOverride(emp, day);
+                                            const assign = getDayAssignment(emp, day);
+                                            const shiftName = override?.timetable_name || assign?.shift_name;
+
+                                            // Filter by selected shifts
+                                            const isFiltered = selectedShifts.length > 0 && assign && !selectedShifts.includes(assign.shift_id);
+
+                                            return (
+                                                <td
+                                                    key={day.toISOString()}
+                                                    className={`month-data-cell ${isFiltered ? 'filtered-out' : ''}`}
+                                                    onClick={() => handleCellClick(emp.id!, day)}
+                                                    title={shiftName || 'Sin asignar'}
+                                                >
+                                                    {shiftName ? (
+                                                        <div className="month-cell-shift">{shiftName.substring(0, 3)}</div>
+                                                    ) : (
+                                                        <span className="month-cell-empty">-</span>
+                                                    )}
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
+            {/* Individual Assignment Modal */}
             {selectedCell && (
                 <div className="shift-assignment-modal" onClick={() => { setSelectedCell(null); setSelectedScheduleInfo(null); }}>
                     <div className="shift-assignment-modal-content" onClick={e => e.stopPropagation()}>
-                        <h4 style={{ marginTop: 0 }}>Cambiar Turno por Día</h4>
+                        <h4 className="mt-0">Cambiar Turno por Día</h4>
                         <p className="shift-assignment-modal-date">
-                            {selectedCell?.date.toLocaleDateString()}
+                            {selectedCell?.date.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                         </p>
                         {selectedScheduleInfo && (
-                            <div style={{ marginBottom: '12px', fontSize: '13px' }}>
+                            <div className="mb-3 text-sm">
                                 <div><strong>Turno actual:</strong> {selectedScheduleInfo.current_shift?.name || 'Sin turno'}</div>
                                 <div><strong>Horario actual:</strong> {selectedScheduleInfo.current_timetable?.name || 'Sin horario'}</div>
                                 <div><strong>Origen:</strong> {selectedScheduleInfo.schedule_source?.description || 'N/A'}</div>
@@ -269,18 +385,19 @@ export function EmployeeSchedule() {
                                 </button>
                             ))}
                         </div>
-                        <button className="secondary" style={{ marginTop: '10px', width: '100%' }} onClick={() => setSelectedCell(null)}>
+                        <button className="secondary mt-2 w-full" onClick={() => setSelectedCell(null)}>
                             Cancelar
                         </button>
                     </div>
                 </div>
             )}
 
+            {/* Batch Assignment Modal */}
             {showBatchModal && (
                 <div className="batch-assignment-modal" onClick={() => setShowBatchModal(false)}>
                     <div className="batch-assignment-modal-content" onClick={e => e.stopPropagation()}>
                         <div className="batch-assignment-modal-header">
-                            <h3 style={{ margin: 0 }}>Asignación Masiva</h3>
+                            <h3 className="m-0">Asignación Masiva</h3>
                             <button className="icon-btn" onClick={() => setShowBatchModal(false)}><X size={20} /></button>
                         </div>
 
@@ -302,11 +419,10 @@ export function EmployeeSchedule() {
 
                         {/* Conditional Select */}
                         {batchForm.targetType === 'DEPARTMENT' ? (
-                            <div className="form-group" style={{ marginBottom: '15px' }}>
-                                <label style={{ display: 'block', marginBottom: '5px' }}>Departamento</label>
+                            <div className="form-group mb-4">
+                                <label className="form-label">Departamento</label>
                                 <select
-                                    className="form-control"
-                                    style={{ width: '100%', padding: '8px' }}
+                                    className="form-control w-full"
                                     value={batchForm.deptId}
                                     onChange={e => setBatchForm({ ...batchForm, deptId: e.target.value })}
                                 >
@@ -315,11 +431,10 @@ export function EmployeeSchedule() {
                                 </select>
                             </div>
                         ) : (
-                            <div className="form-group" style={{ marginBottom: '15px' }}>
-                                <label style={{ display: 'block', marginBottom: '5px' }}>Empleado</label>
+                            <div className="form-group mb-4">
+                                <label className="form-label">Empleado</label>
                                 <select
-                                    className="form-control"
-                                    style={{ width: '100%', padding: '8px' }}
+                                    className="form-control w-full"
                                     value={batchForm.empId}
                                     onChange={e => setBatchForm({ ...batchForm, empId: e.target.value })}
                                 >
@@ -329,11 +444,10 @@ export function EmployeeSchedule() {
                             </div>
                         )}
 
-                        <div className="form-group" style={{ marginBottom: '15px' }}>
-                            <label style={{ display: 'block', marginBottom: '5px' }}>Turno</label>
+                        <div className="form-group mb-4">
+                            <label className="form-label">Turno</label>
                             <select
-                                className="form-control"
-                                style={{ width: '100%', padding: '8px' }}
+                                className="form-control w-full"
                                 value={batchForm.shiftId}
                                 onChange={e => setBatchForm({ ...batchForm, shiftId: e.target.value })}
                             >
@@ -342,30 +456,28 @@ export function EmployeeSchedule() {
                             </select>
                         </div>
 
-                        <div className="form-group" style={{ marginBottom: '15px' }}>
-                            <label style={{ display: 'block', marginBottom: '5px' }}>Fecha Inicio</label>
+                        <div className="form-group mb-4">
+                            <label className="form-label">Fecha Inicio</label>
                             <input
                                 type="date"
-                                className="form-control"
-                                style={{ width: '100%', padding: '8px' }}
+                                className="form-control w-full"
                                 value={batchForm.startDate}
                                 onChange={e => setBatchForm({ ...batchForm, startDate: e.target.value })}
                             />
                         </div>
 
-                        <div className="form-group" style={{ marginBottom: '20px' }}>
-                            <label style={{ display: 'block', marginBottom: '5px' }}>Fecha Fin (Opcional)</label>
+                        <div className="form-group mb-5">
+                            <label className="form-label">Fecha Fin (Opcional)</label>
                             <input
                                 type="date"
-                                className="form-control"
-                                style={{ width: '100%', padding: '8px' }}
+                                className="form-control w-full"
                                 value={batchForm.endDate}
                                 onChange={e => setBatchForm({ ...batchForm, endDate: e.target.value })}
                             />
                             <small className="text-muted">Dejar vacio para indefinido</small>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                        <div className="flex-row gap-3 flex-end">
                             <button className="secondary" onClick={() => setShowBatchModal(false)}>Cancelar</button>
                             <button className="primary" onClick={handleBatchAssign}>Confirmar Asignación</button>
                         </div>

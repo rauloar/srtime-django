@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getDailyReports } from '../../api';
+import { getDailyReportsV2, type DailyAttendanceV2 } from '../../api';
 import { Users, Clock, XCircle, AlertCircle } from 'lucide-react';
 
 interface TodaySummaryProps {
@@ -26,15 +26,18 @@ export const TodaySummary: React.FC<TodaySummaryProps> = ({ date }) => {
                 setLoading(true);
                 setError(null);
 
-                const data = await getDailyReports(date, date);
+                // V2 API: estructura jerárquica
+                const data = await getDailyReportsV2(date, date);
 
-                // Calculate stats
+                // Calculate stats using v2 structure (status.code)
                 const total = data.length;
-                const present = data.filter(d => d.status === 'Normal').length;
-                const late = data.filter(d => d.status === 'Late').length;
-                const absent = data.filter(d => d.status === 'Absent').length;
-                const pending = data.filter(d =>
-                    !d.status || d.status === 'Pending' || d.status === ''
+                const present = data.filter((d: DailyAttendanceV2) => d.status.code === 'NORMAL').length;
+                const late = data.filter((d: DailyAttendanceV2) => d.status.code === 'LATE').length;
+                const absent = data.filter((d: DailyAttendanceV2) => d.status.code === 'ABSENT').length;
+                
+                // Pending: status no es NORMAL, LATE, ABSENT, EARLY, PARTIAL (menos comunes)
+                const pending = data.filter((d: DailyAttendanceV2) => 
+                    !['NORMAL', 'LATE', 'ABSENT', 'EARLY', 'PARTIAL'].includes(d.status.code)
                 ).length;
 
                 const presentPercent = total > 0 ? Math.round((present / total) * 100) : 0;
@@ -48,12 +51,7 @@ export const TodaySummary: React.FC<TodaySummaryProps> = ({ date }) => {
                     pending
                 });
             } catch (err: any) {
-                console.error('Error loading today summary:', err);
-                // DEBUG: Show technical error
-                const techMsg = err?.response?.status
-                    ? `Status: ${err.response.status} (${err.response.statusText})`
-                    : (err?.message || String(err));
-                setError(`Error: ${techMsg}`);
+                setError('No se pudo cargar el resumen');
             } finally {
                 setLoading(false);
             }
@@ -79,9 +77,8 @@ export const TodaySummary: React.FC<TodaySummaryProps> = ({ date }) => {
 
     if (error || !stats) {
         return (
-            <div className="card" style={{ padding: '20px', background: 'rgba(198, 40, 40, 0.1)', color: 'var(--att-absent)' }}>
-                ⚠️ {error} <br />
-                <small style={{ opacity: 0.8 }}>{(error as any)?.message || String(error)}</small>
+            <div className="card" style={{ padding: '20px', background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>
+                ⚠️ {error}
             </div>
         );
     }
@@ -100,7 +97,7 @@ export const TodaySummary: React.FC<TodaySummaryProps> = ({ date }) => {
         subtitle?: string;
     }) => (
         <div className="card-stat">
-            <div className="card-stat-icon" style={{ background: `${color}20`, color }}>
+            <div className="card-stat-icon" style={{ background: 'var(--bg-highlight)', color }}>
                 <Icon size={28} />
             </div>
             <div className="card-stat-content">
@@ -126,28 +123,28 @@ export const TodaySummary: React.FC<TodaySummaryProps> = ({ date }) => {
                 value={`${stats.presentPercent}%`}
                 subtitle={`${stats.present} de ${stats.total}`}
                 icon={Users}
-                color="#2e7d32"
+                color="var(--status-ok)"
             />
             <StatCard
                 label="Llegadas Tarde"
                 value={stats.late}
                 subtitle={stats.late > 0 ? 'Requiere atención' : 'Todo en orden'}
                 icon={Clock}
-                color="#ed6c02"
+                color="var(--status-warning)"
             />
             <StatCard
                 label="Ausentes"
                 value={stats.absent}
                 subtitle={stats.absent > 0 ? 'Revisar justificaciones' : 'Sin ausencias'}
                 icon={XCircle}
-                color="#d32f2f"
+                color="var(--status-error)"
             />
             <StatCard
                 label="Pendientes"
                 value={stats.pending}
                 subtitle={stats.pending > 0 ? 'Aún no fichan' : 'Todos ficharon'}
                 icon={AlertCircle}
-                color="#757575"
+                color="var(--status-offline)"
             />
         </div>
     );

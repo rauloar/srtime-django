@@ -26,7 +26,6 @@ export const DayTimeline: React.FC<DayTimelineProps> = ({ employeeId, date }) =>
                 setBlocks(result.blocks || []);
                 setError(null);
             } catch (err: any) {
-                console.error('Error loading timeline:', err);
                 setError('No se pudo cargar la línea de tiempo');
             } finally {
                 setLoading(false);
@@ -72,13 +71,13 @@ export const DayTimeline: React.FC<DayTimelineProps> = ({ employeeId, date }) =>
     // Non-evaluative block labels - describe what was registered, not what it means
     const getBlockStyle = (type: string) => {
         const styles: { [key: string]: { bg: string; color: string; label: string } } = {
-            'WORK': { bg: '#4caf50', color: 'white', label: 'Presencia Registrada' },
-            'BREAK': { bg: '#2196f3', color: 'white', label: 'Pausa Corta' },
-            'GAP_ANOMALY': { bg: '#ff9800', color: 'white', label: 'Ausencia Prolongada' },
-            'GAP_UNCLASSIFIED': { bg: '#9e9e9e', color: 'white', label: 'Sin Clasificar' },
-            'SCHEDULE_BLOCK': { bg: '#e0e0e0', color: '#212121', label: 'Bloque de Horario' },
+            'WORK': { bg: 'var(--status-ok)', color: 'white', label: 'Presencia Registrada' },
+            'BREAK': { bg: 'var(--status-info)', color: 'white', label: 'Pausa Corta' },
+            'GAP_ANOMALY': { bg: 'var(--status-warning)', color: 'white', label: 'Ausencia Prolongada' },
+            'GAP_UNCLASSIFIED': { bg: 'var(--status-offline)', color: 'white', label: 'Sin Clasificar' },
+            'SCHEDULE_BLOCK': { bg: 'var(--bg-secondary)', color: 'var(--text-main)', label: 'Bloque de Horario' },
         };
-        return styles[type] || { bg: '#bdbdbd', color: '#212121', label: 'Otro' };
+        return styles[type] || { bg: 'var(--status-offline)', color: 'var(--text-main)', label: 'Otro' };
     };
 
     const formatTime = (timeStr: string) => {
@@ -126,7 +125,7 @@ export const DayTimeline: React.FC<DayTimelineProps> = ({ employeeId, date }) =>
                                 fontFamily: 'monospace',
                                 fontSize: '13px',
                                 fontWeight: 600,
-                                color: '#212121',
+                                color: 'var(--text-main)',
                                 letterSpacing: '0.3px'
                             }}>
                                 {formatTime(block.start_time)} - {formatTime(block.end_time)}
@@ -159,7 +158,7 @@ export const DayTimeline: React.FC<DayTimelineProps> = ({ employeeId, date }) =>
                                 <div style={{
                                     minWidth: '70px',
                                     fontSize: '12px',
-                                    color: '#666',
+                                    color: 'var(--text-muted)',
                                     textAlign: 'right',
                                     fontWeight: 500
                                 }}>
@@ -174,10 +173,10 @@ export const DayTimeline: React.FC<DayTimelineProps> = ({ employeeId, date }) =>
             <div style={{
                 marginTop: '16px',
                 padding: '12px',
-                background: '#f5f5f5',
+                background: 'var(--bg-secondary)',
                 borderRadius: '4px',
                 fontSize: '12px',
-                color: '#666',
+                color: 'var(--text-muted)',
                 lineHeight: '1.5'
             }}>
                 <strong>Nota:</strong> Esta visualización muestra la distribución temporal de los eventos registrados.

@@ -3,6 +3,7 @@ import { getAttendanceLogs, getDevices, updateAttendanceLog } from '../api';
 import type { Device, AttendanceLog } from '../api';
 import { DataGrid, type Column } from '../components/ui/DataGrid';
 import { Edit2, RefreshCw } from 'lucide-react';
+import { useToast } from '../hooks/useToast';
 
 export function Logs() {
     const [logs, setLogs] = useState<AttendanceLog[]>([]);
@@ -19,6 +20,7 @@ export function Logs() {
     const [editFormData, setEditFormData] = useState<Partial<AttendanceLog>>({});
     const [isSaving, setIsSaving] = useState(false);
     const [editError, setEditError] = useState<string | null>(null);
+    const { error: showError } = useToast();
     
     const [filters, setFilters] = useState({
         device_id: '',
@@ -54,7 +56,7 @@ export function Logs() {
             // Backend now handles all filtering - no client-side filtering needed
             setLogs(data);
         } catch (e) {
-            console.error(e);
+            showError('No se pudieron cargar los registros');
         } finally {
             setLoading(false);
         }

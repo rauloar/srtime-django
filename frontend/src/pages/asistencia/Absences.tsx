@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Trash2, CalendarOff } from 'lucide-react';
 import { getAbsences, createAbsence, deleteAbsence, getEmployees, type Absence, type Employee } from '../../api';
+import { EMPLOYEE_PAGE_SIZE } from '../../config/paging';
 import { DataGrid, type Column } from '../../components/ui/DataGrid';
 import { PageToolbar } from '../../components/ui/PageToolbar';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { useToast } from '../../hooks/useToast';
 
 export const Absences: React.FC = () => {
     const [absences, setAbsences] = useState<Absence[]>([]);
@@ -11,6 +13,7 @@ export const Absences: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const { error: showError } = useToast();
 
     // Confirm Dialog
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -21,12 +24,12 @@ export const Absences: React.FC = () => {
         try {
             const [absData, empData] = await Promise.all([
                 getAbsences(),
-                getEmployees(0, 1000)
+                getEmployees(0, EMPLOYEE_PAGE_SIZE)
             ]);
             setAbsences(absData);
             setEmployees(empData);
         } catch (error) {
-            console.error(error);
+            showError('No se pudieron cargar las ausencias');
         } finally {
             setLoading(false);
         }

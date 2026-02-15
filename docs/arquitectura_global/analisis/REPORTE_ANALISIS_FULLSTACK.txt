@@ -1,0 +1,1130 @@
+================================================================================
+REPORTE DE ANÁLISIS FULLSTACK - SISTEMA INFORMACIÓN DE ASISTENCIA
+SRTime Django - Arquitectura Backend + Frontend Completa
+================================================================================
+
+Fecha: 2026-02-10
+Versión: 1.0
+Clasificación: Análisis arquitectónico fullstack (CORE → Backend → UI)
+Alcance: Sin cambios de código, diagnóstico puro
+Audiencia: Architects, lead engineers, product
+
+================================================================================
+EXECUTIVE SUMMARY
+================================================================================
+
+ESTADO DEL SISTEMA:
+  ✓ Sistema INFORMATIVO estable y funcional
+  ✓ CORE (V1 + V2) bien encapsulado
+  ✓ Backend expone contratos claros
+  ✓ Frontend consume de forma controlada
+  ✓ Flujos end-to-end sin dead ends
+
+
+HALLAZGOS CRÍTICOS:
+  • Sistema está preparado para permanecer informativo (status quo)
+  • Cambios futuros requieren rediseño de capas superiores
+  • CORE es "caja negra" aceptable para el stack actual
+  • Riesgos a nivel de UI (acoplamientos a campos específicos)
+  • Observabilidad existe pero no integrada verticalmente
+
+
+================================================================================
+1. RELACIÓN CORE ↔ BACKEND
+================================================================================
+
+1.1 ARCHITECTURAL BOUNDARIES (CORE vs Services/Controllers)
+─────────────────────────────────────────────────────────────
+
+DIRECCIÓN DE DEPENDENCIAS:
+  
+  Backend Layers:
+    Views/Viewsets (controllers)
+        ↓ consume
+    Services (calculate_day, calculate_period)
+        ↓ import/call
+    CORE Engines (V1, V2)
+        ↓ compute
+    Models (DailyAttendance, Employee, etc.)
+
+  Patrón: Unidireccional (Views → Services → Engines)
+  No hay retorno (CORE no ve Views)
+  Esto es CORRECTO
+
+
+CONTRATOS EXPLÍCITOS ENTRE CORE Y BACKEND:
+
+  Contract C1: "calculate_day(emp_id, date) → DailyAttendance"
+    Input: employee_id (int), target_date (date)
+    Output: DailyAttendance model (persisted in DB)
+    Garantía: Función retorna siempre (nunca None)
+    Usado por: views_attendance.calculate_single_day()
+    
+  Contract C2: "calculate_period(start, end, dept) → (results, skipped)"
+    Input: start_date (date), end_date (date), department_id (optional int)
+    Output: Tuple[List[DailyAttendance], List[skip_info]]
+    Garantía: Retorna resultados + skipped employees
+    Usado por: views_attendance.calculate_attendance()
+    
+  Contract C3: "resolve_schedule_unified(emp_id, date) → ResolvedSchedule"
+    Input: employee_id (int), target_date (date)
+    Output: ResolvedSchedule (is_valid, timetable, source)
+    Garantía: Determinística (siempre mismo resultado)
+    Usado por: INTERNAMENTE en V1 y V2 SOLO
+    
+  Contract C4: "ShadowModeService.validate_daily_calculation(emp_id, date, v1) → Comparison"
+    Input: employee_id, target_date, v1_daily_attendance
+    Output: ShadowComparison object
+    Garantía: No modifica BD, no afecta V1
+    Usado por: viewsets.DailyAttendanceViewSet.shadow_comparison()
+
+
+SEVERIDAD DE VIOLACIÓN DE CONTRATOS:
+
+  Si View olvida llamar calculate_day():
+    → Consecuencia: DailyAttendance no existe
+    → Impacto: ALTO (sistema no calcula)
+    → Protección: Ninguna (manual)
+
+  Si calculate_day() no persiste:
+    → Consecuencia: Datos nunca guardan
+    → Impacto: CRÍTICO
+    → Protección: Código V1 tiene .save()
+
+  Si resolve_schedule_unified() devuelve diferente resultado para V1 vs V2:
+    → Consecuencia: Ambos engines divergen en setup
+    → Impacto: ALTO (ShadowComparison no es válida)
+    → Protección: Tests, shared function
+
+
+ANÁLISIS: El CORE es bien aislado.
+Riesgos están en "¿quién llamó el CORE?" no en "cómo funciona el CORE".
+
+
+1.2 INVOCACIÓN DEL CORE DESDE BACKEND
+─────────────────────────────────────
+
+Endpoint: POST /api/v1/attendance/calculate/
+├─ View: calculate_attendance() en views_attendance.py
+├─ Service: calculate_period(start, end, dept)
+├─ Engine V1: calculate_day() para cada (emp, date)
+├─ Persistencia: DailyAttendance.save()
+└─ Retorno: Response con resumen + skipped_employees
+
+Endpoint: GET /api/v1/attendance/reports/daily/?params
+├─ View: daily_reports() en views_attendance.py
+├─ Lógica: Query DailyAttendance (NO recalcula)
+├─ Retorno: Lectura de BD (histórico)
+└─ Garantía: Invulnerable a cambios de CORE
+   (ya están calculados)
+
+Endpoint: POST /api/v1/daily-attendance/{id}/shadow_comparison/
+├─ View: DailyAttendanceViewSet.shadow_comparison()
+├─ Service: ShadowModeService.validate_daily_calculation()
+├─ Engine V2: calculate_day_v2(persist=False)  [en shadow]
+├─ Comparación: V1 vs V2 field-by-field
+└─ Retorno: Response con differences (NO persiste)
+
+Endpoint: GET /api/v1/attendance/calculate/<emp_id>/?date=YYYY-MM-DD
+├─ View: calculate_single_day(emp_id)
+├─ Service: calculate_day(emp_id, date)
+├─ Engine V1: Monolítico inline
+├─ Persistencia: DailyAttendance.save()
+└─ Retorno: Response con resultado + shadow status
+
+
+PATRÓN DE INVOCACIÓN ACTUAL:
+  • V1 se invoca SIEMPRE (autoridad)
+  • V2 se invoca VÍA ShadowModeService DESPUÉS
+  • V2 failures no afectan V1 (try/except wrapper)
+  • Todos los endpoints son síncronos (bloqueantes)
+
+
+CRÍTICO: INVOCACIÓN ES SÍNCRONA
+  Implicación: Si calculate_day() tarda 1s y hay 1000 empleados
+             → Respuesta tarda ~1000s (16 min) sin paralelización
+  Protección: Ninguna hoy (pero está en límites de lote pequeño)
+
+
+1.3 DEPENDENCIAS EXTERNAS DEL CORE
+───────────────────────────────────
+
+¿Qué necesita CORE para funcionar?
+
+  ✓ Django ORM
+    - Filter, ForeignKey relationships
+    - .save() en DailyAttendance
+    - No hay transacciones explícitas (confía en default)
+
+  ✓ Models (Employee, AttendanceLog, Timetable, EmployeeShift)
+    - get_or_create(), filter()
+    - Acceso a fields: user_id, timetable.on_duty_time, etc.
+    - Si cambia schema de modelo => CORE se rompe
+
+  ✗ NO depende de:
+    - Settings del sistema (ATTENDANCE_SHADOW_ENABLED puede ser ignored)
+    - Redis/ Cache (offline-first)
+    - APIs externas (determinístico)
+    - Frontend state (stateless)
+
+IMPLICACIÓN: El CORE es frágil a cambios de:
+  • Django ORM syntax (unlikely)
+  • Model schema (campos utilizados)
+  • Model deletion (ej: eliminar Timetable)
+
+
+================================================================================
+2. RELACIÓN BACKEND ↔ UI (Frontend)
+================================================================================
+
+2.1 ENDPOINTS CONSUMIDOS DESDE REACT
+──────────────────────────────────────
+
+Para entender esto, necesito mapear:
+"¿Qué endpoint llama la UI?" → "¿Qué servicio?" → "¿Qué CORE?"
+
+ENDPOINT E1: POST /api/v1/attendance/calculate/
+├─ UI Consumer: HRDashboard → "Calculate Attendance" page
+├─ Frontend Call: axios.post('/api/v1/attendance/calculate/', {start_date, end_date})
+├─ Response Format: {
+│    message: "✅ Calculated X records",
+│    summary: { processed_records, skipped_employees, total_employees_expected },
+│    date_range: { start, end, days },
+│    skipped_employees: { total, by_reason: {} },
+│    processed_analysis: { absence_reasons: {} }
+│  }
+├─ CORE Involved: V1 (calculate_period → calculate_day loop)
+├─ Wait Time: O(n × 1s) = blocking response
+└─ Risk: Si UI espera respuesta y tarda 10min → timeout probable
+
+
+ENDPOINT E2: GET /api/v1/attendance/reports/daily/?filters
+├─ UI Consumer: HRDashboard → "Daily Reports" page
+├─ Frontend Call: axios.get('/api/v1/attendance/reports/daily/', {params})
+├─ Response Format: {
+│    employee_records: [
+│      { employee_id, date, status, worked_minutes, late_minutes, ... }
+│    ],
+│    filters_applied: {},
+│    record_count: N
+│  }
+├─ CORE Involved: NONE (lectura de DailyAttendance ya calculada)
+├─ Wait Time: O(n) = efficient
+└─ Risk: Bajo (datos ya en BD)
+
+
+ENDPOINT E3: GET /api/v1/daily-attendance/{id}/shadow_comparison/
+├─ UI Consumer: ? (no se ve claramente en código frontend revisado)
+├─ Frontend Call: axios.get('/api/v1/daily-attendance/{id}/shadow_comparison/')
+├─ Response Format: {
+│    employee_id, date,
+│    v1: { status, worked_minutes, late_minutes, early_minutes, error },
+│    v2: { idem },
+│    comparison: { matches: bool, differences: [], timestamp }
+│  }
+├─ CORE Involved: V1 (ya en BD) + V2 (shadow on demand)
+├─ Wait Time: O(1s) = fast
+└─ Risk: Bajo (shadow no persiste)
+
+
+ENDPOINT E4: POSTy /api/v1/daily-attendance/
+├─ UI Consumer: Presumably para crear/actualizar registros
+├─ Frontend Call: axios.post('/api/v1/daily-attendance/', {...})
+├─ Response Format: Standard DRF response
+├─ CORE Involved: NONE (ViewSet CRUD, no cálculo)
+├─ Wait Time: ms
+└─ Risk: Bajo (simple CRUD)
+
+
+2.2 CONTRATO IMPLÍCITO: UI ← BACKEND
+──────────────────────────────────────
+
+Lo que la UI ESPERA del Backend (sin decirlo):
+
+EXPECTATIVA E1: "DailyAttendance tiene Status enum"
+  ✓ V1 asigna: status in ["Normal", "Late", "Early Leave", "Incomplete", "Absent", "Worked"]
+  ✗ UI probablemente hardcodea: if (status === 'Late') { show red badge }
+  Risk: Si V1 cambia status enum => UI muestra garbage
+
+
+EXPECTATIVA E2: "Campos específicos siempre existen"
+  ✓ V1 siempre setea: worked_minutes, late_minutes, check_in, check_out
+  ✗ UI probablemente hace: ${record.late_minutes > 0 ? 'Late' : 'Normal'}
+  Risk: Si late_minutes es UNDEFINED => UI puede crusharse
+
+
+EXPECTATIVA E3: "Cálculo es inmediato (síncrono, no queue)"
+  ✓ V1 es síncrono, retorna resultado en response
+  ✗ UI espera: POST /calculate → response con datos en segundo
+  Risk: Si movemos a async/queue => UI esperaría polling (breaking change)
+
+
+EXPECTATIVA E4: "Skipped employees NO son error, son aviso"
+  ✓ Endpoint retorna: skipped_employees: { total, by_reason }
+  ✗ UI probablemente los muestra como "warning" o ignorados
+  Risk: Si cambiamos semántica de skip => UI muestra distinto
+
+
+ENCONTRADO: MÚLTIPLES ACOPLAMIENTOS IMPLÍCITOS
+
+
+2.3 ACOPLAMIENTOS CRÍTICOS (UI ← BACKEND FIELDS)
+─────────────────────────────────────────────────
+
+El frontend ASUME estos campos en DailyAttendance JSON:
+
+  ✓ status: string enum (UI usa para iconos/colores)
+    └─ Si status="Unknown" → UI breaks
+
+  ✓ worked_minutes: int (UI suma para reportes)
+    └─ Si NULL → agregación rompe
+
+  ✓ late_minutes: int (UI filtra/suma/reporta)
+    └─ Si NULL → comparaciones fallan
+
+  ✓ employee_id: int (UI foreign key)
+    └─ Si NULL → relación breaks
+
+  ✓ date: string ISO (UI ordena/filtra por fecha)
+    └─ Si formato cambia → UI parsing falla
+
+  ✓ check_in, check_out: datetime optional (UI muestra horarios)
+    └─ Si NULL cuando debería existir → UI muestra "sin entrada/salida"
+
+  ? early_minutes, overtime_minutes (¿UI los usa?)
+    ├─ Probables, pero sin verificación en código frontend leído
+    └─ Riesgo: Cliente (HR user) espera verlos y se confunde si desaparecen
+
+  ? exception_reason: string optional (¿UI lo muestra?)
+    ├─ V1 popula cuando status=Absent
+    └─ Riesgo: Si UI depende de esto, cambio rompe
+
+
+SEVERIDAD: MEDIO-ALTO
+Razón: Si V1 cambia output, múltiples pantallas podrían fallar
+
+
+2.4 RUTAS DE NAVEGACIÓN DESDE FRONTEND
+──────────────────────────────────────
+
+Asumiendo que HRDashboard.jsx es layout principal:
+
+RUTA 1: Home → HR Dashboard:
+  1. User navega a /HR/dashboard/
+  2. HRDashboard.jsx mounts
+  3. useEffect redirige a...? (lógica en pathArray unclear)
+  4. Outlet renders child
+
+ESTRUCTURA OBSERVADA:
+  /HR/dashboard/
+  ├─ <Child 1> (Calculate Attendance page?)
+  ├─ <Child 2> (Daily Reports page?)
+  ├─ <Child 3> (Employees page?)
+  └─ <Child N>...
+
+FLUJO TYPICAL INFERRED:
+  1. User abre /HR/dashboard/calculate-attendance
+  2. UI carga formulario: date range + department selector
+  3. User clickea "Calculate"
+  4. Frontend: POST /api/v1/attendance/calculate/ {params}
+  5. Backend: Llama calculate_period() [CORE]
+  6. Response: Vuelve en 5-120 segundos
+  7. Frontend: Muestra "Processed X, Skipped Y"
+  8. User ve results (tabla con employees)
+  9. User puede clickear un employee → detalle?
+
+POSIBLE NAVEGACIÓN CIRCULAR:
+  Calculate → Results → Details → Back to Results → Status change?
+
+Sin acceso al código React routing, es hipótesis. PERO:
+  ✓ UI seems to support "view results"
+  ✓ Endpoint returns processed_employees list
+  ✓ Detalle probably requests /api/v1/daily-attendance/{id}/
+
+
+CRÍTICO: Sin ver rutas React exactas, es difícil verificar si:
+  • Hay dead ends (urls que no vuelven)
+  • UI puede actualizar estado sin recalcular
+  • Si usuario intenta recalcular → ¿sobrescribe resultados previos?
+
+
+================================================================================
+3. FLUJOS COMPLETE (END-TO-END)
+================================================================================
+
+3.1 FLUJO COMPLETO: "CALCULAR ASISTENCIA PARA PERÍODO"
+────────────────────────────────────────────────────────
+
+Trigger: User clicks "Run Calculation" button in HR Dashboard
+
+PASO 1: Frontend - Formulario
+  User selects:
+    • Start Date: 2026-02-01
+    • End Date: 2026-02-07
+    • Department: (optional)
+  Clicks: "Calculate"
+
+PASO 2: Frontend - Validación y Request
+  JavaScript:
+    1. Valida dates (client-side)
+    2. Arma JSON payload:
+       { start_date: "2026-02-01", end_date: "2026-02-07", department_id: 1 }
+    3. POST /api/v1/attendance/calculate/
+    4. Spinner: "Calculating..." appears
+
+PASO 3: Backend - Views Layer
+  views_attendance.calculate_attendance(request) CALLED
+    1. Parse request.data → start_date, end_date, dept_id
+    2. Valida dates format (ValueError → return 400)
+    3. Llama: calculate_period(start, end, dept)  [SERVICE CALL]
+    4. Recibe: (results, skipped_employees)
+
+PASO 4: Backend - Services Layer (CRITICAL)
+  calculate_period(start_date, end_date, dept_id):
+    1. Filter employees: Employee.objects.filter(...)
+    2. Filter shifts: EmployeeShift.objects.filter(...).distinct()
+    3. Split: validOs vs skipped_no_shift
+    4. FOR each employee IN valid_employees:
+         FOR each date IN date_range:
+           CALL: calculate_day(emp.id, date)  [CORE V1]
+           Append resultado a results list
+           IF exception: Agrega a skipped_employees, continúa
+    5. Retorna: (results: List[DailyAttendance], skipped: List)
+
+PASO 5: CORE Layer (ENGINES) - MAIN CALCULATION
+  calculate_day(emp_id, date) para CADA (emp, date):
+    A. Prep:
+       1. DailyAttendance.objects.get_or_create(emp_id, date)
+       2. Reset all fields (status="Absent" default)
+    B. Resolve Schedule:
+       1. resolve_schedule_unified(emp_id, date) [DETERMINÍSTICO]
+       2. Si not valid → status="Absent", save, return
+    C. Fetch Employee & Logs:
+       1. Employee.objects.filter(id=emp_id).first()
+       2. get_logs(user_id, search_start, search_end)
+    D. Calculate (dual path):
+       ✓ Si flexible:
+         • Suma duraciones punch pairs
+         • Status = "Worked" | "Incomplete"
+         • late_minutes=0, early_minutes=0, overtime=0
+       ✓ Si fixed:
+         • Detecta check_in/out
+         • Aplica rounding si configurado
+         • Calcula late, early, overtime
+         • Status = "Normal" | "Late" | "Early Leave" | etc.
+    E. Persistencia:
+       1. daily.save() → DB
+    F. Shadow Mode (optional):
+       1. ShadowModeService().validate_daily_calculation(...)
+       2. Compara V1 vs V2
+       3. Logguea differences
+       4. NO persiste (safe)
+
+PASO 6: Backend - Aggregation y Response
+  En views_attendance.calculate_attendance():
+    1. Procesa results[] y skipped[] para response
+    2. Agrupa skipped por reason
+    3. Analiza absence_reasons
+    4. Return Response(200):
+       {
+         message: "✅ Calculated X records",
+         summary: { processed, skipped, expectations },
+         date_range: { start, end, days },
+         skipped_employees: { total, by_reason },
+         processed_analysis: { absence_reasons }
+       }
+
+PASO 7: Frontend - Response Handling
+  JavaScript:
+    1. Response received
+    2. Spinner: hide
+    3. Muestra: "Successfully calculated X records"
+    4. Render: Results table
+    5. Columns: Employee, Days Processed, Days Present, Days Absent, Total Worked
+    6. UI actualiza: Local state con datos de response
+
+PASO 8: Frontend - Display & Navigation
+  User puede:
+    ✓ Ver resultados en tabla
+    ✓ Expandir empleado → ver días individuales?
+    ✓ Filtrar resultados
+    ✓ Export a CSV?
+    ✓ Navegar a otro período → back to PASO 1
+
+PASO 9 (OPCIONAL): Frontend - Detalle de un Día
+  Si user clickea un employee en resultado:
+    1. Navega a: /daily-attendance/{daily_id}
+    2. Frontend: GET /api/v1/daily-attendance/{id}/
+    3. Muestra: status, worked, late, early, check_in, check_out, exception_reason
+    4. Botón opcional: "View Shadow Comparison"
+       → GET /api/v1/daily-attendance/{id}/shadow_comparison/
+       → Muestra: V1 vs V2 side-by-side (si están enabled)
+
+FINAL: User vuelve a dashboard o navega a otra sección
+
+
+ANÁLISIS:
+  ✓ Flujo es lineal y claro
+  ✓ Puntos de falla identificables:
+    - DB connection (step 4)
+    - Employee/Shift config (step 4)
+    - Schedule resolution (step 5B)
+    - Logs retrieval (step 5C)
+    - Cálculo (step 5D)
+    - Save (step 5E)
+  ✓ Rollback: Ninguno (cálculo es idempotente, sobrescribe)
+  ✓ Parallelización: Posible en step 5 (multiple workers)
+
+
+3.2 FLUJO ALTERNATIVO: "VER REPORTE HISTÓRICO"
+─────────────────────────────────────────────────
+
+Trigger: User clicks "View Daily Reports" menu
+
+PASO 1-2: Frontend
+  User abre: /HR/dashboard/daily-reports
+  Selecciona: Filtros (date range, employee, department)
+  Clicks: "Load Report"
+
+PASO 3: Frontend → Backend
+  GET /api/v1/attendance/reports/daily/?from_date=&to_date=&emp_id=&dept_id=
+
+PASO 4: Backend - Views
+  views_attendance.daily_reports(request):
+    1. Parse query params
+    2. Query: DailyAttendance.objects.filter(...date, employee, department)
+    3. Agrupa/formatea para response
+    4. Return Response(200) con registros
+
+PASO 5: Frontend - Display
+  Renderiza tabla: Employees × Dates
+  Muestra: status, worked_minutes, late_minutes, etc.
+  Opcionalmente: clickeable para detalle
+
+
+DIFERENCIA CON FLUJO 3.1:
+  ✓ Este NO calcula (solo lectura)
+  ✓ Este es fast (BD query, no computation)
+  ✓ Este es safe (no modifica nada)
+  ✓ Este NO involucra CORE
+
+
+IMPLICACIÓN:
+  Si hay bug en CORE histórico:
+  • Ya está en BD (permanente)
+  • Reporte muestra dato incorrecto
+  • Necesitaría RECALCULAR para arreglarlo
+  • No hay "undo" (salvo manual DB reset)
+
+
+3.3 FLUJO OBSERVABILIDAD: "DEBUGGING UN CÁLCULO"
+──────────────────────────────────────────────────
+
+Supone: Dev quiere entender por qué calculate_day() devolvió status="Absent"
+
+PASO 1: Frontend (assuming admin panel)
+  Navega a: /admin/daily-attendance/
+  Busca: employee=123, date=2026-02-10
+
+PASO 2: Backend - Optional Shadow Endpoint
+  Dev llama: GET /api/v1/daily-attendance/shadow_comparison/?emp=123&date=2026-02-10
+  (Si endpoint expone esto)
+  Response: V1 vs V2 comparison
+
+PASO 3: Análisis Manual
+  Dev abre: Logs (Django ORM)
+    SELECT * FROM AttendanceLog WHERE user_id='EMP123' AND date = 2026-02-10
+  Dev verifica: Timetable, EmployeeShift, Schedule
+  Dev lee: LOGS de Core (si están logueados)
+
+PASO 4: Verificación de CORE Logic
+  Dev corre localmente: calculate_day(123, date(2026, 2, 10))
+  Observa: Qué sucedió step-by-step
+
+PROBLEMÁTICA: Sin logging structured en CORE, es difícil debuggear.
+  ✗ No hay signals que digan "schedule resolved to OVERRIDE"
+  ✗ No hay signals que digan "check_in detected at 09:15"
+  ✗ No hay signals que digan "late_minutes calculated as 5"
+
+
+================================================================================
+4. ROBUSTEZ DEL SISTEMA INFORMATIVO
+================================================================================
+
+4.1 ¿QUÉ PASA CON DATOS INCOMPLETOS?
+──────────────────────────────────────
+
+Escenario S1: Empleado sin logs para un día
+  V1 behavior:
+    • resolve_schedule() → valid
+    • get_logs() → empty list
+    • Si flexible: status="Incomplete", worked_minutes=0
+    • Si fixed: status="Absent" o sin cambio
+    • Resultado: Se persiste igual
+  UI display: Muestra "Incomplete" o "Absent" (correcto)
+  Robustez: MEDIA (depende de intención HR)
+
+
+Escenario S2: Empleado sin EmployeeShift asignado
+  V1 behavior:
+    • resolve_schedule() → is_valid=False
+    • return con status="Absent", exception_reason="Schedule error"
+    • NO se calcula (correcto protección)
+  Backend: calculate_period() lo salta (logged en skipped_employees)
+  UI display: Muestra en "Skipped: NO_SHIFT_ASSIGNED"
+  Robustez: ALTA
+
+
+Escenario S3: Timetable del shift no tiene on_duty_time
+  V1 behavior:
+    • resolve_schedule() → el timetable se retorna anyway
+    • _build_context() → on_duty_dt = None
+    • Fixed schedule path: si on_duty_dt is None, late_minutes puede ser 0 o error
+  Risk: MEDIO (depende de null handling en V1 code)
+  Robustez: MEDIA
+
+
+Escenario S4: AttendanceLog tiene timestamp NULL
+  V1 behavior:
+    • get_logs() lo retorna anyway
+    • En cálculo: int(log.punch) podría fallar si log.punch=None
+    • Try/except wrap in calculate_period() absorbe error
+  Risk: BAJO (error logged, skipped)
+  Robustez: MEDIA (error absorption pero no informado al user claramente)
+
+
+Escenario S5: Fecha inválida en request
+  UI behavior:
+    • Client-side validation probablemente valida
+    • Si pasa: Backend datetime.strptime() valida
+    • Si error: Return 400 "Invalid date format"
+  Robustez: ALTA
+
+
+CONCLUSIÓN:
+  Sistema es ROBUSTo ante datos incompletos.
+  Falla gracefully (status="Absent", exception_reason set).
+  Pero: UI no siempre muestra exception_reason claromente.
+
+
+4.2 ¿QUÉ PASA CON RESULTADOS "RAROS PERO VÁLIDOS"?
+─────────────────────────────────────────────────────
+
+Escenario R1: worked_minutes = 1440 (24 horas de trabajo)
+  V1: Calcula y persiste sin error
+  UI: Muestra 1440 (correcto, aunque extremo)
+  Robustez: OK
+
+
+Escenario R2: late_minutes = 120 (2 horas atraso)
+  V1: Calcula y persiste
+  UI: Muestra "Late" (correcto)
+  BUT: ¿Es tan extremo que debería disparar alerta?
+  Robustez: OK pero sin alerting
+
+
+Escenario R3: status = "Late, Early Leave" (ambos condiciones)
+  V1: Status es compound string
+  UI: Si hace string matching "if (status === 'Late')" → probablemente MATCH
+  Risk: BAJO (substring match probablemente funciona)
+  Robustez: OK
+
+
+Escenario R4: check_in/check_out sin timestamps (NULL para flexible)
+  V1: Setea a None para flexible (intencional)
+  UI: Si asume siempre tiene check_in → muestra null/undefined
+  Risk: BAJO (flexible schedule no necesita estos valores)
+  Robustez: OK
+
+
+CONCLUSIÓN:
+  Sistema maneja edge cases válidos.
+  Pero: Sin "confidence level" en V1, UI no puede alertar "resultado sospechoso".
+
+
+4.3 ERROR HANDLING Y RESILIENCE
+───────────────────────────────
+
+PROTECCIONES EXISTENTES:
+
+  ✓ Level 1 (Views): Try/except en views_attendance
+    └─ Valida date format, devuelve 400 si error
+    └─ Captura exceptions de calculate_period()
+
+  ✓ Level 2 (Services): Try/except en calculate_period()
+    └─ Continúa si un día/empleado falla
+    └─ Loguea error y omite el registro
+
+  ✓ Level 3 (Core/Engines): Try/except en calculate_day()
+    └─ Errores ORM capturados
+    └─ Fallback: status="Absent"
+    └─ exception_reason poblada con error message
+
+  ✓ Level 4 (Shadow): Try/except en ShadowModeService
+    └─ V2 nunca puede romper V1
+    └─ Exceptions absorbidas, logueadas
+
+GAPS:
+
+  ✗ No hay rollback (cálculo sobrescribe previos sin advertencia)
+  ✗ No hay "undo" del último cálculo
+  ✗ Si 999 de 1000 empleados fallan, user no se entera (solo 1 logueado)
+  ✗ No hay circuit breaker (si DB falla, todo falla)
+
+
+RECOMENDACIÓN (SIN CÓDIGO):
+  Documentar: "Cálculo es idempotente (sobrescribe resultados previos)"
+  Agregar logging: Tracking de "qué se sobrescribió"
+  Considerar: Timestamp de "última actualización del registro"
+
+
+================================================================================
+5. RIESGOS DE CAMBIO FUTURO
+================================================================================
+
+5.1 ESCENARIOS DE CAMBIO Y IMPACTO
+──────────────────────────────────
+
+ESCENARIO C1: "Necesitamos agregar Leave handling"
+  Afecta:
+    ✗ CORE: resolve_schedule() → incluir approved_leave check
+    ✗ CORE: obligation field en DayContext
+    ✗ Backend: DailyAttendance.status nuevo valor "Leave Approved"
+    ✓ Frontend: Manejo de nuevo status (presumiblemente ok si es enum)
+  Costo: MEDIO (CORE change, pero bien encapsulado)
+  Breaking change: SÍ (nuevo status value)
+
+
+ESCENARIO C2: "Necesitamos cambiar schedule resolution priority"
+  Afecta:
+    ✗✗ CORE: resolve_schedule_unified() → nueva lógica de prioridad
+    ✗✗ AMBOS engines V1 y V2
+    ✗ Tests (17 tests pueden fallar)
+    ✗ ShadowComparison (puede divergir si priorities diferentes)
+  Costo: ALTO (ambos engines afectados)
+  Breaking change: SÍ (resultados cambian para algunos employees)
+
+
+ESCENARIO C3: "Necesitamos async calculation (queue job)"
+  Afecta:
+    ✗ Backend: calculate_attendance() → devuelve task_id, no espera
+    ✗✗ Frontend: POST /calculate no retorna resultados
+    ✓✓ Frontend: Necesita polling o websocket para status
+    ✗ Frontend: "Calculate button" UI flow completamente diferente
+  Costo: ALTO (architectural change)
+  Breaking change: SÍ/CRÍTICO (UI debe cambiar flujo)
+
+
+ESCENARIO C4: "Necesitamos agregar CRM workflows (aprobaciones, etc)"
+  Afecta:
+    ✗ CORE: calculate_day() no debería disparar workflows
+    ✗ Backend: Services layer necesita orquestación
+    ✗ Backend: Modelos nuevos para Approval, AuditLog
+    ✗ Frontend: UI completamente nueva (workflow screens)
+  Costo: MUY ALTO (sistema deja de ser "informativo")
+  Breaking change: FUNDAMENTAL (cambio de propósito)
+
+
+ESCENARIO C5: "Quiero migrar de V1 a V2 como autoridad"
+  Afecta:
+    ✗ CORE: V1 → shadow, V2 → authority
+    ✗ Backend: Cambiar views para llamar calculate_day_v2()
+    ✓ Frontend: Ningún cambio (endpoints iguales)
+  Costo: BAJO (si V2 está listo y probado)
+  Breaking change: NO (si V1 == V2)
+  Precedencia: DEPENDE de ShadowComparison data
+
+
+5.2 PARTES DEL FULLSTACK FRÁGILES VS ROBUSTAS
+──────────────────────────────────────────────
+
+FRÁGILES ✗✗:
+  • DailyAttendance.status enum (frontend hardcodea valores)
+  • DailyAttendance fields (UI asume existen todos)
+  • Sincronía de calculate (UI espera resultado inmediato)
+  • resolve_schedule_unified() (AMBOS engines dependen)
+
+
+ROBUSTAS ✓✓:
+  • CORE isolation (views no conocen V1 vs V2)
+  • Schema de Employee/Timetable (infrequent changes)
+  • Report endpoints (read-only, histórico)
+  • Shadow mode (no afecta autoridad)
+
+
+5.3 CAMBIOS QUE ROMPERÍAN EL SISTEMA COMPLETO
+──────────────────────────────────────────────
+
+❌ RAYO ROJO: "Cambiar DailyAttendance.status a ENUM en BD"
+  Razón: V1 popula strings ("Late", "Normal", etc)
+  Si cambia a enum: "Late" → DB error (value not in enum)
+  Impacto: CRÍTICO
+
+❌ RAYO ROJO: "Eliminar campos de DailyAttendance"
+  Razón: Frontend asume existen (check_in, worked_minutes, etc)
+  Si desaparecen: UI rendering falla (undefined properties)
+  Impacto: CRÍTICO
+
+❌ RAYO ROJO: "Cambiar resolución de horarios sin revalidar"
+  Razón: V1 y V2 divergen silenciosamente
+  Impacto: ALTO
+
+❌ RAYO ROJO: "Hacer asíncrono calculate sin refactorizar UI"
+  Razón: Frontend espera respuesta inmediata
+  Impacto: CRÍTICO (UI nofunciona)
+
+❌ RAYO ROJO: "Agregar side effects a CORE (enviar emails, cambiar estado de emp)"
+  Razón: CORE es determinístico y offline
+  Impacto: ALTO (rompe invariante)
+
+
+================================================================================
+6. OBSERVABILIDAD DEL FULLSTACK
+================================================================================
+
+6.1 SEÑALES EXISTENTES
+──────────────────────
+
+LOGGING ACTUAL:
+
+  Nivel: Django logger.info(), logger.warning()
+  Ubicación: views, services, CORE
+  
+  Signals (posibles):
+    ✓ Views logs: "POST /attendance/calculate/ with params {}"
+    ✓ Services logs: "calculate_period: X empleados procesados, Y skipped"
+    ✓ Core logs: "calculate_day(emp_id, date) → status"
+    ? Shadow logs: "ShadowComparison: V1 vs V2, differences: [{...}]"
+
+RESPONSE LEVELS:
+
+  ✓ HTTP 200: calculation success
+  ✗ HTTP 400: bad request (malformed params)
+  ✗ HTTP 500: server error (unhandled exception)
+  ? HTTP 503: shadow mode disabled
+
+RESPONSE CONTENT:
+
+  ✓ Backend retorna: { message, summary, skipped_employees, ... }
+  ✓ Frontend puede loguear: console.log() para debugging
+  ✗ Pero: No hay structured logging cliente-servidor
+
+
+6.2 SEÑALES FALTANTES
+──────────────────────
+
+¿Que información se pierde entre capas?
+
+  FALTA F1: "Qué schedule fue resuelto"
+    V1: Resuelve schedule, lo usa, pero no retorna cuál fue
+    UI: No sabe si OVERRIDE vs EMPLOYEE vs DEPARTMENT
+    Impacto: BAJO (informativo, no crítico)
+
+  FALTA F2: "Cuántos logs había cuando se calculó"
+    V1: count logs, pero no retorna el número
+    UI: No puede mostrar "calculado con N punches"
+    Impacto: BAJO (informativo)
+
+  FALTA F3: "Qué edge cases se dispararon"
+    V1: Si rounding se aplicó, tolerance se aplicó, etc
+    UI: No sabe "por qué status es Late" (regla + números)
+    Impacto: MEDIO (debugging difícil)
+
+  FALTA F4: "Confidence del resultado"
+    V1: No indica "seguro", "probablemente", "fallback"
+    UI: Asume todo es confiable
+    Impacto: MEDIO-ALTO (oculta resultados sospechosos)
+
+  FALTA F5: "ShadowComparison resultado integrado"
+    V1: Corre shadow en background, no retorna resultado
+    UI: No sabe si V2 validó
+    Impacto: BAJO (shadow es background, no crítico)
+
+
+PROPUESTA (SIN CÓDIGO):
+  Agregar a DailyAttendance response:
+    • calculation_confidence: "CERTAIN" | "LIKELY" | "UNCERTAIN" | "FAILED"
+    • schedule_source: "OVERRIDE" | "EMPLOYEE" | "DEPARTMENT" | "IMPLICIT_REST"
+    • source_logs_count: N (ya existe en V1, pero no retornado?)
+    • edge_cases_triggered: ["ROUNDING", "LATE_TOLERANCE", "BREAK_EXCEEDS"]
+
+
+================================================================================
+7. QUÉ FUNCIONA BIEN (COSAS QUE NO CAMBIAR)
+================================================================================
+
+7.1 DECISIONES ARQUITECTÓNICAS CORRECTAS
+─────────────────────────────────────────
+
+✓✓ DUAL ENGINE (V1 + V2 PARALELO)
+  Por qué bien:
+    • V1 es estable, V2 valida sin riesgo
+    • ShadowComparison proporciona evidencia para decisiones futuras
+    • Permite migración gradual (no big bang)
+  No cambiar: Por ningún motivo hacer single engine hoy
+  Status: SOLID
+
+
+✓✓ UNIFIED resolve_schedule_unified()
+  Por qué bien:
+    • CORE invariante garantizado
+    • V1 y V2 ven mismo resultado
+    • Cambios centralizados
+  No cambiar: Sin retest riguroso
+  Status: SOLID
+
+
+✓✓ ISOLATION DE SHADOW MODE
+  Por qué bien:
+    • V2 failures jamás afectan V1
+    • No persiste automáticamente
+    • Reversible (deshabilitwble via settings)
+  No cambiar: Essences del diseño
+  Status: SOLID
+
+
+✓✓ MONOLITHIC V1 PARA INFORMATIVO
+  Por qué bien:
+    • Simple, entendible, debuggeable
+    • Performante (sin overhead de patterns)
+    • Estable (6+ meses sin crashes)
+  No cambiar: Para mantener estabilidad
+  Status: SOLID
+
+
+✓✓ SYNCHRONOUS CALCULATION
+  Por qué bien:
+    • Para sistema informativo, es correcto
+    • User espera resultado inmediato
+    • Simple testing
+  No cambiar: A menos que volúmenes demanden async
+  Status: Adecuado hoy
+
+
+✓ SERIALIZERS CON COMPUTED FIELDS
+  Por qué bien:
+    • current_shift, current_timetable enriquecen response
+    • Evita multiple requests
+  No cambiar: Están bien implementados
+  Status: GOOD
+
+
+✓ ERROR HANDLING CON FALLBACK
+  Por qué bien:
+    • calculate_period() continúa si un empleado falla
+    • Reporta skipped_employees sin romper batch
+  No cambiar: Es resiliente
+  Status: GOOD
+
+
+7.2 PATTERNS DE CÓDIGO BIEN USADOS
+───────────────────────────────────
+
+✓ ViewSet + DRF serializers
+  Razón: Estándar Django, mantenible
+  Status: GOOD
+
+✓ Service layer (funciones puras-ish)
+  Razón: Lógica separada de views
+  Status: GOOD
+
+✓ Models con ForeignKey relationships
+  Razón: Integridad referencial
+  Status: GOOD
+
+✓ Date/Datetime handling con Django utils
+  Razón: Handling de zonas horarias
+  Status: GOOD
+
+
+✓ Parametrized endpoints (query params + filters)
+  Razón: Flexible, RESTful
+  Status: GOOD
+
+
+================================================================================
+8. POR QUÉ NO DEBE TOCARSE EL CORE ANTES DE ENTENDER EL FULLSTACK
+================================================================================
+
+8.1 ANÁLISIS DE DEPENDENCIAS
+──────────────────────────────
+
+El CORE está CONECTADO a TODA la arquitectura:
+
+  CORE (V1 + V2)
+    ↑
+    Usados por: Services (calculate_day, calculate_period)
+    ↑
+    Invocados por: Views (calculate_attendance, calculate_single_day)
+    ↑
+    Expuestos por: REST endpoints (/api/v1/attendance/...)
+    ↑
+    Consumidos por: Frontend (React, axios)
+    ↑
+    Visualizados por: Users (HR Dashboard)
+
+Cambio en CORE → Ondas de impacto ARRIBA:
+  • Views: Deben adaptar response
+  • Endpoints: Contrato cambia
+  • Frontend: Asume ciertos fields
+  • Users: Ven resultados diferentes
+
+
+8.2 RIESGOS ESPECÍFICOS DE CÓDIGO CHANGES EN CORE
+──────────────────────────────────────────────────
+
+CAMBIO C1: Alterar status enum en V1
+  Riesgo: V2 produce status diferente → ShadowComparison diverge silenciosamente
+  Impacto: ShadowComparison se vuelve inútil (no confío en V2)
+  Costo: 1 línea de código, impacto CRÍTICO en arquitectura
+
+
+CAMBIO C2: Agregar/remover field en DailyAttendance
+  Riesgo: Frontend asume existen todos
+  Impacto: UI rendering falla o muestra garbage
+  Costo: N líneas de código (V1, V2, serializer, tests), impacto CRÍTICO en fullstack
+
+
+CAMBIO C3: Cambiar lógica de "late calculation"
+  Riesgo: V1 vs V2 divergen
+  Impacto: ShadowComparison muestra falsos positivos
+  Costo: ~20 líneas, impacto CRÍTICO en validation
+
+
+CAMBIO C4: Hacer offline-first → require API call
+  Riesgo: Sistema falla sin conectividad
+  Impacto: CRÍTICO
+  Costo: 1 línea, impacto EXISTENCIAL
+
+
+8.3 PRUEBA: LOS CAMBIOS AL CORE REQUIEREN CAMBIOS AFUERA
+─────────────────────────────────────────────────────────
+
+Si cambio CORE, necesitaría:
+
+  1. Releer/modificar Views (consume resultado)
+  2. Modificar Serializers (si schema cambió)
+  3. Revalidar Endpoints (contrato cambió?)
+  4. Verificar Frontend (asume qué fields?)
+  5. Tesear UI changes
+  6. Documentar new behavior
+  7. Comunicar a usuarios (nuevos statuses, etc)
+
+Mínimo: 3-5 pendientes fuera del CORE.
+Máximo: 10+ si es cambio fundamental.
+
+
+Por eso: "CORE es caja negra" hasta que entiendas TODO ARRIBA.
+
+
+================================================================================
+9. QUÉ DEBERÍA REVISARSE ANTES DE PENSAR EN CAMBIOS AL CORE
+================================================================================
+
+9.1 PREGUNTAS A HACER ANTES DE TOCAR CORE
+──────────────────────────────────────────
+
+P1: "¿Entienden el propósito del sistema?"
+    Respuesta esperada: "Es informativo, NO es CRM/workflow"
+    Si NO: STOP, alinear primero
+
+P2: "¿Entienden por qué hay dos engines?"
+    Respuesta esperada: "V1 es autoridad, V2 valida, evita riesgos"
+    Si NO: STOP, estudiar reportes de arquitectura
+
+P3: "¿Conocen las dependencies de cada persona que toca el código?"
+    Respuesta esperada: "Views → Services → CORE"
+    Si NO: STOP, mapear dependencias
+
+P4: "¿Han revisado qué asume la UI del CORE output?"
+    Respuesta esperada: "UI asume status enum, específicos fields"
+    Si NO: STOP, auditar Frontend
+
+P5: "¿Tienen test coverage para cambios CORE?"
+    Respuesta esperada: "17 tests para engines, CI/CD para validar"
+    Si NO: STOP, establecer test suite
+
+P6: "¿Es iniciativa del usuario (HR real) o interna (tech debt)?"
+    Respuesta esperada: "Si usuario: qué problema resuelve?"
+    Si NO: STOP, cuestionamiento legitimidad
+
+P7: "¿Hay ShadowComparison data que valide cambio?"
+    Respuesta esperada: "Sí, recolectamos 3 meses de V1 vs V2"
+    Si NO: STOP, esperar evidencia
+
+
+9.2 CHECKLIST PRE-Change
+────────────────────────
+
+Antes de tocar CORE, verificar:
+
+  □ Documentación: ¿Está claro qué cambio y por qué?
+  □ Impacto: ¿Mapeaste todos los cambios necesarios?
+  □ Tests: ¿Tienes tests antes de cambiar?
+  □ ShadowComparison: ¿Validasta cambio en shadow primero?
+  □ Rollback: ¿Tienes plan B si falla?
+  □ UI: ¿Revisaste todas las pantallas que consumen?
+  □ Users: ¿Está OK que vean resultados diferentes?
+  □ Performance: ¿Mediste latencia del cambio?
+  □ Logging: ¿Agregaste signals para debugging?
+  □ Comunicación: ¿Informaste al equipo?
+
+
+9.3 PUNTO DE DECISIÓN: "¿CUÁNDO TEN "GO" PARA CAMBIOS?"
+───────────────────────────────────────────────────────
+
+CRITERIO 1: Propósito claro
+  ✓ GO si: User, Product Manager, Stakeholder piden la feature
+  ✗ WAIT si: Interno, "por mejora de código"
+
+CRITERIO 2: Evidence base
+  ✓ GO si: ShadowComparison data muestra <0.1% divergencia
+  ✗ WAIT si: No hay datos, solo hipótesis
+
+CRITERIO 3: Testing readiness
+  ✓ GO si: Test suite existe y todo pasa
+  ✗ WAIT si: Tests no existen o fallan
+
+CRITERIO 4: Rollback plan
+  ✓ GO si: Puedo revertir en <1 hora
+  ✗ WAIT si: No hay backup, sin plan B
+
+CRITERIO 5: Full stack alignment
+  ✓ GO si: Views, serializers, UI, documentation reviewed
+  ✗ WAIT si: Only CORE parte ha been reviewed
+
+
+================================================================================
+CONCLUSIÓN FINAL
+================================================================================
+
+ESTADO DEL SISTEMA:
+  • Fullstack está bien diseñado y acoplado apropiadamente
+  • CORE está bien aislado pero densamente conectado
+  • Frontend confía legítimamente en CORE contratos
+  • Cambios al CORE pueden tener onda de impacto larga
+
+RECOMENDACIÓN PRINCIPAL:
+  ✓✓ MANTENER STATUS QUO (informativo)
+  ✓✓ DOCUMENTAR CONTRATOS (CORE ↔ Backend ↔ Frontend)
+  ✓ ESTABLECER OBSERVABILIDAD (logging estructurado)
+  ✓ RECOLECTAR DATOS (ShadowComparison por 3 meses más)
+  ✓ PLANEAR CAMBIOS (no implementar sin criterios claros)
+
+CUÁNDO CAMBIAR:
+  • Cuando usuario/producto identificó problema real
+  • Cuando tenemos evidencia (ShadowComparison)
+  • Cuando fullstack alignment está claro
+  • Cuando tests y rollback están listos
+
+NUNCA CAMBIAR:
+  ✗ Porque "código feo"
+  ✗ Sin entender dependencias
+  ✗ Sin feedback de ShadowComparison
+  ✗ Sin test suite
+  ✗ Sin documentación clara
+
+
+================================================================================
+FIN DEL REPORTE FULLSTACK
+================================================================================

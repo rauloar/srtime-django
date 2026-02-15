@@ -4,19 +4,43 @@ Attendance Calculation Views
 from datetime import datetime, date
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.db.models import Count, Q, F, Sum, Avg
 from core import models
-from core.serializers import DailyAttendanceSerializer
+from core.serializers import DailyAttendanceSerializer, DailyAttendanceV2Serializer
 from core.services import calculate_day, calculate_period
 from core.services.schedule_resolver import validate_schedule_compliance
 import json
 
 
+class AttendanceAdminPermission(BasePermission):
+    """Allow attendance admin actions for attendance_admin/admin_system groups."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        if user.is_superuser or user.is_staff:
+            return True
+        return user.groups.filter(name__in=['attendance_admin', 'admin_system']).exists()
+
+
+class AttendanceViewPermission(BasePermission):
+    """Allow attendance read access for allowed groups."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        if user.is_superuser or user.is_staff:
+            return True
+        return user.groups.filter(name__in=['attendance_admin', 'hr_manager', 'admin_system', 'viewer']).exists()
+
+
 @api_view(['POST'])
-# @permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, AttendanceAdminPermission])
 def calculate_attendance(request):
     """
     POST /api/v1/attendance/calculate/
@@ -96,7 +120,7 @@ def calculate_attendance(request):
 
 
 @api_view(['POST'])
-# @permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, AttendanceAdminPermission])
 def calculate_attendance_detailed(request):
     """
     POST /api/v1/attendance/calculate/detailed/
@@ -189,7 +213,7 @@ def calculate_attendance_detailed(request):
 
 
 @api_view(['GET'])
-# @permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, AttendanceViewPermission])
 def daily_reports(request):
     """
     GET /api/v1/attendance/reports/daily/?from_date=2025-01-01&to_date=2025-01-07&employee_id=1&department_id=1&employee_user_id=EMP001&employee_name=John
@@ -249,8 +273,93 @@ def daily_reports(request):
     return Response(serializer.data)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, AttendanceViewPermission])
+def daily_reports_v2(request):
+    """
+    GET /api/v2/attendance/reports/daily/?from_date=2025-01-01&to_date=2025-01-07&employee_id=1&department_id=1&employee_user_id=EMP001&employee_name=John
+    
+    VERSION 2 - CONTRATO FORMAL CON DOMINIO FUERTE
+    
+    Estructura garantizada:
+    {
+      "identity": { "id", "employee_id", "date" },
+      "status": { "code" (UPPER_CASE), "label", "color" },
+      "metrics": { "worked_minutes", "late_minutes", "early_minutes", "overtime_minutes" },
+      "schedule": { "check_in", "check_out" },
+      "employee": { "name", "user_id", "department_name" }
+    }
+    
+    Reglas garantizadas:
+    - Campos numéricos NUNCA null (fallback a 0)
+    - status.code SIEMPRE en formato UPPER_CASE_WITH_UNDERSCORES
+    - status.label y color SIEMPRE presentes
+    - employee.name y user_id SIEMPRE presentes
+    
+    Soporta mismos filtros que v1:
+    - from_date, to_date: Rango de fechas (YYYY-MM-DD)
+    - employee_id: ID específico del empleado
+    - department_id: ID del departamento
+    - employee_user_id: user_id (búsqueda parcial case-insensitive)
+    - employee_name: nombre (búsqueda parcial case-insensitive)
+    
+    DIFERENCIAS DE V1:
+    - Estructura jerárquica, no campos planos
+    - status es objeto, no string
+    - Dominio fuerte, sin fallbacks defensivos en frontend
+    - Backend garantiza integridad
+    """
+    from_date_str = request.query_params.get('from_date')
+    to_date_str = request.query_params.get('to_date')
+    employee_id = request.query_params.get('employee_id')
+    department_id = request.query_params.get('department_id')
+    user_id_search = request.query_params.get('employee_user_id')
+    name_search = request.query_params.get('employee_name')
+    
+    if not from_date_str or not to_date_str:
+        return Response(
+            {"error": "from_date and to_date are required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        from_date = datetime.strptime(from_date_str, "%Y-%m-%d").date()
+        to_date = datetime.strptime(to_date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return Response(
+            {"error": "Invalid date format. Use YYYY-MM-DD"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Build query with all filters (same as v1)
+    from django.db.models import Q
+    query = models.DailyAttendance.objects.filter(
+        date__gte=from_date,
+        date__lte=to_date
+    )
+    
+    if employee_id:
+        query = query.filter(employee_id=employee_id)
+    
+    if department_id:
+        query = query.filter(employee__department_id=department_id)
+    
+    # Search filters (case-insensitive)
+    if user_id_search:
+        query = query.filter(employee__user_id__icontains=user_id_search)
+    
+    if name_search:
+        query = query.filter(employee__name__icontains=name_search)
+    
+    records = query.select_related('employee', 'timetable').order_by('-date', 'employee')
+    serializer = DailyAttendanceV2Serializer(records, many=True)
+    
+    return Response(serializer.data)
+
+
+
 @api_view(['POST'])
-# @permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, AttendanceAdminPermission])
 def calculate_single_day(request, employee_id):
     """
     POST /api/v1/attendance/calculate/{employee_id}/
@@ -285,7 +394,7 @@ def calculate_single_day(request, employee_id):
 
 
 @api_view(['GET'])
-# @permission_classes([AllowAny]) - already default but explicit is good documentation
+@permission_classes([IsAuthenticated, AttendanceViewPermission])
 def get_simple_day_view(request):
     """
     GET /api/v1/attendance/day/?employee_id=1&date=2026-02-02
@@ -357,6 +466,7 @@ def get_simple_day_view(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated, AttendanceViewPermission])
 def get_all_absences(request):
     """
     GET /api/v1/attendance/absences/
@@ -437,6 +547,7 @@ def get_all_absences(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated, AttendanceViewPermission])
 def get_logs_with_validation(request):
     """
     GET /api/v1/attendance/logs-validated/?employee_id=1&date=2026-02-09

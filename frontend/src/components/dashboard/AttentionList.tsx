@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getDailyReports, type DailyAttendance } from '../../api';
+import { getDailyReportsV2, type DailyAttendanceV2 } from '../../api';
 import { ChevronRight, Clock, XCircle, AlertTriangle } from 'lucide-react';
 
 interface AttentionListProps {
@@ -39,24 +39,20 @@ export const AttentionList: React.FC<AttentionListProps> = ({
                 const to = dateRange?.to || today;
 
                 // Fetch daily reports
-                const data = await getDailyReports(from, to);
+                const data = await getDailyReportsV2(from, to);
 
-                // Filter problematic days (status !== 'Normal')
-                const problematic = data.filter(d => d.status !== 'Normal' && d.status !== '');
+                const problematic = data.filter((d: DailyAttendanceV2) => d.status.code !== 'NORMAL');
 
                 // Transform to AttentionItem format
-                const attentionItems: AttentionItem[] = problematic.map(d => {
-                    const item: AttentionItem = {
-                        employee_id: d.employee_id!,
-                        employee_name: d.employee_name || 'Sin nombre',
-                        date: d.date!,
-                        status: d.status,
-                        late_minutes: d.late_minutes,
-                        problem_summary: generateProblemSummary(d),
-                        severity: calculateSeverity(d)
-                    };
-                    return item;
-                });
+                const attentionItems: AttentionItem[] = problematic.map((d: DailyAttendanceV2) => ({
+                    employee_id: d.identity.employee_id,
+                    employee_name: d.employee.name || 'Sin nombre',
+                    date: d.identity.date,
+                    status: d.status.code,
+                    late_minutes: d.metrics.late_minutes,
+                    problem_summary: generateProblemSummary(d),
+                    severity: calculateSeverity(d)
+                }));
 
                 // Sort by severity (high to low), then by late_minutes
                 attentionItems.sort((a, b) => {
@@ -69,7 +65,6 @@ export const AttentionList: React.FC<AttentionListProps> = ({
                 // Limit results
                 setItems(attentionItems.slice(0, limit));
             } catch (err) {
-                console.error('Error loading attention list:', err);
                 setError('No se pudo cargar la lista de atención');
             } finally {
                 setLoading(false);
@@ -79,33 +74,33 @@ export const AttentionList: React.FC<AttentionListProps> = ({
         loadAttentionItems();
     }, [dateRange, limit]);
 
-    const generateProblemSummary = (d: DailyAttendance): string => {
-        switch (d.status) {
-            case 'Absent':
+    const generateProblemSummary = (d: DailyAttendanceV2): string => {
+        switch (d.status.code) {
+            case 'ABSENT':
                 return 'Ausente sin justificar';
-            case 'Late':
-                if (d.late_minutes && d.late_minutes > 0) {
-                    const hours = Math.floor(d.late_minutes / 60);
-                    const mins = d.late_minutes % 60;
+            case 'LATE':
+                if (d.metrics.late_minutes > 0) {
+                    const hours = Math.floor(d.metrics.late_minutes / 60);
+                    const mins = d.metrics.late_minutes % 60;
                     if (hours > 0) {
                         return `Llegó tarde ${hours}h ${mins}m`;
                     }
                     return `Llegó tarde ${mins} min`;
                 }
                 return 'Llegó tarde';
-            case 'Early':
+            case 'EARLY':
                 return 'Salió temprano';
-            case 'Partial':
+            case 'PARTIAL':
                 return 'Asistencia parcial';
             default:
-                return 'Requiere revisión';
+                return d.status.label || 'Requiere revisión';
         }
     };
 
-    const calculateSeverity = (d: DailyAttendance): number => {
+    const calculateSeverity = (d: DailyAttendanceV2): number => {
         // 3 = high (absent), 2 = medium (late >30min), 1 = low (other)
-        if (d.status === 'Absent') return 3;
-        if (d.status === 'Late' && d.late_minutes && d.late_minutes > 30) return 2;
+        if (d.status.code === 'ABSENT') return 3;
+        if (d.status.code === 'LATE' && d.metrics.late_minutes > 30) return 2;
         return 1;
     };
 
@@ -124,11 +119,11 @@ export const AttentionList: React.FC<AttentionListProps> = ({
     const getSeverityIcon = (severity: number) => {
         switch (severity) {
             case 3:
-                return <XCircle size={20} color="#d32f2f" />;
+                return <XCircle size={20} color="var(--status-error)" />;
             case 2:
-                return <Clock size={20} color="#ed6c02" />;
+                return <Clock size={20} color="var(--status-warning)" />;
             default:
-                return <AlertTriangle size={20} color="#f57c00" />;
+                return <AlertTriangle size={20} color="var(--status-info)" />;
         }
     };
 
@@ -147,7 +142,7 @@ export const AttentionList: React.FC<AttentionListProps> = ({
 
     if (error) {
         return (
-            <div className="card" style={{ padding: '20px', background: 'rgba(198, 40, 40, 0.1)', color: 'var(--att-absent)' }}>
+            <div className="card" style={{ padding: '20px', background: 'var(--bg-card)', color: 'var(--status-error)' }}>
                 ⚠️ {error}
             </div>
         );

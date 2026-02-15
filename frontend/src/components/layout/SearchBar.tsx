@@ -27,7 +27,6 @@ export const SearchBar: React.FC = () => {
                 setResults(employees.slice(0, 5)); // Max 5 results
                 setShowResults(true);
             } catch (err) {
-                console.error('Error searching employees:', err);
                 setResults([]);
             } finally {
                 setLoading(false);

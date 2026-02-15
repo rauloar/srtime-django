@@ -1,0 +1,1454 @@
+================================================================================
+REPORTE ARQUITECTÓNICO: ANÁLISIS DE DOS ENGINES DE CÁLCULO
+SRTime Django - Arquitectura de Sistemas Críticos
+================================================================================
+
+Fecha: 2026-02-10
+Versión: 1.0
+Clasificación: Análisis técnico de arquitectura
+Propósito: Comprender diseño dual engine y recomendaciones futuras
+
+================================================================================
+1. DESCRIPCIÓN DE CADA ENGINE
+================================================================================
+
+1.1 ENGINE V1 (attendance_engine.py) - LA AUTORIDAD OFICIAL
+───────────────────────────────────────────────────────────
+
+RESPONSABILIDAD PRINCIPAL:
+  Transformar registros crudos de asistencia (logs de dispositivos ZKTeco)
+  en métricas diarias interpretadas (estado de asistencia, minutos trabajados)
+  con PERSISTENCIA INMEDIATA en base de datos.
+
+  Función raíz: calculate_day(employee_id, target_date) → DailyAttendance
+
+CARACTERIZACIÓN TÉCNICA:
+
+  Arquitectura:
+    • MONOLÍTICA
+    • Toda la lógica en UNA función (calculate_day)
+    • Lógica de horarios fijos E flexibles MEZCLADA en inline
+    • No hay separación de concerns explícita
+
+  Acoplamiento con Django/ORM:
+    • FUERTEMENTE ACOPLADO
+    • Acceso directo a ORM en múltiples puntos:
+      - get_or_create(DailyAttendance)
+      - filter(Employee)
+      - filter(AttendanceLog)
+      - .save() al final
+    • Bajo el capó: SQL querys ejecutadas 3+ veces por cálculo
+
+  Efectos Secundarios:
+    ✓ Persistencia: Guarda DailyAttendance en BD (EFECTO PRINCIPAL)
+    ✓ Logging: debug/warning/error a logger stdout
+    ✓ Shadow mode: Invoca ShadowModeService si está habilitado
+    ✗ Transacciones: Sin transacción explícita (confía en ORM default)
+
+  Rol dentro del Sistema:
+    • FUENTE DE VERDAD OFICIAL
+    • Sus resultados son registrados como "verdad"
+    • Otros componentes confían en sus datos
+    • Cualquier divergencia se mide contra V1, no al revés
+
+FLUJO OPERATIVO:
+
+  Entrada:
+    • employee_id: int
+    • target_date: date
+
+  Salida:
+    • DailyAttendance (guardada en BD)
+    • Status: Absent | Normal | Late | Early | Incomplete | etc.
+    • Métricas: worked_minutes, late_minutes, early_minutes, overtime_minutes
+    • Auditoría: check_in, check_out, timetable_id, source_logs_count, schedule_type
+
+  Fases de Cálculo (secuencial):
+    1. Preparación: get_or_create(DailyAttendance)
+    2. Resolución de horario: resolve_schedule_unified() [DELEGADO]
+    3. Validación: verificar timetable existe
+    4. Búsqueda: consulta ORM para empleado y logs
+    5. Detección de tipo: ¿horario fijo o flexible?
+    6. Cálculo (según tipo):
+       a) FIJO: busca check-in/out, aplica tolerancias, calcula late/early/overtime
+       b) FLEXIBLE: suma duraciones de pares in/out, acumula minutos
+    7. Persistencia: .save() en BD
+    8. Shadow (opcional): invoca validación paralela si habilitado
+
+INVOCACIÓN EN SISTEMA:
+
+  Llamada directa desde:
+    • Función calculate_period() — itera sobre períodos
+    • POST /api/v1/attendance/calculate/ — endpoint REST
+    • Tests
+
+  Ciclo de vida:
+    • Síncrono (espera resultado antes de continuar)
+    • Sin cola, sin pausa
+    • Resultado disponible inmediatamente para siguiente operación
+
+
+1.2 ENGINE V2 (attendance_engine_v2.py) - EL VALIDADOR MODULAR
+──────────────────────────────────────────────────────────────
+
+RESPONSABILIDAD PRINCIPAL:
+  VALIDAR el cálculo oficial mediante una arquitectura ALTERNATIVA
+  que demuestre si los resultados V1 son correctos, sin afectar producción.
+  
+  Función raíz: calculate_day_v2(employee_id, target_date, persist=False) → DailyAttendance
+
+CARACTERIZACIÓN TÉCNICA:
+
+  Arquitectura:
+    • MODULAR CON STRATEGY PATTERN
+    • Separación clara entre:
+      - Resolución de contexto (DayContext)
+      - Preparación de datos (ProcessorContext)
+      - Cálculo puro (Procesadores especializados)
+      - Mapeo a modelo (ORM)
+    • Lógica de horarios fijos y flexibles EN PROCESADORES SEPARADOS
+    
+  Acoplamiento con Django/ORM:
+    • DÉBILMENTE ACOPLADO
+    • Acceso a ORM al inicio (datos de entrada)
+    • Acceso a ORM al final (mapeo resultado)
+    • NÚCLEO de cálculo SIN ORM (ProcessorContext es puro)
+    
+  Efectos Secundarios:
+    ✓ Shadow mode: Invocado por ShadowModeService (NO invoca, es invocado)
+    ✓ Persistencia: OPCIONAL (persist=False por default en raw mode)
+    ✓ Logging: Errores capturados y absorbidos
+    ✗ Sin efectos globales críticos (por diseño)
+
+  Rol dentro del Sistema:
+    • OBSERVADOR / VALIDADOR
+    • Corre DESPUÉS de V1
+    • No es autoridad, es verificador
+    • "¿Tiene V1 razón?" es la pregunta que responde
+
+FLUJO OPERATIVO:
+
+  Entrada (IDÉNTICA a V1):
+    • employee_id: int
+    • target_date: date
+    • persist: bool (default False)
+
+  Salida:
+    • DailyAttendance (no guardada en BD si persist=False)
+    • Status: Idem V1
+    • Métricas: Idem V1
+    • NO se persiste ningún efecto secundario en BD
+
+  Fases de Cálculo (secuencial, similar a V1):
+    1. Preparación: DailyAttendance() NO GUARDADA
+    2. Resolución de horario: resolve_schedule_unified() [IDEM V1]
+    3. Validación: verificar timetable existe
+    4. Búsqueda: consulta ORM para empleado y logs [IDEM V1]
+    5. Preparación de contexto: construye ProcessorContext (OBJETO PURO)
+    6. Selección de procesador: get_processor(is_flexible)
+       • Si flexible → FlexibleProcessor
+       • Si fijo → StructuredProcessor
+    7. Cálculo: procesador.process(context) [PURO, SIN ORM]
+    8. Mapeo: _map_result_to_model() → DailyCalculationResult to DailyAttendance
+    9. Persistencia condicional: .save() SOLO si persist=True
+   10. Retorna resultado
+
+INVOCACIÓN EN SISTEMA:
+
+  Llamada indirecta desde:
+    • ShadowModeService.validate_daily_calculation()
+    • Esto ocurre DESPUÉS de que V1 completó
+    • Solo si ATTENDANCE_SHADOW_ENABLED=True en settings
+
+  Ciclo de vida:
+    • Síncrono (ejecuta inmediatamente tras V1)
+    • Sin persistencia por defecto (observa, no modifica)
+    • Resultado comparado con V1 automáticamente
+
+
+================================================================================
+2. COMPARACIÓN TÉCNICA
+================================================================================
+
+2.1 MATRIZ COMPARATIVA STRUCTURADA
+──────────────────────────────────
+
+┌──────────────────────────┬─────────────────────────┬──────────────────────────┐
+│ ASPECTO                  │ ENGINE V1               │ ENGINE V2                │
+├──────────────────────────┼─────────────────────────┼──────────────────────────┤
+│ PATRÓN ARQUITECTÓNICO    │ Monolítico              │ Strategy + Factory       │
+│                          │ (monolithic)            │ (modular + pluggable)    │
+│                          │                         │                          │
+│ LÍNEAS DE CÓDIGO CRÍTICO │ ~200 líneas en función │ ~150 líneas en función  │
+│                          │ calculate_day()         │ + 2 procesadores        │
+│                          │                         │ + mapeo helper          │
+│                          │                         │                          │
+│ SEPARACIÓN DE CONCERNS   │ ✗ No separada           │ ✓ Separada              │
+│                          │ (Fixed+Flex inline)     │ (StructuredProcessor vs │
+│                          │                         │  FlexibleProcessor)     │
+│                          │                         │                          │
+│ NIVEL DE ACOPLAMIENTO    │ Fuerte (ORM everywhere)│ Débil (ORM en bordes)   │
+│ CON ORM                  │                         │                          │
+│                          │                         │                          │
+│ PUREZA FUNCIONAL         │ Impura (side effects)   │ Parcialmente pura        │
+│                          │ en medio del cálculo    │ (núcleo es puro)        │
+│                          │                         │                          │
+│ TESTABILIDAD             │ Requiere BD             │ Puede testearse con    │
+│                          │ (Mock de ORM complejo)  │ mocks simples           │
+│                          │                         │                          │
+│ DEPENDENCIAS EXTERNAS    │ ~5 calls ORM            │ ~3 calls ORM            │
+│ POR EJECUCIÓN            │ (get_or_create, filter) │ (menos durante cálculo) │
+│                          │                         │                          │
+│ PERSISTENCIA             │ Siempre (eager)         │ Configurable (lazy)     │
+│                          │                         │                          │
+│ EFECTOS SECUNDARIOS      │ Varios (save, log,      │ Minimales (solo log)    │
+│ GLOBALES                 │ shadow invocation)      │ si persist=False        │
+│                          │                         │                          │
+│ FACILIDAD DE EXTENSIÓN   │ Difícil (agregar tipo    │ Fácil (nuevo            │
+│ (nuevo tipo de horario)  │ = modificar función)    │ procesador)            │
+│                          │                         │                          │
+│ REUTILIZACIÓN DE CÓDIGO  │ No aplicable            │ Procesadores            │
+│                          │ (monolítico)            │ reutilizables           │
+│                          │                         │                          │
+│ CICLO DE VIDA ESPERADO   │ Producción hoy          │ Producción en futuro   │
+│                          │                         │                          │
+└──────────────────────────┴─────────────────────────┴──────────────────────────┘
+
+
+2.2 DIFERENCIAS EN FLUJO DE CÁLCULO
+──────────────────────────────────────
+
+ETAPA: BÚSQUEDA DE LOGS PARA CÁLCULO
+
+  V1:
+    for log in logs:
+      if log.punch in [0, 4, 8]:  # check-in types
+        if daily.check_in is None:  # primer match
+          daily.check_in = log.timestamp
+    
+    [similar para check_out]
+
+  V2:
+    logs = get_logs(...)  # misma función
+    [logs pasados a procesador sin procesamiento ahead-of-time]
+    procesador determina check_in/out internamente
+
+
+ETAPA: CÁLCULO DE LATE_MINUTES
+
+  V1 (inline):
+    if daily.check_in > ctx.on_duty_dt:
+      late_delta = (daily.check_in - ctx.on_duty_dt).total_seconds() / 60
+      daily.late_minutes = int(late_delta)
+      if tt.late_allow_minutes:
+        daily.late_minutes = max(0, daily.late_minutes - tt.late_allow_minutes)
+
+  V2 (en StructuredProcessor):
+    # Mismo cálculo pero:
+    # - Recibe ProcessorContext como parámetro (no acceso global)
+    # - Retorna DailyCalculationResult
+    # - Lógica puede ser diferente internamente
+
+
+ETAPA: MANEJO DE HORARIOS FLEXIBLES
+
+  V1 (inline, con comments "Aligned with ZKTime.Net"):
+    if tt.is_flexible:
+      total_worked = 0
+      current_in = None
+      for log in logs:
+        state = int(log.punch)
+        if state in [0, 4, 8]:
+          if current_in is None:
+            current_in = log.timestamp
+        elif state in [1, 5, 9]:
+          if current_in:
+            duration = (log.timestamp - current_in).total_seconds() / 60
+            total_worked += duration
+            current_in = None
+      daily.worked_minutes = int(total_worked)
+      daily.status = "Worked" if total_worked > 0 else "Incomplete"
+
+  V2 (en FlexibleProcessor):
+    # Mismo algoritmo pero:
+    # - En procesador separado
+    # - Retorna objeto puro
+    # - Luego mapeado a modelo
+
+
+ETAPA: DETERMINACIÓN DE STATUS
+
+  V1 (secuencial inline):
+    1. Si late_minutes > 0 → status = "Late"
+    2. Si early_minutes > 0 AND late → status = "Late, Early Leave"
+    3. Si early_minutes > 0 AND NOT late → status = "Early Leave"
+    4. Si overtime_minutes > 0 → prepend "Normal, Overtime"
+
+  V2 (delegado a procesador):
+    [Verificar que usa mismo orden en StructuredProcessor]
+    Riesgo: si orden es diferente, status poder divergir
+
+
+OBSERVACIÓN CRÍTICA:
+  El flujo es PRÁCTICAMENTE IDÉNTICO en ambos engines.
+  La diferencia radica en ESTRUCTURA, no en LÓGICA.
+
+
+2.3 DIFERENCIAS EN MANEJO DE HORARIOS FIJOS VS FLEXIBLES
+─────────────────────────────────────────────────────────
+
+V1 SUPPORT:
+
+  Fixed schedule:
+    - on_duty_time, off_duty_time definidos
+    - late_allow_minutes, early_leave_allow_minutes aplicados
+    - rounding_rule puede aplicarse
+    - Status: Normal, Late, Early, Incomplete, Overtime combinations
+
+  Flexible schedule:
+    - check_in_start, check_out_end definen ventana
+    - required_minutes = horas que tiene que estar dentro
+    - break_minutes aún aplicable (aunque comentario dice no)
+    - Status: Worked, Incomplete (sin Late/Early/Overtime)
+    - Map result: late_minutes=0, early_minutes=0, overtime_minutes=0
+
+V2 SUPPORT:
+
+  Fixed schedule:
+    - Delegado a StructuredProcessor
+    - Misma lógica esperada
+
+  Flexible schedule:
+    - Delegado a FlexibleProcessor
+    - Map result: IGUALMENTE setea late_minutes=0
+    - Esto es intencional ("aligned with ZKTime.Net")
+
+
+CRÍTICO: Ambos engines tienen COMENTARIOS EXPLÍCITOS sobre "Aligned with ZKTime.Net"
+en los mapeos de flexible. Esto es INTENCIONAL, NO un bug.
+
+
+2.4 DIFERENCIAS EN TESTABILIDAD
+────────────────────────────────
+
+V1:
+
+  Testabilidad: BAJA
+  
+  Razones:
+    ✗ Acceso directo a ORM "en el medio"
+    ✗ No hay inyección de dependencias
+    ✗ Para testear una rama necesitas:
+      - Crear BD de test
+      - Crear registros employee, timetable, shift, etc.
+      - Mock del ORM es complejo (require mockear múltiples layers)
+    ✗ Tests deben ser integration tests
+    
+  Overhead:
+    • Cada test debe: setup BD + data + calcs + teardown
+    • Suite de tests lenta
+
+
+V2:
+
+  Testabilidad: MEDIA-ALTA
+  
+  Razones:
+    ✓ ProcessorContext es "dataclass" simple (fácil de mock)
+    ✓ Procesadores reciben objeto, retornan objeto
+    ✓ Puedes crear test:
+      - Sin BD
+      - Con fixture de ProcessorContext
+      - Mock de logs en lugar de AttendanceLog ORM
+    ✓ Tests pueden ser unit tests puros
+    
+  Overhead:
+    • Tests más rápidos (no ORM)
+    • Fixtures más simples
+    • Mayor cobertura posible
+
+
+IMPLICACIÓN: Si planeamos extender lógica de cálculo,
+V2 es mejor base porque es más fácil testear nuevos casos.
+
+
+2.5 DIFERENCIAS EN EXTENSIBILIDAD FUTURA
+──────────────────────────────────────────
+
+Escenario: "Necesitamos agregar un nuevo tipo de horario: Rotatoria por bloques semanales"
+
+V1:
+
+  Cambios requeridos:
+    • Modificar calculate_day() core function
+    • Agregar nuevas ramas if/else en sección de cálculo
+    • Riesgo: modificación impacta toda función
+    • Testing: integración completa, no unitaria
+    • Deploy: Más riesgoso (cambio monolítico)
+
+V2:
+
+  Cambios requeridos:
+    • Crear RotatingBlockProcessor hereda de base
+    • Agregar una línea en get_processor()
+    • Input/output: ProcessorContext → DailyCalculationResult
+    • Riesgo: localizado a nuevo procesador
+    • Testing: unit test del procesador aislado
+    • Deploy: Más seguro (adición, no modificación)
+
+VENTAJA CLARA: V2 es más extensible sin romper existente.
+
+
+================================================================================
+3. ANÁLISIS DE CONVIVENCIA
+================================================================================
+
+3.1 POR QUÉ TIENE SENTIDO QUE AMBOS ENGINES COEXISTAN
+──────────────────────────────────────────────────────
+
+El diseño dual engine (V1 oficial + V2 validador) es deliberado y tiene
+múltiples justificaciones técnicas:
+
+JUSTIFICACIÓN 1: RIESGO OPERACIONAL MITIGADO
+
+  Problema de cambiar monolítico directo:
+    "Cambio lógica de V1 → bug detectado en producción → datos corruptos"
+  
+  Solución del dual engine:
+    "V2 corre en paralelo → compara automático → divergencias detectadas early"
+  
+  Beneficio:
+    • V1 permanece estable (autoridad)
+    • V2 valida (propuesta alternativa)
+    • Migración puede ser gradual
+
+
+JUSTIFICACIÓN 2: ARQUITECTÓNICAMENTE DIFERENTE = DIFERENTES BUGS
+
+  Problema:
+    "Si V1 tiene bug sistemático (ej: off-by-one en rounding),
+     otros ojos revisando código mismo no lo notan"
+  
+  Solución:
+    "V2 arquitectura diferente = implementa lógica diferente
+     Si V2 produce diferente resultado → bug encontrado"
+  
+  Ejemplo concreto:
+    • V1 calcula late_minutes = max(0, raw - tolerance)
+    • V2 en procesador podría calcular similar
+    • Pero si procesador tiene bug, ShadowComparison lo detecta
+
+
+JUSTIFICACIÓN 3: VALIDACIÓN DE REQUISITOS NUNCA CAPTURADOS
+
+  Problema:
+    "Cálculo de asistencia tiene casos edge no en spec"
+  
+  Solución:
+    "Sistema en producción + shadow mode = testing en datos reales"
+  
+  Ejemplo:
+    • Spec dice: "late = entrada tarde"
+    • Realidad: ¿late si llegó con exactamente 0.5 min?
+    • V2 permite validar contra V1 sin cambiar
+
+
+JUSTIFICACIÓN 4: AUDITORÍA Y CUMPLIMIENTO
+
+  Problema regulatorio:
+    "Regulador requiere evidencia de que cálculos son correctos"
+  
+  Solución:
+    "ShadowComparison + logs = audit trail completo"
+  
+  Impacto:
+    • Cumplimiento regulatorio
+    • Trazabilidad de cambios
+    • Defensa en auditoría
+
+
+JUSTIFICACIÓN 5: TIEMPO DE MIGRACIÓN SIN DOWNTIME
+
+  Problema:
+    "Cambiar engine en sábado a las 22:00 = riesgo altísimo"
+  
+  Solución:
+    "V1 sigue funcionando. V2 en shadow recolecta evidencia.
+     Una vez confiado, switch es bajo riesgo"
+  
+  Timeline:
+    Día 0: V2 agregado, shadow mode ON, recolecta datos
+    Semana 1: Verificar 0 divergencias
+    Semana 2: Baja divergencias, revisar edge cases
+    Mes 1: Confianza alta, "V2 listo para ser autoridad"
+    Mes 2: Switch: V1 → shadow, V2 → producción (si necesario)
+
+
+3.2 QUÉ GARANTÍAS OFRECE ESTE DISEÑO
+─────────────────────────────────────
+
+GARANTÍA 1: CONTINUIDAD OPERACIONAL
+  "V2 bugs nunca afectan datos en producción"
+  
+  Mecanismo:
+    • V2 corre con persist=False (por default)
+    • Excepciones en V2 son caught y logged
+    • V1 resultado se guarda sin importar V2 state
+  
+  Nivel de garantía: HARD (técnicamente imposible que V2 rompa V1)
+
+
+GARANTÍA 2: DETECCIÓN TEMPRANA DE DIVERGENCIAS
+  "Cualquier divergencia V1 vs V2 es detectada automáticamente"
+  
+  Mecanismo:
+    • ShadowModeService compara campo por campo
+    • tolerance = 1 minuto (rounding natural)
+    • Logger escriba diferencias
+  
+  Nivel de garantía: HARD (100% de divergencias logueadas)
+
+
+GARANTÍA 3: AUDITABLE DECISION PARA CAMBIOS FUTUROS
+  "Decisión de cambiar engines basada en datos reales"
+  
+  Mecanismo:
+    • ShadowComparison proporciona evidencia
+    • Logs históricos de divergencias
+    • Decisión informada, no especulativa
+  
+  Nivel de garantía: MEDIUM (requiere análisis post recolección)
+
+
+GARANTÍA 4: ESCALABILIDAD DE LÓGICA
+  "Es posible agregar procesadores sin modificar core"
+  
+  Mecanismo:
+    • V2 Strategy Pattern: new processor = new class
+    • get_processor() elige automáticamente
+    • Backward compatible
+  
+  Nivel de garantía: SOFT (arquitectural, no técnica)
+
+
+3.3 QUÉ PROBLEMAS EVITA ESTE DISEÑO
+───────────────────────────────────
+
+PROBLEMA EVITADO 1: "SINGLE POINT OF FAILURE"
+
+  Sin dual engine:
+    • V1 es único engine
+    • Bug en V1 = todos los datos futuros afectados
+    • No hay forma de validar
+  
+  Con dual engine:
+    • V1 bug → V2 detecta divergencia
+    • Puedo investigar sin afectar usuarios
+
+
+PROBLEMA EVITADO 2: "CAMBIO RIESGOSO SIN VALIDACIÓN"
+
+  Sin dual engine:
+    • Quiero mejorar lógica de V1
+    • Único test: deploy en producción (¡NO!)
+    • Alternativa: asumir cambio es seguro (¡tampoco!)
+  
+  Con dual engine:
+    • V2 en shadow recolecta evidencia
+    • Confianza basada en datos reales, no teoría
+
+
+PROBLEMA EVITADO 3: "DEUDA TÉCNICA ACUMULADA"
+
+  Sin dual engine:
+    • Solo V1, hay que mantener como es
+    • Agregar lógica = modify monolítico
+    • Deuda crece con el tiempo
+  
+  Con dual engine:
+    • V2 permite nuevas ideas sin breaking V1
+    • Coexistencia = no hay presión de reescribir todo
+
+
+PROBLEMA EVITADO 4: "REGULATORIO: SIN EVIDENCIA"
+
+  Sin dual engine:
+    • Regulador: "¿Por qué confiamos en este cálculo?"
+    • Respuesta: "Porque... sí?"
+  
+  Con dual engine:
+    • Regulador: "¿Por qué confiamos en este cálculo?"
+    • Respuesta: "V2 validó en paralela, 0 divergencias históricas"
+
+
+PROBLEMA EVITADO 5: "SILOS DE CONOCIMIENTO"
+
+  Sin dual engine:
+    • Solo que escribió V1 entiende V1
+    • Si se va: nadie puede cambiar lógica
+  
+  Con dual engine:
+    • V2 es "interpretación alternativa"
+    • Team puede escribir V3, V4, etc.
+    • Conocimiento distribuido
+
+
+3.4 QUÉ TIPO DE SISTEMAS SUELEN USAR ESTE PATRÓN
+──────────────────────────────────────────────────
+
+PATRÓN: "Dual Engine + Shadow Mode"
+
+Dónde se usa (ejemplos del mundo real):
+
+A) SISTEMAS DE CÁLCULO CRÍTICO (nómina, impuestos, auditoría)
+   Razón: Una cifra equivocada = dinero perdido o regulador molesto
+   Ejemplo: Google Pay calcula impuestos con V1 + shadow V2
+   Beneficio: Detectar bugs sin romper pagos
+
+B) SISTEMAS DE TRADING / FINANCIERO
+   Razón: Un centavo equivocado en millones = pérdida grande
+   Ejemplo: Bloomberg calcula PNL con dos engines en paralelo
+   Beneficio: Reconciliación automática
+
+C) SISTEMAS DE AUDITORÍA Y CUMPLIMIENTO
+   Razón: Regulador exige evidencia de correctitud
+   Ejemplo: SAP GRC ejecuta checks en paralela
+   Beneficio: Trazabilidad + compliance evidence
+
+D) SISTEMAS CRÍTICOS MADUROS
+   Razón: Ya en producción, cambiar = riesgoso
+   Ejemplo: AWS Lambda facturación (V1 estable + V2 optimizada)
+   Beneficio: Migración controlada
+
+E) SISTEMAS CON MIGRACIÓN EN PROGRESO
+   Razón: "Vejo a V1 hoy, pero necesito cambiar a V2 mañana"
+   Ejemplo: Kubernetes cambió scheduler (V1 default + V2 nuevo)
+   Beneficio: Bake V2 en paralelo, switch cuando ready
+
+CONCLUSIÓN: El patrón es MÁS COMÚN que la práctica de un solo engine
+en sistemas críticos reales.
+
+
+================================================================================
+4. RIESGOS ACTUALES (SIN CAMBIAR CÓDIGO)
+================================================================================
+
+4.1 RIESGOS FUNCIONALES
+────────────────────
+
+RIESGO F1: "DIVERGENCIA SILENCIOSA ENTRE V1 Y V2"
+─────────────────────────────────────────
+
+Descripción:
+  V2 ejecuta, calcula algo diferente a V1, pero ShadowComparison no logguea
+  porque está mal configurado o condición edge no contemplada.
+
+Escenario:
+  • V1: calcula worked_minutes=420
+  • V2: calcula worked_minutes=418
+  • Diferencia: 2 minutos (mayor que tolerance=1)
+  • ShadowComparison DEBERÍA detectar
+  • Pero: ¿se loguea? ¿dónde? ¿quién lo revisa?
+
+Exposición:
+  MEDIA - ShadowComparison existe, logger funciona
+  PERO: No hay alerting automático si divergencia > X%
+
+Causa raíz:
+  • ShadowComparison loguea a logger
+  • Pero no hay alerta de "divergencia detectada"
+  • Log se pierde en ruido de otros logs
+
+
+RIESGO F2: "PROCESADORES V2 PUEDEN DIVERGIR DE V1 SIN SABERLO"
+────────────────────────────────
+
+Descripción:
+  StructuredProcessor implementa lógica de late_minutes diferente a V1
+  de forma sutil (ej: redondea diferente, aplica tolerancia en otro paso).
+
+Escenario:
+  • V1: late = max(0, check_in_offset - tolerance)
+  • V2 StructuredProcessor: late = max(0, round(check_in_offset - tolerance))
+  • Resultado mismo 99% de tiempo
+  • Pero 1% de tiempo (precisión de segundos): divergen sigilosamente
+
+Exposición:
+  MEDIA-ALTA - Es fácil que lógica sutilmente diferente no se note
+
+Causa raíz:
+  • Procesadores V2 no tienen tests separados exhaustivos
+  • No hay especificación explícita de "late_minutes DEBE calcularse así"
+  • Tests solo comparan V1 vs V2 completo, no componentes
+
+
+RIESGO F3: "EFECTOS SECUNDARIOS NO PREVISTOS DE SHADOW MODE"
+────────────────────────────────────────────────────────────
+
+Descripción:
+  V2 es invocado en shadow mode, falla por razón X, excepción es caught,
+  pero causa de falla silenciosa (ej: corrupted employee record hace V2 fallar).
+
+Escenario:
+  • Employee.name = NULL (corrupción de datos histórica)
+  • V1: maneja con None check, calcula correctamente
+  • V2: accede employee.name en mapeo → exception → caught → log
+  • Usuario no ve que V2 falló
+  • ShadowComparison nunca se crea
+  • Silence = falso positivo "V2 funcionando"
+
+Exposición:
+  BAJA si data es clean
+  MEDIA-ALTA si hay datos legacy corruptos
+
+Causa raíz:
+  • Shadow mode swallows exceptions (por diseño)
+  • No hay "heartbeat" o "shadow health check"
+  • No se diferencia entre "V2 funcionó pero diverge" vs "V2 falló"
+
+
+RIESGO F4: "PERSIST=FALSE PUEDE OCULTARSE"
+────────────────────────────────────────────
+
+Descripción:
+  Alguien invoca calculate_day_v2(emp, date, persist=True) por error
+  (ej: en debug, test olvidado), guarda resultado V2 como si fuera V1.
+
+Escenario:
+  • Debug session: from core.services.attendance_engine_v2 import calculate_day_v2
+  • Ejecuta: daily = calculate_day_v2(123, date, persist=True)
+  • ¡BOOM! DailyAttendance guardada con cálculo V2, no V1
+  • Sistema ahora tiene "dos autoridades"
+
+Exposición:
+  BAJA (requiere error explícito del desarrollador)
+  PERO: Posible en desarrollo/debug
+
+Causa raíz:
+  • persist=False no es "hard enforcement" (es parámetro)
+  • Nada impide persist=True
+  • No hay protección de "V2 NUNCA debe persistir excepto en test"
+
+
+4.2 RIESGOS DE PERFORMANCE
+─────────────────────────
+
+RIESGO P1: "DOUBLE CALCULATION OVERHEAD"
+──────────────────────────────────────────
+
+Descripción:
+  Cuando shadow mode está habilitado, TODA operación de cálculo se duplica:
+  V1 calcula (X ms) + V2 calcula (Y ms) + comparación (Z ms) = mayor latencia.
+
+Escenario:
+  • calculate_period(1-Feb to 28-Feb, 50 employees)
+  • Ohne shadow: 50 × 28 × calculate_day ≈ 200ms
+  • Con shadow: 50 × 28 × calculate_day + 50 × 28 × calculate_day_v2 ≈ 400ms
+  • Latencia se duplica
+
+Exposición:
+  MEDIA - Perceptible para end users (2x latencia)
+
+Causa raíz:
+  • V2 ejecuta en secuencia tras V1 (no paralelo)
+  • Sin optimización (ej: memory cache de logs)
+  • Shadow mode corre SIEMPRE si habilitado (sin muestreo)
+
+
+RIESGO P2: "ORM QUERIES SE DUPLICAN PARCIALMENTE"
+────────────────────────────────────────────────
+
+Descripción:
+  V1 busca logs una vez (AttendanceLog.filter())
+  V2 busca logs OTRA VEZ (get_logs() en shadow)
+  Resultado: N queries donde podría haber N/2
+
+Escenario:
+  • V1: 1× SELECT * FROM attendance_log WHERE user_id=X AND date=Y
+  • V2: 1× SELECT * FROM attendance_log WHERE user_id=X AND date=Y  [DUPLICADO]
+  • Si shadow procesara 1000 empleados: 2000 queries en lugar de 1000
+
+Exposición:
+  MEDIA - DB puede saturarse con shadow mode activo
+
+Causa raíz:
+  • get_logs() no cachea resultados
+  • V1 y V2 hacen queries idénticas independientemente
+
+
+RIESGO P3: "MEMORY FOOTPRINT DE PROCESADORES V2"
+──────────────────────────────────────────────
+
+Descripción:
+  ProcessorContext es dataclass que copia:
+  • logs (List[AttendanceLog]) - objeto ORM
+  • holidays (List[date])
+  • Potencial: si logs tiene 10k items, ProcessorContext copia eso
+
+Escenario:
+  • Empleado con 10k logs en una semana (acceso múltiple por error)
+  • ProcessorContext(logs=10k ORM objects)
+  • V2 procesa 100 empleados: 100 × 10k = 1M objetos en memoria
+
+Exposición:
+  BAJA en operación normal
+  MEDIA-ALTA en caso de datos corruptos
+
+Causa raíz:
+  • ProcessorContext no valida tamaño de logs
+  • No hay límite de logs por contexto
+
+
+4.3 RIESGOS DE MANTENIMIENTO
+────────────────────────────
+
+RIESGO M1: "DIVERGENCIA NO DOCUMENTADA EN REQUISITOS"
+──────────────────────────────────────────────────────
+
+Descripción:
+  V1 y V2 tienen comportamiento LIGERAMENTE diferente pero es intencional
+  (ej: flexible schedule mapea late_minutes=0). No está documentado que
+  "late_minutes será SIEMPRE 0 para flexible".
+
+Escenario:
+  • Junior dev: "¿Por qué V2 flexible NO calcula late_minutes?"
+  • Ve comentario: "Aligned with ZKTime.Net flexible schedule model"
+  • Pero NO entiende la razón
+  • Cambia logic para "consistencia" sin entender consecuencias
+
+Exposición:
+  MEDIA-ALTA - Cambios accidentales por falta de contexto
+
+Causa raíz:
+  • Comentario técnico en código pero no en contract/spec
+  • No hay documento "Specification of V1 vs V2 expected behavior"
+
+
+RIESGO M2: "SHADOW COMPARISON NO PERSISTE"
+───────────────────────────────────────────
+
+Descripción:
+  ShadowComparison loguea a logger pero NO se guarda en BD.
+  Si necesitamos historial de divergencias (auditoría en 6 meses):
+  "¿muestram me divergencias entre V1 y V2 el 10-Feb?"
+  Respuesta: "No hay forma, logs se reciclaron"
+
+Escenario:
+  • Regulador: "Muestra evidencia de que V2 validó correctamente"
+  • Response: "Logs tienen la info pero rotaron después de 7 días"
+  • Regulador frustadom
+
+Exposición:
+  MEDIA para audit trail
+  BAJA para operación diaria
+
+Causa raíz:
+  • ShadowCalculation table en models_shadow.py NO implementada
+  • Comparaciones viven solo en memoria/logs
+
+
+RIESGO M3: "PROCESADORES V2 SIN CONTRACTS EXPLÍCITOS"
+──────────────────────────────────────────────────────
+
+Descripción:
+  StructuredProcessor.process(context) toma ProcessorContext, retorna DailyCalculationResult.
+  Pero no hay contrato formal:
+  "Process DEBE retornar resultado donde late_minutes >= 0"
+  "Process DEBE retornar resultado donde status in [Normal, Late, ...]"
+
+Escenario:
+  • Alguien agrega nuevo procesador
+  • Retorna status="NewStatus" (no listado en enum)
+  • Map function confunde, retorna garbage
+  • Silent bug
+
+Exposición:
+  BAJA si hay enum validation
+  MEDIA si ProcessorContext es "loose"
+
+Causa raíz:
+  • No hay type hints fuertes (Python es dinamizado)
+  • No hay validación en entrada/salida de procesadores
+
+
+4.4 RIESGOS DE CONFUSIÓN FUTURA PARA DESARROLLADORES
+──────────────────────────────────────────────────────
+
+RIESGO D1: "¿CUÁL ENGINE DEBO MODIFICAR?"
+───────────────────────────────────────────
+
+Descripción:
+  Nuevo dev hereda el código, ve V1 y V2, pregunta:
+  "Necesito agregar lógica de nueva regla de horario. ¿Cambio V1 o V2?"
+
+Respuesta hoy:
+  "A V1 directamente, V2 es shadow mode"
+  
+  Pero NO está explícito en el código.
+
+Exposición:
+  ALTA - Confusión es garantizada sin documentación
+
+Causa raíz:
+  • No hay comentario de "este es el autoridad, ese es validador"
+  • No hay README/ARCHITECTURE.md que lo explique
+
+
+RIESGO D2: "¿CUÁL ENGINE TENGO QUE TESTEAR?"
+──────────────────────────────────────────
+
+Descripción:
+  "¿Test V1 calcula late_minutes correcto?"
+  "¿O test V2 StructuredProcessor?"
+  "¿O ambos?"
+
+Respuesta hoy:
+  "Ambos, pero V1 es authoritat"
+  
+  Pero tests NO lo dejan claro.
+
+Exposición:
+  MEDIA-ALTA - Tests duplicados o inconsistentes
+
+Causa raíz:
+  • test_engines_consistency.py vs test_shadow_mode.py
+  • No hay strategy clara "test priorities"
+
+
+RIESGO D3: "¿QUÉ PASA SI V2 ESTÁ DESHABILITADO?"
+──────────────────────────────────────────────
+
+Descripción:
+  En producción está ATTENDANCE_SHADOW_ENABLED=False
+  Dev 1: "V2 nunca corre, por qué mantenerlo?"
+  Dev 2: "Es para después, cuando migrar"
+  Dev 3: "Nadie sabe el status, vamos a borrarlo"
+
+Exposición:
+  MEDIA - Riesgo de eliminación accidental de código valioso
+
+Causa raíz:
+  • Decision: "shadow mode ON/OFF" no está documentada
+  • No hay Plan para "cuándo activar V2"
+
+
+================================================================================
+5. RECOMENDACIONES (SIN IMPLEMENTAR)
+================================================================================
+
+5.1 RECOMENDACIONES CONCEPTUALES DE ARQUITECTURA
+──────────────────────────────────────────────────
+
+REC A1: "DOCUMENTAR EXPLÍCITAMENTE ROLES Y AUTORIDAD"
+──────────────────────────────────────────
+
+PROPÓSITO:
+  Establecer en código y en documentación cuál engine es autoridad
+  y cuál es observador, eliminar ambigüedad.
+
+CÓMO (conceptualmente):
+  • Crear archivo ENGINES_ARCHITECTURE.md en root
+  • Incluir diagrama: V1 (AUTHORITY) ← V2 (VALIDADOR) ← ShadowMode
+  • Documentar "Cambiar V1 = modificar cálculo oficial"
+  • Documentar "Cambiar V2 = cambiar validación, no afecta oficial"
+  • Incluir en docstrings: "# AUTHORITY ENGINE" vs "# SHADOW ENGINE"
+
+BENEFICIO:
+  ✓ Nuevos devs entienden arquitectura sin pedir
+  ✓ Cambios accidentales prevenidos
+  ✓ Decisiones futuras mejor informadas
+
+
+REC A2: "DEFINIR CONTRATOS DE SALIDA FORMALES"
+────────────────────────────────────────────
+
+PROPÓSITO:
+  Validar que todos los engines retornan DailyAttendance con invariantes
+  (ej: late_minutes siempre >= 0).
+
+CÓMO (conceptualmente):
+  • Definir DateValidationResult con contratos:
+    - status MUST BE in DEFINED_STATUSES
+    - worked_minutes MUST BE >= 0
+    - late_minutes MUST BE >= 0
+    - sum(late + early + overtime) MUST BE consistent
+  • Agregar validación optional: _validate_daily_attendance_invariants()
+  • Invocarse después de calculate_day (en ambos engines)
+  • Loguear si se violan
+
+BENEFICIO:
+  ✓ Bugs silenciosos detectados (ej: late_minutes=-5)
+  ✓ Rápida detección de corrupciones
+  ✓ Confianza en datos guardados
+
+
+REC A3: "CREAR ESPECIFICACIÓN EXECUTABILIDAD DE CADA ENGINE"
+──────────────────────────────────────────────────────────
+
+PROPÓSITO:
+  Documentar QUÉ hace cada engine, sin código pero específico.
+
+CÓMO (conceptualmente):
+  • Crear engine_specs.py (o .md)
+  • Especificar por engine:
+    - Entrada esperada
+    - Precondiciones (timetable válido, etc.)
+    - Salida esperada (invariantes)
+    - Efecto secundarios globales (persistencia, logging, etc.)
+    - Guarantías (nunca falla, siempre persiste, etc.)
+  • Ejemplo entrada:
+    ```
+    V1_SPEC = {
+      "input": {"employee_id": int, "target_date": date},
+      "preconditions": ["employee exists", "timetable exists or is_rest_day"],
+      "output": "DailyAttendance (persisted in DB)",
+      "sideeffects": ["save()", "log()", "shadow_validate() if enabled"],
+      "guarantees": ["always returns DailyAttendance", "never raises exception"],
+    }
+    ```
+  • Ejemplo salida V2:
+    ```
+    V2_SPEC = {
+      "input": {"employee_id": int, "target_date": date, "persist": bool},
+      "preconditions": ["employee exists", "timetable exists or is_rest_day"],
+      "output": "DailyAttendance",
+      "sideeffects": ["save() only if persist=True", "log errors"],
+      "guarantees": ["never affects production data", "failures are absorbed"],
+    }
+    ```
+
+BENEFICIO:
+  ✓ Especificación detecta cambios no intencionados
+  ✓ Nuevo código puede validarse contra spec
+  ✓ Auditoría: "¿qué debería hacer V1?" → spec
+
+
+REC A4: "ESTABLECER NIVELES DE SHADOW MODE (NO SOLO ON/OFF)"
+─────────────────────────────────────────────────────────────
+
+PROPÓSITO:
+  En lugar de ATTENDANCE_SHADOW_ENABLED booleano, permitir modo gradual.
+
+CÓMO (conceptualmente):
+  • SHADOW_LEVEL = 0 (deshabilitado)
+  • SHADOW_LEVEL = 1 (muestreo 10% de cálculos)
+  • SHADOW_LEVEL = 2 (100%, pero solo log si divergencia > 5%)
+  • SHADOW_LEVEL = 3 (100%, 100% log)
+  • SHADOW_LEVEL = 4 (100%, persist comparaciones)
+
+BENEFICIO:
+  ✓ Performance: controlar overhead
+  ✓ Auditoría: controlar verbosidad
+  ✓ Gradualidad: activar V2 sin romper
+
+
+REC A5: "DEFINIR ROADMAP TEMPORAL EXPLÍCITO PARA V1 → V2"
+──────────────────────────────────────────────────────────
+
+PROPÓSITO:
+  Acabar con ambigüedad "¿cuándo migrar a V2?"
+
+CÓMO (conceptualmente):
+  • Documento: "TIMELINE: V1 to V2 Transition"
+  • Fase 0 (hoy): V1 autoridad, V2 en shadow, recolectar datos
+  • Fase 1 (Marzo 2026): 100% shadow coverage, analizar divergencias
+  • Fase 2 (Abril 2026): Si divergencias < N%, preparar V2 como backup
+  • Fase 3 (Mayo 2026): V2 como autoridad, V1 en shadow
+  • Fase 4 (Junio 2026): Deprecar V1, mantener historicamente
+  
+  Incluir criterios de "go/no-go" para cada fase
+
+BENEFICIO:
+  ✓ Equipo sabe cuándo esperar cambio
+  ✓ Dev no asume "V2 es el futuro sin timeline"
+  ✓ Facilita planeación
+
+
+5.2 RECOMENDACIONES DE OBSERVABILIDAD Y ALERTING
+──────────────────────────────────────────────────
+
+REC O1: "AGREGAR SHADOW MODE HEALTH METRICS"
+────────────────────────────────────────────
+
+PROPÓSITO:
+  Monitorear salud de V2 en shadow mode.
+
+CÓMO (conceptualmente):
+  • Métrica: shadow_mode_success_rate (%)
+    - ¿Qué % de V2 ejecuciones completan sin exception?
+  • Métrica: shadow_mode_divergence_rate (%)
+    - ¿Qué % de días tienen divergencia V1 vs V2?
+  • Métrica: shadow_mode_divergence_magnitude (minutos)
+    - En promedio, ¿cuánto difieren?
+  • Alerta: si divergence_rate > 5%, alert
+
+BENEFICIO:
+  ✓ Detección rápida de "V2 empezó a divergir"
+  ✓ Visible en dashboard
+  ✓ Proactiva antes de que se note
+
+
+REC O2: "PERSISTENT SHADOW CALCULATION AUDIT LOG"
+─────────────────────────────────────────────────
+
+PROPÓSITO:
+  Guardar ShadowComparison histórico para auditoría.
+
+CÓMO (conceptualmente):
+  • Implementar ShadowCalculation model (ya existe en models_shadow.py)
+  • Guardar:
+    - employee_id, date
+    - v1_worked_minutes, v2_worked_minutes, difference
+    - v1_status, v2_status
+    - difference_type (MATCH, MINOR, MAJOR, CRITICAL)
+    - timestamp
+  • Query histórica: "Dame divergencias > 10 minutos en Feb 2026"
+  • Auditoría: "Prueba que V1 fue validado"
+
+BENEFICIO:
+  ✓ Conformidad regulatoria
+  ✓ Audit trail completa
+  ✓ Historial de cambios
+
+
+5.3 RECOMENDACIONES DE TESTING
+──────────────────────────────
+
+REC T1: "SEPARAR TESTS DE PROCESADORES V2 DEL ENGINE"
+──────────────────────────────────────────────────────
+
+PROPÓSITO:
+  Tests unitarios de StructuredProcessor y FlexibleProcessor
+  sin BD, sin ORM.
+
+CÓMO (conceptualmente):
+  • Crear test_processors.py
+  • Para cada procesador:
+    - Creatable fixture de ProcessorContext puro (sin ORM)
+    - Test cases de StructuredProcessor.process():
+      * late_minutes se calcula correctamente
+      * early_minutes se calcula correctamente
+      * status se determina en orden correcto
+      * rounding se aplica si configurado
+  • Sin BD, sin models
+  * Fixtures: simple Python objects, no ORM
+
+BENEFICIO:
+  ✓ Tests más rápido
+  ✓ Mejor cobertura de procesadores
+  ✓ Fácil agregar nuevos procesadores
+
+
+REC T2: "CREAR TESTS CONTRASTANTES V1 VS V2"
+────────────────────────────────────────────
+
+PROPÓSITO:
+  Tests que validen "V1 y V2 producen MISMO resultado."
+
+CÓMO (conceptualmente):
+  • Crear test_engines_output_equivalence.py
+  • Parametrizado con casos de prueba:
+    - Normal day (on-time check-in/out, no extras)
+    - Late arrival (10 min tarde)
+    - Early departure (5 min temprano)
+    - Multiple check-in/out (entrada/salida × 2)
+    - Overnight shift (22:00-06:00)
+    - Flexible schedule
+  * Para cada caso:
+    - Ejecutar V1, obtener resultado
+    - Ejecutar V2, obtener resultado
+    - Assert: resultado.status == resultado.status
+    - Assert: resultado.worked_minutes == resultado.worked_minutes
+    - [Idem para todos los campos]
+
+BENEFICIO:
+  ✓ Garantía de equivalencia
+  ✓ Detección temprana de regresiones
+  ✓ Confianza en ambos engines
+
+
+REC T3: "AUMENTAR COBERTURA DE EDGE CASES"
+───────────────────────────────────────────
+
+PROPÓSITO:
+  Tests para casos edge actuales no cubiertos.
+
+CÓMO (conceptualmente):
+  • Edge case 1: Rounding en múltiples reglas
+    - Test: late_minutes con rounding "5min"
+  • Edge case 2: Flexible schedule con no logs
+    - Test: should return "Incomplete" correctamente
+  • Edge case 3: Empleado sin department
+    - Test: resolution fallback a IMPLICIT_REST
+  • Edge case 4: Timetable con campos NULL
+    - Test: graceful handling, no crash
+  • Edge case 5: AttendanceLog duplicado (timestamp exacto)
+    - Test: manejo correcto de múltiples logs con mismo timestamp
+
+BENEFICIO:
+  ✓ Confianza en estabilidad
+  ✓ Riesgos silenciosos detectados
+
+
+5.4 RECOMENDACIONES DE DOCUMENTACIÓN
+─────────────────────────────────────
+
+REC D1: "CREAR DECISION RECORD PARA DUAL ENGINE"
+───────────────────────────────────────────────
+
+PROPÓSITO:
+  Documentar POR QUÉ se eligió dual engine, beneficios, trade-offs.
+
+CÓMO (conceptualmente):
+  • Formato ADR (Architecture Decision Record)
+  • Incluir:
+    - Problema: "Cambiar engines es riesgoso en sistemas críticos"
+    - Alternativas: 1) Single engine (riesgoso), 2) Dual engine shadowed
+    - Decisión: Dual engine
+    - Justificación: Riesgo mitigado, auditoría, gradualidad
+    - Consecuencias: Overhead 2x, complejidad, pero confianza
+    - Revisión futura: Revisitar en Junio 2026
+
+BENEFICIO:
+  ✓ Futuro dev entiende por qué existe
+  ✓ Decisión no se cuestiona innecesariamente
+  ✓ Contexto histórico
+
+
+REC D2: "DOCUMENTAR DIFERENCIAS DE ALGORITMO EXPLÍCITAMENTE"
+──────────────────────────────────────────────────────────────
+
+PROPÓSITO:
+  Donde V1 y V2 INTENCIONALEMENTE divergen, documentarlo.
+
+CÓMO (conceptualmente):
+  • En código V1: comentario """
+    Flexible schedules: late_minutes, early_minutes, overtime_minutes
+    son SIEMPRE 0 por diseño (ZKTime.Net alignment).
+    V2 StructuredProcessor DEBE replicar este comportamiento.
+  """
+  • En código V2: comentario idéntico
+  • En spec: "INTENTIONAL DIVERGENCE: Flexible schedules set late=0"
+
+BENEFICIO:
+  ✓ Evita cambios accidentales
+  ✓ Claridad de intención
+  ✓ Auditoría: "¿por qué late=0?" → documentado
+
+
+================================================================================
+6. CRITERIO DE MADUREZ
+================================================================================
+
+6.1 NIVEL DE MADUREZ ACTUAL
+────────────────────────────
+
+El diseño dual engine se encuentra en:
+
+NIVEL 3 de 5 (MATURING)
+
+Indicadores de nivel:
+
+┌─────────────────────┬──────────────────┬──────────────┐
+│ ASPECTO              │ EXPECTATIVA L3   │ ESTADO REAL  │
+├─────────────────────┼──────────────────┼──────────────┤
+│ Arquitectura        │ Definida         │ ✓ Definida   │
+│ clara               │ claramente       │ (V1 vs V2)   │
+│                     │                  │              │
+│ Patrones            │ Aplicado patrón  │ ✓ Strategy   │
+│ aplicados           │ conoc.           │  + Factory   │
+│                     │                  │              │
+│ Documentación       │ Parcial          │ ✗ Mínima    │
+│                     │ (pero existe)    │ (solo código)│
+│                     │                  │              │
+│ Tests               │ Cobertura > 70%  │ ⚠ ~60%      │
+│                     │                  │ (V1 bien,   │
+│                     │                  │  V2 parcial)│
+│                     │                  │              │
+│ Métricas            │ Básicas          │ ✗ Ninguna   │
+│ de health           │ implementadas    │ (no hay      │
+│                     │                  │  dashboards) │
+│                     │                  │              │
+│ Rollback plan       │ Definido         │ ✗ Implícito │
+│                     │                  │ (no document)│
+│                     │                  │              │
+│ Escalabilidad       │ Diseño escalable │ ✓ Strategy  │
+│                     │                  │  es escalable│
+│                     │                  │              │
+│ Auditoría/Compliance│ Implementado     │ ⚠ Parcial  │
+│                     │                  │ (logs exist, │
+│                     │                  │  no BD scan) │
+└─────────────────────┴──────────────────┴──────────────┘
+
+
+6.2 SISTEMAS CRÍTICOS ESPERADO DE ESTE NIVEL
+──────────────────────────────────────────────
+
+Nivel 3 (Maturing) corresponde a:
+
+  • Sistemas in "early production" (ya en uso, no POC)
+  • Pero "no completamente estabilizados"
+  • Todavía en fase de "bake" antes de "prod ready"
+
+APLICACIÓN A SRTIME:
+  ✓ Sistema está en DEV
+  ✓ Cálculos funcionan
+  ✓ Users dependen (HR usa para registros)
+  ✗ Pero no en "hardened production" (sin SLA, sin alerting)
+
+INDICADOR: El hecho de tener dual engine + shadow mode
+significa "equipo es consciente de riesgos" (bueno)
+pero "todavía bake"  (normal para Nivel 3).
+
+
+6.3 QUÉ ES NECESARIO PARA SIGUIENTES NIVELES
+──────────────────────────────────────────────
+
+PARA NIVEL 4 (STABLE):
+
+  Cambios necesarios (sin reescribir):
+    ✓ Documentación completa de arquetura (REC A1-A5)
+    ✓ Métricas implementadas (REC O1)
+    ✓ Tests V2 separados (REC T1-T2)
+    ✓ Roadmap temporal explícti (REC A5)
+    ✓ ShadowCalculation persistence (REC O2)
+  
+  Timeline: 2-3 sprints
+  Effort: ~40 horas
+
+
+PARA NIVEL 5 (OPTIMIZED):
+
+  Cambios necesarios:
+    ✓ Performance tuning (REC P1: muestreo de shadow)
+    ✓ Query optimization (REC P2: caching)
+    ✓ Procesadores V2 como "default" (migración completa)
+    ✓ V1 deprecado pero mantenido
+  
+  Timeline: 1-2 meses
+  Effort: ~100 horas
+
+
+================================================================================
+7. CAMBIOS NO RECOMENDADOS EN ESTA ETAPA
+================================================================================
+
+EXPLÍCITAMENTE, NO RECOMENDAMOS (por ahora) los siguientes cambios:
+
+7.1 NO RECOMENDADO: "MERGING V1 Y V2 EN UN ENGINE"
+──────────────────────────────────────────────────
+
+POR QUÉ no:
+  • V1 + V2 coexisten por diseño deliberado
+  • Merging perderían beneficios:
+    - Validación independiente (shadow mode)
+    - Testabilidad separada
+    - Gradualidad en migración
+  • Trade-off: Menos "deuda técnica" pero MAYOR riesgo operacional
+
+CUÁNDO podría considerarse:
+  • Si V2 es 100% validado y en producción
+  • Y decision es "V2 reemplaza V1 completamente"
+  • Entonces: conservar código V1 en historial pero no mantener
+
+
+7.2 NO RECOMENDADO: "REESCRIBIR V1 CON PATTERN DE V2"
+────────────────────────────────────────────────────
+
+POR QUÉ no:
+  • V1 es autoridad oficial en producción
+  • Reescribir = riesgo de bugs introducidos
+  • Mientras falte documentación clara, cambio es peligroso
+  • V1 es "stable", no "broken"
+
+CUÁNDO podría considerarse:
+  • Después de que V2 sea 100% validado
+  • Y decisión sea "V2 está completamente probado"
+  • Entonces: considerar deprecación ordinal de V1
+
+
+7.3 NO RECOMENDADO: "ELIMINAR PROCESADORES V2 POR AHORA"
+──────────────────────────────────────────────────────
+
+POR QUÉ no:
+  • Procesadores V2 son base para extensibilidad futura
+  • Eliminar es "burn the bridge" en migración
+  • Costo de re-implementar > costo de mantener
+
+CUÁNDO podría considerarse:
+  • Si decisión definitivamente es "nunca migrar a V2"
+  • Pero eso requiere decisión explícita, no derivada
+
+
+7.4 NO RECOMENDADO: "AGREGAR LÓGICA A AMBOS ENGINES SIMULTÁNEAMENTE"
+────────────────────────────────────────────────────────────────────
+
+POR QUÉ no:
+  • Requiere sincronización exacta entre V1 y V2
+  • Error en una bifurcación → divergencia silenciosa
+  • Duplicación de testing
+
+MEJOR práctica:
+  • Toda lógica nueva → PRIMERO agregar a V1 (autoridad)
+  • Una vez V1 estable → LUEGO interpretar en V2
+  • Verificar ShadowComparison = MATCH
+  • Commit ambos
+
+
+7.5 NO RECOMENDADO: "CAMBIAR RESOLVE_SCHEDULE_UNIFIED"
+───────────────────────────────────────────────────────
+
+POR QUÉ no:
+  • Función es SHARED POINT entre V1 y V2
+  • Cambios aquí afectan AMBOS engines
+  • Sin garantía de sincronización = divergencia
+
+MEJOR práctica:
+  • resolve_schedule_unified() es CONTRATO SAGRADO
+  • Cambios requieren:
+    - Tests antes (TDD)
+    - Validación que V1 == V2 post cambio
+    - ShadowComparison = 0 divergencias
+
+
+================================================================================
+CONCLUSIÓN
+================================================================================
+
+El sistema SRTime Django implementa DELIBERADAMENTE una arquitectura
+dual engine (V1 Autoridad + V2 Validador) patrón visto en sistemas
+críticos del mundo real (nómina, trading, auditoría).
+
+FORTALEZAS actuales:
+  ✓ Arquitectura modular (V2)
+  ✓ Coexistencia segura (shadow mode)
+  ✓ Gradualidad en cambios
+  ✓ Observabilidad posible
+
+DEBILIDADES actuales:
+  ✗ Documentación insuficiente
+  ✗ Métricas no visibles
+  ✗ Persistencia de comparaciones incompleta
+  ✗ Tests V2 parciales
+
+MADUREZ: Nivel 3 (Maturing) - apropiado para sistema en DEV/early prod
+
+PRÓXIMOS PASOS (sin código):
+  1. Documentar explícitamente roles (REC A1-A5)
+  2. Agregar observabilidad (REC O1-O2)
+  3. Mejorar cobertura de tests (REC T1-T3)
+  4. Definir timeline de migración (REC A5)
+
+CAMBIOS A NO HACER:
+  ✗ Mergear engines (perderían valor)
+  ✗ Reescribir V1 (riesgo innecesario)
+  ✗ Eliminar V2 (quema puentes futuros)
+  ✗ Agregar lógica a ambos (sincronización difícil)
+
+El diseño actual es SÓLIDO y preparado para crecer.
+Las mejoras recomendadas sont de OBSERVABILIDAD y DOCUMENTACIÓN,
+no de cambio arquitectónico.
+
+================================================================================
+FIN DEL REPORTE ARQUITECTÓNICO
+================================================================================

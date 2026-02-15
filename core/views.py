@@ -1,7 +1,8 @@
 from django.db.models import Count, Avg, Q
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from .enums import (
     PUNCH_STATUS,
     VERIFY_MODE,
@@ -201,7 +202,7 @@ def dashboard_summary(request):
         limit = 5
 
     counts = {
-        'employees': Employee.objects.count(),
+        'employees': User.objects.count(),
         'departments': Department.objects.count(),
         'shifts': Shift.objects.count(),
         'timetables': Timetable.objects.count(),
@@ -236,6 +237,7 @@ def dashboard_summary(request):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def get_csrf_token(request):
     """
     Endpoint to get CSRF token.
@@ -257,7 +259,7 @@ def get_csrf_token(request):
         value=token,
         max_age=31449600,  # 1 year
         secure=False,  # Set to True in production with HTTPS
-        httponly=False,  # Must be False for JavaScript to read it
+        httponly=True,
         samesite='Lax'
     )
     

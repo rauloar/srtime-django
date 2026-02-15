@@ -1,25 +1,18 @@
-// import { type ReactNode } from 'react';  // DEV: Unused in bypass mode
-// import { Navigate } from 'react-router-dom';  // DEV: Unused in bypass mode
-// import { useAuth } from '../../hooks/useAuth';  // DEV: Unused in bypass mode
 import { type ReactNode } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 
 interface PrivateRouteProps {
     children: ReactNode;
 }
 
 export const PrivateRoute = ({ children }: PrivateRouteProps) => {
-    // DEV BYPASS: ALWAYS ALLOW ACCESS
-    return <>{children}</>;
-
-    /* 
-    if (import.meta.env.DEV) {
-        return <>{children}</>;
-    }
+    const { isAuthenticated } = useAuth();
+    const location = useLocation();
 
     if (!isAuthenticated) {
-        return <Navigate to="/login" replace />;
+        return <Navigate to="/login" replace state={{ from: location }} />;
     }
 
     return <>{children}</>;
-    */
 };

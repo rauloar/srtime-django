@@ -29,7 +29,6 @@ export const Login: React.FC = () => {
         } catch (err: any) {
             // Mostrar error específico del login
             showError(err.message || 'Error al iniciar sesión');
-            console.error('Login error:', err.message);
         }
     };
 

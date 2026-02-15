@@ -1,0 +1,84 @@
+INFO 2026-02-11 14:37:05 - ADMIN_ACCESS: admin attempted add on <MagicMock name='mock._meta.model_name' id='2380602191088'>
+INFO 2026-02-11 14:37:05 - ADMIN_ACCESS: admin attempted change on <MagicMock name='mock._meta.model_name' id='2380602186048'> (id=list)
+WARNING 2026-02-11 14:37:05 - ADMIN_DELETE_ATTEMPT: admin attempted delete on <MagicMock name='mock._meta.model_name' id='2380602192096'> (id=list)
+WARNING 2026-02-11 14:37:05 - Missing idempotency key: POST /api/forensic/shadow/review/decision from 127.0.0.1
+INFO 2026-02-11 14:37:05 - Forensic request: GET /api/forensic/test correlation_id=9d106cfd-5aee-47f0-b70b-a46bb76f69f8 idempotency_key=None actor=None
+INFO 2026-02-11 14:37:05 - Forensic request: GET /api/forensic/test correlation_id=corr-456 idempotency_key=None actor=None
+INFO 2026-02-11 14:37:05 - Forensic request: GET /api/forensic/test correlation_id=0c67afb8-c4b1-4bb5-bde2-c0a4596897e7 idempotency_key=test-key-123 actor=None
+INFO 2026-02-11 14:37:05 - Forensic request: GET /api/forensic/test correlation_id=16c195d0-450f-4be4-b4cf-48d91bcf2595 idempotency_key=None actor=None
+WARNING 2026-02-11 14:37:05 - Missing idempotency key: POST /api/forensic/shadow/review/close from 127.0.0.1
+WARNING 2026-02-11 14:37:05 - Missing idempotency key: POST /api/forensic/shadow/review/decision from 127.0.0.1
+WARNING 2026-02-11 14:37:05 - Missing idempotency key: POST /api/forensic/shadow/review/start from 127.0.0.1
+C:\Proyectos\srtime-django\.venv\Lib\site-packages\django\db\models\fields\__init__.py:1670: RuntimeWarning: DateTimeField AttendanceLog.timestamp received a naive datetime (2026-02-09 09:00:00) while time zone support is active.
+  warnings.warn(
+C:\Proyectos\srtime-django\.venv\Lib\site-packages\django\db\models\fields\__init__.py:1670: RuntimeWarning: DateTimeField AttendanceLog.timestamp received a naive datetime (2026-02-09 16:40:00) while time zone support is active.
+  warnings.warn(
+C:\Proyectos\srtime-django\.venv\Lib\site-packages\django\db\models\fields\__init__.py:1670: RuntimeWarning: DateTimeField AttendanceLog.timestamp received a naive datetime (2026-02-09 09:20:00) while time zone support is active.
+  warnings.warn(
+C:\Proyectos\srtime-django\.venv\Lib\site-packages\django\db\models\fields\__init__.py:1670: RuntimeWarning: DateTimeField AttendanceLog.timestamp received a naive datetime (2026-02-09 17:00:00) while time zone support is active.
+  warnings.warn(
+C:\Proyectos\srtime-django\.venv\Lib\site-packages\django\db\models\fields\__init__.py:1670: RuntimeWarning: DateTimeField AttendanceLog.timestamp received a naive datetime (2026-02-09 19:00:00) while time zone support is active.
+  warnings.warn(
+C:\Proyectos\srtime-django\.venv\Lib\site-packages\django\db\models\fields\__init__.py:1670: RuntimeWarning: DateTimeField AttendanceLog.timestamp received a naive datetime (2026-02-09 12:00:00) while time zone support is active.
+  warnings.warn(
+WARNING 2026-02-11 14:37:05 - No schedule found for employee 7 on 2026-02-09 - implicit rest day
+WARNING 2026-02-11 14:37:05 - No schedule found for employee 7 on 2026-02-09 - implicit rest day
+WARNING 2026-02-11 14:37:05 - Shift 9 (Empty Shift) has no ShiftTimetable configured
+WARNING 2026-02-11 14:37:05 - Employee has shift assigned but timetable resolution failed: ScheduleResolutionError.SHIFT_NO_TIMETABLES
+WARNING 2026-02-11 14:37:05 - Shift 9 (Empty Shift) has no ShiftTimetable configured
+WARNING 2026-02-11 14:37:05 - Employee has shift assigned but timetable resolution failed: ScheduleResolutionError.SHIFT_NO_TIMETABLES
+C:\Proyectos\srtime-django\.venv\Lib\site-packages\django\db\models\fields\__init__.py:1670: RuntimeWarning: DateTimeField AttendanceLog.timestamp received a naive datetime (2026-02-09 22:00:00) while time zone support is active.
+  warnings.warn(
+C:\Proyectos\srtime-django\.venv\Lib\site-packages\django\db\models\fields\__init__.py:1670: RuntimeWarning: DateTimeField AttendanceLog.timestamp received a naive datetime (2026-02-10 06:00:00) while time zone support is active.
+  warnings.warn(
+WARNING 2026-02-11 14:37:06 - No ShiftTimetable for shift 17 on day_index 1 (target_date: 2026-02-10) - shift has timetables but not for this day
+WARNING 2026-02-11 14:37:06 - Employee has shift assigned but timetable resolution failed: ScheduleResolutionError.SHIFT_TIMETABLE_MISSING_DAY
+WARNING 2026-02-11 14:37:06 - No schedule found for employee 18 on 2026-01-31 - implicit rest day
+WARNING 2026-02-11 14:37:06 - No schedule found for employee 18 on 2026-02-16 - implicit rest day
+WARNING 2026-02-11 14:37:06 - No schedule found for employee 20 on 2026-02-09 - implicit rest day
+WARNING 2026-02-11 14:37:06 - Shift 25 (Empty Shift) has no ShiftTimetable configured
+WARNING 2026-02-11 14:37:06 - Employee has shift assigned but timetable resolution failed: ScheduleResolutionError.SHIFT_NO_TIMETABLES
+WARNING 2026-02-11 14:37:06 - No ShiftTimetable for shift 26 on day_index 1 (target_date: 2026-02-10) - shift has timetables but not for this day
+WARNING 2026-02-11 14:37:06 - Employee has shift assigned but timetable resolution failed: ScheduleResolutionError.SHIFT_TIMETABLE_MISSING_DAY
+INFO 2026-02-11 14:37:06 - \u2192 GET /api/daily-attendance/shadow_comparison/ | IP: 127.0.0.1 | User: Anonymous
+INFO 2026-02-11 14:37:06 - \u2190 GET /api/daily-attendance/shadow_comparison/ | Status: 200 | Duration: 6.08ms
+======================================================================
+ERROR: test_import_job_error_handling (tests.test_device_safety_manual.TestDeviceSafety.test_import_job_error_handling)
+Verify that Enable is called even if an error occurs during download
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 1432, in patched
+    return func(*newargs, **newkeywargs)
+  File "C:\Proyectos\srtime-django\tests\test_device_safety_manual.py", line 111, in test_import_job_error_handling
+    print("\u2705 Error handling Safe Mode verified (Device enabled after crash).")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 0: character maps to <undefined>
+
+======================================================================
+ERROR: test_import_job_safe_workflow (tests.test_device_safety_manual.TestDeviceSafety.test_import_job_safe_workflow)
+Verify that import job follows: Connect -> Disable -> Get -> Enable -> Disconnect
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 1432, in patched
+    return func(*newargs, **newkeywargs)
+  File "C:\Proyectos\srtime-django\tests\test_device_safety_manual.py", line 76, in test_import_job_safe_workflow
+    print("\u2705 Normal workflow Safe Mode verified.")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 0: character maps to <undefined>
+
+----------------------------------------------------------------------
+Ran 149 tests in 1.327s
+
+FAILED (errors=2, skipped=8)
+System check identified no issues (0 silenced).
+
+Testing Error Handling safety...
+
+Testing Normal Workflow safety...
+Verifying enable/disable calls...

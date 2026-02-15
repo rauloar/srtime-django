@@ -26,7 +26,6 @@ export const DeviceList: React.FC = () => {
             // Clear connection status when fetching devices (on demand only)
             setConnectionStatus({});
         } catch (error) {
-            console.error("Failed to fetch devices", error);
             toast.error('Error al cargar dispositivos');
         } finally {
             setLoading(false);
@@ -43,7 +42,6 @@ export const DeviceList: React.FC = () => {
             });
             setConnectionStatus(statusMap);
         } catch (error) {
-            console.error("Failed to check device connections", error);
             // Don't show error toast - this is background check
         } finally {
             setCheckingConnections(false);

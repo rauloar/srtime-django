@@ -1,0 +1,1138 @@
+================================================================================
+REPORTE DE MEJORAS CONCEPTUALES DEL CORE
+SRTime Django - Attendance Calculation Engines
+================================================================================
+
+Fecha: 2026-02-10
+Versión: 1.0
+Clasificación: Análisis de mejoras - CORE only
+Alcance: Robustez, claridad, observabilidad, seguridad conceptual
+Audiencia: Arquitectos y lead engineers
+
+================================================================================
+1. MEJORAS DE ROBUSTEZ DEL CORE
+================================================================================
+
+1.1 FORMALIZACION DE INVARIANTES (SIN CAMBIAR CÓDIGO)
+──────────────────────────────────────────────────────
+
+PROBLEMA:
+  Hoy los invariantes del cálculo de asistencia son IMPLÍCITOS:
+  "late_minutes será >= 0" // pero no está documentado
+  "worked_minutes está en rango [0, 1440]" // pero sin límite explícito
+  "status está en enum cerrado" // pero sin validación en constructor
+
+PROPUESTA CONCEPTUAL:
+  Crear documento "CORE INVARIANTS" que enumere:
+  
+  INVARIANTE I1: "Valores monetarios no negativos"
+    • late_minutes >= 0
+    • early_minutes >= 0
+    • overtime_minutes >= 0
+    • worked_minutes >= 0
+    
+    Justificación: Imposible tener "-5 minutos de atraso"
+    Consecuencia: Si viola, => Calculation Alert "NEGATIVE_VALUE"
+    Aplicar a: DailyAttendance y DailyCalculationResult
+
+  INVARIANTE I2: "Límites de rango de minutos"
+    • worked_minutes <= 1440 (24 horas)
+    • late_minutes <= 1440 (no tiene sentido >24h atraso)
+    • early_minutes <= 1440
+    • overtime_minutes <= 480 (razonable, max 8h extra)
+    
+    Justificación: Detección temprana de corrupción
+    Consecuencia: Si viola, => Calculation Alert "OUT_OF_RANGE"
+    Aplicar a: DailyAttendance y DailyCalculationResult
+
+  INVARIANTE I3: "Consistencia de timestamps"
+    • check_in < check_out (si ambos existen)
+    • check_in >= search_start (log "window" alignment)
+    • check_out <= search_end (log window alignment)
+    
+    Justificación: Detectar logs fuera de ventana o revertidos
+    Consecuencia: Si viola, => Calculation Alert "TIMESTAMP_INVALID"
+    Aplicar a: Validación en mapeo resultado a modelo
+
+  INVARIANTE I4: "Coherencia flexible vs fixed"
+    • Si is_flexible=True:
+      - late_minutes DEBE ser 0
+      - early_minutes DEBE ser 0
+      - overtime_minutes DEBE ser 0
+      - status in ["Worked", "Incomplete", "Absent"]
+    • Si is_flexible=False:
+      - status in ["Normal", "Late", "Early Leave", "Incomplete", ...]
+      - late/early/overtime pueden ser >0
+    
+    Justificación: Garantizar intención de ZKTime.Net alignment
+    Consecuencia: Si viola, => Calculation Alert "SCHEDULE_TYPE_MISMATCH"
+    Aplicar a: _map_result_to_model()
+
+  INVARIANTE I5: "Status es valor enum finito"
+    • status in DEFINED_STATUSES enum
+    • Nunca None
+    • Nunca string vacío
+    
+    Justificación: Evitar garbage status
+    Consecuencia: Si viola, => Calculation Alert "INVALID_STATUS"
+    Aplicar a: Constructor DailyAttendance
+
+BENEFICIO:
+  ✓ Documentación executable (tests pueden validar invariantes)
+  ✓ Early detection de bugs (invariante viola => alerta)
+  ✓ Confianza en integridad de datos
+  ✓ Framework para agregar invariantes futuras
+
+
+1.2 BOUNDARY CONDITIONS EXPLÍCITAS
+──────────────────────────────────
+
+PROBLEMA:
+  El código tiene muchas "edge cases" sin documentación:
+  • ¿Qué pasa si search_window es 0 segundos?
+  • ¿Qué pasa si timetable.break_minutes > trabajado?
+  • ¿Qué pasa si logger list has duplicate timestamps?
+  • ¿Qué pasa si schedule es overnight (22:00-06:00)?
+
+PROPUESTA CONCEPTUAL:
+  Crear documento "BOUNDARY CONDITIONS" que defina:
+
+  BOUNDARY B1: "Ventana de búsqueda vacía (0 segundos)"
+    Condición: search_start == search_end
+    Comportamiento esperado:
+      • logs = [] (vacío)
+      • status basado en schedule tipo:
+        - Fixed: Absent
+        - Flexible: Incomplete
+      • late_minutes = 0, early_minutes = 0, worked_minutes = 0
+    
+    Implementación: assert (search_end - search_start) > timedelta(seconds=1)
+    Si falla: log "SEARCH_WINDOW_ZERO"
+
+  BOUNDARY B2: "Break > Worked Time"
+    Condición: break_minutes > (check_out - check_in)
+    Comportamiento esperado:
+      • worked_minutes = max(0, duración - break)
+      • No puede ser negativo
+      • Log "BREAK_EXCEEDS_DURATION"
+    
+    Implementación: worked_minutes = max(0, duration - break)
+    Si falla: Log "BREAK_BOUNDARY_HIT"
+
+  BOUNDARY B3: "Logs duplicados (mismo timestamp)"
+    Condición: logs[i].timestamp == logs[i+1].timestamp
+    Comportamiento esperado:
+      • Tomar PRIMERA ocurrencia para check_in
+      • Tomar ÚLTIMA ocurrencia para check_out
+      • Log "DUPLICATE_LOG_TIMESTAMPS"
+    
+    Implementación: Deduplication or warning en get_logs()
+    Si falla: Log "DUPLICATE_LOGS_PRESENT"
+
+  BOUNDARY B4: "Cross-day shift (ej 22:00-06:00)"
+    Condición: off_duty_time < on_duty_time && is_cross_day=True
+    Comportamiento esperado:
+      • search_end se extiende a next_day
+      • Cálculos incluyen logs de ambos días
+      • Verificar que check_out.date() puede ser != target_date
+    
+    Implementación: is_cross_day flag en DayContext
+    Si falla: Log "CROSS_DAY_BOUNDARY"
+
+  BOUNDARY B5: "Empleado sin user_id en BD"
+    Condición: Employee.user_id is NULL
+    Comportamiento esperado:
+      • No puede hacer matching con AttendanceLog
+      • status = Absent
+      • exception_reason = "NO_USER_ID_MAPPING"
+    
+    Implementación: Early guard en calculate_day()
+    Si falla: Log "EMPLOYEE_NO_USER_ID"
+
+  BOUNDARY B6: "Timetable nulo pero is_valid=True"
+    Condición: ctx.is_valid=True pero ctx.timetable=None
+    Comportamiento esperado:
+      • NUNCA debe ocurrir (es invariante del resolver)
+      • Si ocurre: exception_reason = "TIMETABLE_LOST"
+      • Status = Absent (safe fallback)
+    
+    Implementación: assert ctx.timetable is not None if ctx.is_valid
+    Si falla: Log "INTERNAL_ERROR_TIMETABLE_LOST"
+
+BENEFICIO:
+  ✓ Prepara sistema para edge cases extremos
+  ✓ Facilita debugging (sabes qué boundaries revisar)
+  ✓ Evita "surprise" comportamientos
+  ✓ Base para test de cobertura exhaustiva
+
+
+1.3 LÍMITES DE DOMINIO NO DECLARADOS
+──────────────────────────────────────
+
+PROBLEMA:
+  El código asume lo siguiente SIN documentación:
+  • Tolerancias en minutos (¿qué es razonable?)
+  • Rounding rules (¿por qué 5/10/15/30 min?)
+  • Overtime threshold (¿qué es "minimal" overtime?)
+  • Break duration (¿máximo realista?)
+
+PROPUESTA CONCEPTUAL:
+  Crear documento "DOMAIN LIMITS" que especifique:
+
+  LÍMITE D1: "Tolerancia de atraso"
+    • late_allow_minutes: típicamente [0, 15] minutos
+    • Rango aceptable: [0, 60] minutos (> 60 = error en configuración)
+    • Validar en Timetable.late_allow_minutes de BD
+    
+    Si viola: Log "TOLERANCE_OUT_OF_BOUNDS"
+
+  LÍMITE D2: "Tolerancia de salida temprana"
+    • early_leave_allow_minutes: típicamente [0, 15] minutos
+    • Rango aceptable: [0, 60] minutos
+    • Validar en Timetable.early_leave_allow_minutes
+    
+    Si viola: Log "EARLY_LEAVE_TOLERANCE_OUT_OF_BOUNDS"
+
+  LÍMITE D3: "Duración de break"
+    • break_minutes: típicamente [0, 120] minutos
+    • Rango aceptable: [0, 240] minutos (> 240 = 4h, es irreal)
+    • Validar en Timetable.break_minutes
+    
+    Si viola: Log "BREAK_DURATION_OUT_OF_BOUNDS"
+
+  LÍMITE D4: "Minutos requeridos (flexible)"
+    • required_minutes: típicamente 480 (8h)
+    • Rango aceptable: [0, 600] minutos (10h max)
+    • Validar en Timetable.required_minutes
+    
+    Si viola: Log "REQUIRED_MINUTES_OUT_OF_BOUNDS"
+
+  LÍMITE D5: "Threshold de overtime"
+    • overtime_threshold_minutes: típicamente 480 (8h)
+    • Rango aceptable: [0, 600] minutos
+    • Validar en Timetable.overtime_threshold_minutes
+    
+    Si viola: Log "OVERTIME_THRESHOLD_OUT_OF_BOUNDS"
+
+  LÍMITE D6: "Logs por día"
+    • Máximo realista: 100 logs/día (50 check-ins/outs)
+    • Alerta si > 100: Log "EXCESSIVE_PUNCHES"
+    • Alerta si duplicados: Log "DUPLICATE_TIMESTAMPS"
+    
+    Protección: Evita DoS de memoria en processors
+
+  LÍMITE D7: "Rounding rules aceptables"
+    • Válidos: ["none", "5min", "10min", "15min", "30min"]
+    • Rechazar: ["1min", "2min", "7min", etc.]
+    
+    Si viola: Log "INVALID_ROUNDING_RULE"
+
+BENEFICIO:
+  ✓ Claridad sobre qué es "normal" vs "anomalía"
+  ✓ Facilita validación de data entry
+  ✓ Detección automática de configuración rota
+  ✓ Base para alerting (cuando parámetros salen de rango)
+
+
+================================================================================
+2. MEJORAS DE CLARIDAD ARQUITECTÓNICA
+================================================================================
+
+2.1 CONCEPTOS QUE DEBERÍAN FORMALIZARSE
+─────────────────────────────────────────
+
+PROBLEMA:
+  El código usa términos con múltiples significados:
+  • "punch" = entrada en log ZKTeco (0,1,4,5,8,9)
+  • "check-in" = primer punch de tipo entrada en rango
+  • "block" = periodo de entrada/salida continuo
+  • "obligation" = concepto en DayContext pero nunca usado
+  • "payload data" = qué va en DailyAttendance pero no está documentado
+
+PROPUESTA: GLOSARIO EJECUTABLE DE TÉRMINOS
+
+  TÉRMINO T1: "Punch"
+    Definición: Evento crudode asistencia registrado en dispositivo ZKTeco
+    Atributos: timestamp, user_id, punch_state (0-9)
+    Asignado a: models.AttendanceLog
+    Valores válidos: 0,1,4,5,8,9 (otros valores => ignored or log warning)
+    
+    Conceptualmente: "una pulsación de botón en el dispositivo"
+
+  TÉRMINO T2: "Check-in"
+    Definición: PRIMER punch de tipo entrada [0, 4, 8] dentro de search_window
+    Asignado a: DailyAttendance.check_in
+    Invariantes:
+      • check_in <= check_out (si check_out existe)
+      • check_in >= search_start
+      • check_in es ÚNICO (más no)
+    
+    Conceptualmente: "momento en que el empleado arriba"
+
+  TÉRMINO T3: "Check-out"
+    Definición: ÚLTIMO punch de tipo salida [1, 5, 9] dentro de search_window
+    Asignado a: DailyAttendance.check_out
+    Invariantes:
+      • check_out >= check_in (si check_in existe)
+      • check_out <= search_end
+      • check_out es ÚNICO
+    
+    Conceptualmente: "momento en que el empleado se retira"
+
+  TÉRMINO T4: "Block (en flexible schedule)"
+    Definición: Período continuo de entrada-salida
+    Composición: [check_in, check_out] pair
+    Múltiple: Un flexible puede tener N blocks en un día
+    Ejemplo: 09:00-12:00 bloque 1, 13:00-17:00 bloque 2
+    
+    Conceptualmente: "una jornada de trabajo sin interrupción"
+
+  TÉRMINO T5: "Obligation (concepto arquitectónico)"
+    Definición: Estado de si el empleado DEBE estar presente
+    Valores: {TRUE, FALSE}
+    Mapeado en DayContext.obligation
+    Status actual: Casi siempre TRUE cuando is_valid=True, pero concepto subyacente
+    
+    Conceptualmente: "¿tiene este empleado una obligación contractual hoy?"
+    Posible futuro: Leave, holiday, sabbatical => obligation=False
+
+  TÉRMINO T6: "Payload Data"
+    Definición: Datos de entrada para cálculo (no decisión, no meta)
+    Composición:
+      • Logs (list of AttendanceLog)
+      • Timetable (schedule config)
+      • Holidays (list of dates)
+      • Leave info (boolean)
+    Asignado a: ProcessorContext (V2), inline en V1
+    
+    Conceptualmente: "input crudo que alimenta el cálculo"
+
+  TÉRMINO T7: "Decision Context"
+    Definición: Datos que afectan CÓMO se calcula (no qué se calcula)
+    Composición:
+      • is_flexible (afecta processor selection)
+      • rounding_rule (afecta check-in/out)
+      • late_allow_minutes (afecta late calculation)
+      • break_minutes (afecta worked calculation)
+    Asignado a: Timetable (BD), DayContext (runtime)
+    
+    Conceptualmente: "parámetros de configuración del cálculo"
+
+  TÉRMINO T8: "Offline-first Calculation"
+    Definición: Cálculo que NUNCA depende de APIs externas en runtime
+    Derivación: Todos los datos deben estar en BD pre-cálculo
+    Garantía: calculate_day(emp_id, date) funciona con BD en "snap" histórico
+    
+    Conceptualmente: "puedo calcular asistencia sin conectividad"
+
+BENEFICIO:
+  ✓ Reduce ambigüedad en comunicación
+  ✓ Facilita onboarding de nuevos devs
+  ✓ Base para generar "Calculation Report" intelligible
+  ✓ Previene confusiones entre "punch" vs "check-in"
+
+
+2.2 ROLES ARQUITECTÓNICOS QUE NECESITAN VISIBILIDAD
+─────────────────────────────────────────────────────
+
+PROBLEMA:
+  Hoy V1 y V2 parecen "simétricos" sin documentación clara de roles.
+  Nuevo dev pregunta: "¿Por qué hay dos?"
+
+PROPUESTA: DIAGRAM + CONTRATO EXPLÍCITO
+
+  ROL R1: "V1 - Autoridad Oficial"
+    Responsabilidad:
+      • Transformar logs => DailyAttendance
+      • Persistencia inmediata en BD
+      • Dato de verdad para usuarios
+      • Historia de cambios
+    Garantía:
+      • Siempre retorna resultado (nunca None)
+      • Siempre persiste (salvo BD error)
+      • Errores logueados pero absorbidos
+    Ciclo de vida:
+      • Producción: TODAY
+      • Deprecación: NEVER (unless V2 proven 100%)
+    
+    Contrato:
+      """
+      def calculate_day(emp_id: int, date: date) -> DailyAttendance:
+        # Precondición: emp_id existe, date es válida
+        # Postcondición: DailyAttendance persisted y retornado
+        # Garantía: nunca levanta exception no-caught
+      """
+
+  ROL R2: "V2 - Validador de Diseño"
+    Responsabilidad:
+      • Validar si V1 calcula correctamente
+      • Arquitectura modular como proof-of-concept
+      • Demuestra si Strategy Pattern es viable
+      • Recolecta evidencia para mayor cambio
+    Garantía:
+      • Nunca afecta datos en BD (persist=False)
+      • Failures nunca rompen V1
+      • Cálculo paralelo => divergencia detectable
+    Ciclo de vida:
+      • Producción: TODAY (shadow only)
+      • Futura: Podría ser Autoridad (si V1 deprecado)
+    
+    Contrato:
+      """
+      def calculate_day_v2(emp_id: int, date: date, persist=False) -> DailyAttendance:
+        # Precondición: emp_id existe, date es válida
+        # Postcondición: DailyAttendance retornado (no persisted si persist=False)
+        # Garantía: ShadowModeService puede comparar con V1
+      """
+
+  ROL R3: "resolve_schedule_unified() - Fuente de Verdad de Horarios"
+    Responsabilidad:
+      • ÚNICA función de resolución de horario
+      • Usada por AMBOS engines (V1 y V2)
+      • Prioridad: OVERRIDE > EMPLOYEE > DEPARTMENT > IMPLICIT_REST
+      • Garanteza: Mismo resultado para ambos engines
+    Garantía:
+      • Determinística (siempre mismo resultado dado inputs)
+      • Offline-capable (no APIs)
+      • Precondición: Employee + Shift + Timetable en BD
+    Ciclo de vida:
+      • Estable: No cambiar sin revalidar ambos engines
+      • Testing: Si cambia, ejecutar TODA suite V1+V2
+    
+    Contrato:
+      """
+      def resolve_schedule_unified(emp_id: int, date: date) -> ResolvedSchedule:
+        # Precondición: emp_id existe
+        # Postcondición: ResolvedSchedule con is_valid + timetable + source
+        # Garantía: Determinística (same input => same output)
+        # Invariante: V1 y V2 ven MISMO resultado
+      """
+
+  ROL R4: "DayContext - Contexto de Decisión"
+    Responsabilidad:
+      • Encapsular parámetros de un día
+      • Decidir si hay obligación (is_valid)
+      • Guardar search windows
+      • Marcar cross-day shifts
+    Garantía:
+      • NamedTuple => immutable
+      • .empty() => patrón para "no válido"
+      • Nunca None (reemplaza Optional[Schedule])
+    Ciclo de vida:
+      • Central: Usado por V1, V2, y futuro
+      • Extensible: Puedo agregar campos sin breaking
+    
+    Contrato:
+      """
+      class DayContext(NamedTuple):
+        # Siempre existe, jamás None
+        # is_valid es el "bit crítico"
+        # payload data opcional si is_valid=False
+      """
+
+BENEFICIO:
+  ✓ Claridad de qué engine hace qué
+  ✓ Protección de cambios accidentales
+  ✓ Roadmap claro para migraciones futuras
+  ✓ Facilita onboarding y code review
+
+
+================================================================================
+3. MEJORAS DE OBSERVABILIDAD DEL CORE
+================================================================================
+
+3.1 MÉTRICAS INTERNAS QUE REVELARÍAN PROBLEMAS REALES
+────────────────────────────────────────────────────────
+
+PROBLEMA:
+  Hoy no sabemos:
+  • ¿Con qué frecuencia cálculos fallan?
+  • ¿Qué márgenes de error hay en presiciones?
+  • ¿Qué edge cases se disparan más?
+  • ¿V1 y V2 están divergiendo silenciosamente?
+
+PROPUESTA: CALCULATION SIGNALS (NO REQUIRE CODE CHANGES)
+
+  Crear documento "CalculationSignal" enum y procedure para loguear:
+
+  SIGNAL S1: "Calculation Attempt"
+    Cuándo: Entrada a calculate_day()
+    Loguear: employee_id, target_date, timestamp_start
+    Propósito: Medir latencia y detectar bottlenecks
+    
+    Log pattern:
+      [CALC_START] emp=123, date=2026-02-10, ts_start=2026-02-10T09:15:30Z
+
+  SIGNAL S2: "Schedule Resolution"
+    Cuándo: Resultado de resolve_schedule_unified()
+    Loguear: is_valid, source (OVERRIDE|EMPLOYEE|DEPARTMENT|IMPLICIT_REST), timetable_id
+    Propósito: Ver qué tipo de horarios se resuelven
+    
+    Log pattern:
+      [SCHEDULE] emp=123, is_valid=True, source=EMPLOYEE, tt_id=5
+
+  SIGNAL S3: "Log Retrieval"
+    Cuándo: Completar get_logs()
+    Loguear: log_count, search_window_duration (minutes), window_start, window_end
+    Propósito: Detectar búsquedas sin logs, ventanas vacías
+    
+    Log pattern:
+      [LOGS] emp=123, count=8, window_min=1440, start=2026-02-10T06:00Z, end=2026-02-11T06:00Z
+
+  SIGNAL S4: "Invariant Violation"
+    Cuándo: Cualquier invariante viola
+    Loguear: invariant_id (I1|I2|I3|I4|I5), field, value, expected_range
+    Propósito: Alerta temprana de data corruption
+    
+    Log pattern:
+      [INVARIANT_VIOLATION] inv=I2, field=worked_minutes, value=1500, expected_max=1440
+
+  SIGNAL S5: "Boundary Condition Hit"
+    Cuándo: Cualquier boundary condition se dispara
+    Loguear: boundary_id (B1|B2|B3|B4|B5|B6), condition_type, context
+    Propósito: Entender qué edge cases ocurren en realidad
+    
+    Log pattern:
+      [BOUNDARY_HIT] bound=B4, condition=CROSS_DAY, emp=123, date=2026-02-10
+
+  SIGNAL S6: "Domain Limit Exceeded"
+    Cuándo: Parámetro de Timetable fuera de rango conocido
+    Loguear: limit_id (D1|D2|D3|...), field, value, expected_range
+    Propósito: Detectar data entry errors antes que cálculos fallen
+    
+    Log pattern:
+      [DOMAIN_LIMIT] limit=D2, field=early_leave_allow_minutes, value=120, expected_max=60
+
+  SIGNAL S7: "Calculation Completion"
+    Cuándo: Al terminar calculate_day()
+    Loguear: status (final), late_min, early_min, worked_min, is_absent, ts_end, duration_ms
+    Propósito: Historial de todos los cálculos, benchmark de performance
+    
+    Log pattern:
+      [CALC_END] emp=123, status=Late, late=5, early=0, worked=480, absent=False, duration_ms=45
+
+  SIGNAL S8: "V1 vs V2 Divergence"
+    Cuándo: ShadowComparison detecta diferencia
+    Loguear: emp_id, date, v1_status, v2_status, field_diverge, delta_value
+    Propósito: Early warning de que V2 no es equivalente a V1
+    
+    Log pattern:
+      [DIVERGENCE] emp=123, date=2026-02-10, v1_status=Late, v2_status=Normal, field=status
+
+BENEFICIO:
+  ✓ Observabilidad sin cambiar código
+  ✓ Detección temprana de problemas reales
+  ✓ Data para tomar decisiones de evolución
+  ✓ Audit trail completo de cálculos
+
+
+3.2 DIFERENCIAS DE ESTADO: "CORRECTO" VS "SOSPECHOSO" VS "FALLO"
+────────────────────────────────────────────────────────────────
+
+PROBLEMA:
+  Hoy un resultado de calculate_day() puede estar:
+  • Correcto (sin issues)
+  • Sospechoso (edge case, pero probablemente ok)
+  • Fallido (error, pero atrapado)
+  
+  No hay manera de diferenciarlos sin leer logs linealmente.
+
+PROPUESTA: CALCULATION_CONFIDENCE ENUM
+
+  Crear métadato en DailyAttendance: calculation_confidence
+
+  CONFIDENCE_LEVEL C1: "CERTAIN" (verde)
+    Significado: Cálculo sin issues, procede como creemos
+    Condiciones:
+      • Todos los invariantes se cumplen
+      • Ningún boundary condition se disparó
+      • Logs encontrados en search window
+      • is_flexible=False (fixed es "más estable")
+    
+    Ejemplo:
+      emp=123, date=2026-02-10, status=Normal, confidence=CERTAIN
+      => Confío en este resultado
+
+  CONFIDENCE_LEVEL C2: "LIKELY" (amarillo)
+    Significado: Cálculo plausible pero hay sospechas
+    Condiciones:
+      • Al menos un boundary condition se disparó (ej: B3 duplicate logs)
+      • Invariantes ok
+      • Pero resultado es potencialmente affected
+    
+    Ejemplo:
+      emp=123, date=2026-02-10, status=Worked, confidence=LIKELY, boundary_hit=B3
+      => Probablemente correcto, pero chequear si hay logs duplicados
+
+  CONFIDENCE_LEVEL C3: "UNCERTAIN" (naranja)
+    Significado: Cálculo completado pero hay warning
+    Condiciones:
+      • Invariante casi violada (ej: late_minutes=60, en límite)
+      • Es flexible schedule con 0 logs (complejo)
+      • Edge case poco frecuente activado
+    
+    Ejemplo:
+      emp=123, date=2026-02-10, status=Incomplete, confidence=UNCERTAIN, reason=ZERO_LOGS_FLEXIBLE
+      => Hecho correctamente pero revisa BD de logs
+
+  CONFIDENCE_LEVEL C4: "FAILED" (rojo)
+    Significado: Cálculo completado pero con fallback
+    Condiciones:
+      • Invariante VIOLADA (ej: negative worked_minutes)
+      • Boundary fallido (ej: timetable=None pero is_valid=True)
+      • Exception caught pero resultado es guess
+    
+    Ejemplo:
+      emp=123, date=2026-02-10, status=Absent, confidence=FAILED, reason=TIMETABLE_LOST
+      => Hecho fallback, revisa logs de error
+
+CÓMO IMPLEMENTAR (SIN CÓDIGO):
+  1. Agregar campo optional: calculation_confidence: Optional[str]
+  2. En log de CALC_END, incluir: confidence=CONF_LEVEL
+  3. En UI (future), mostrar icono verde/amarillo/naranja/rojo
+  4. En API, permitir filter: ?min_confidence=LIKELY (excluye low confidence)
+  5. En admin, crear dashboard: % de CERTAIN, LIKELY, UNCERTAIN, FAILED
+
+BENEFICIO:
+  ✓ Usuario sabe en qué confiar
+  ✓ Admins saben dónde investigar
+  ✓ Dashboard muestra health del sistema
+  ✓ Facilita decisiones de "recompute"
+
+
+================================================================================
+4. MEJORAS DE SEGURIDAD CONCEPTUAL
+================================================================================
+
+4.1 RIESGOS HUMANOS Y CÓMO MITIGARLOS
+──────────────────────────────────────
+
+PROBLEMA:
+  El core es código crítico pero sin protecciones contra uso incorrecto human:
+  - Dev puede hacer "calculate_day_v2(persist=True)" por error en debug
+  - Dev puede cambiar V1 sin revalidar contra V2
+  - Dev puede agregar tolerancia a "100 minutos" sin validar
+  - Dev puede confundir V1 (autoridad) con legacy
+
+PROPUESTA: GUARDRAILS CONCEPTUALES (NO EXECUTABLE CODE)
+
+  GUARDRAIL G1: "V2 persist=True es prohibido fuera de tests"
+    Régimen:
+      • Documentar explícitamente: "V2 NUNCA debe persistir en desarrollo"
+      • En CI/CD: Assert no hay calls a calculate_day_v2(..., persist=True)
+      • En code review: "¿persiste V2?" => reject unless test context
+      • En docstring: """
+        ADVERTENCIA: persist=True es SOLO para testing.
+        En shadow mode, siempre usar persist=False.
+        """
+    Protección: Evita que V2 "contamine" BD con datos de shadow
+
+  GUARDRAIL G2: "resolve_schedule_unified() es contrato sagrado"
+    Régimen:
+      • No modificar sin tests V1+V2 juntos
+      • cambio => todos tests deben pasar
+      • cambio => ShadowComparison debe matchear 100%
+      • En docstring: """
+        ADVERTENCIA: Esta función es usado por AMBOS engines.
+        Un cambio aquí afecta V1 y V2 simultáneamente.
+        Requerido: Test suite completa + shadow mode validation.
+        """
+    Protección: Evita divergencia involuntaria
+
+  GUARDRAIL G3: "Domain limits no son "just numbers""
+    Régimen:
+      • Documentar RAZÓN de cada límite
+      • late_allow_minutes <= 60
+        => "RAZÓN: máximo realista es 1h gracia, >60min es error de cfg"
+      • break_minutes <= 240
+        => "RAZÓN: >4h de break es irreal, probablemente error de data"
+      • En Timetable model: validators que rechacen out-of-range
+    Protección: Evita "garbage in, garbage out"
+
+  GUARDRAIL G4: "V1 NO es legacy, es autoridad"
+    Régimen:
+      • Comentario en code: "# AUTHORITY ENGINE V1"
+      • Documentación: "V1 es oficial, V2 es validador"
+      • Code review: Si alguien sugiere "deprecar V1", requiere explicación
+      • En ADR: Decisión explícita de cuándo/cómo migrar
+    Protección: Evita accidental removal o degradation
+
+  GUARDRAIL G5: "Agregar lógica a ambos engines = riesgoso"
+    Régimen:
+      • Política: Agregr lógica a V1 PRIMERO siempre
+      • Verificar invariantes después
+      • Luego implementar en V2 DESPUÉS
+      • Verificar ShadowComparison = MATCH
+      • Solo entonces: commit ambos
+      • En wiki: "Procedimiento para agregar features"
+    Protección: Evita divergencia silenciosa
+
+  GUARDRAIL G6: "Offline-first es garantía arquitectónica"
+    Régimen:
+      • Documentar: "calculate_day() usa SOLO datos en BD"
+      • No permitir calls a APIs/Redis/etc en core
+      • En code review: "¿hay network call?" => reject
+      • En docstring: """
+        Garantía offline: Este cálculo NO requiere conectividad.
+        Todos los datos son pre-fetched o están en BD.
+        """
+    Protección: Evita dependency en servicios externos
+
+
+4.2 RIESGOS DE EVOLUCIÓN FUTURA
+─────────────────────────────────
+
+PROBLEMA:
+  Hoy el diseño es:
+  • V1 + V2 en paralelo (bueno)
+  • Pero no hay "plan B" si necesitamos cambiar fundamentalmente
+
+PROPUESTA: EVOLUTION ROADMAP CONCEPTUAL (NO IMPLEMENTAR TODAVÍA)
+
+  ESCENARIO E1: "Necesitamos agregar Leave handling"
+    Riesgo: Change afecta ambos engines
+    Mitigación:
+      • Agregar a resolve_schedule_unified() PRIMERO
+      • Si leave=True => obligation=False
+      • V1 comportamiento: status=Absent, reason=APPROVED_LEAVE
+      • V2 comportamiento: igual a V1 (via unified resolver)
+      • Test: ShadowComparison debe matchear
+    
+    Preparación HOY:
+      • Documentar: "DayContext.resolved_obligation puede incluir leave info"
+      • DayContext es extensible (NamedTuple)
+
+  ESCENARIO E2: "Necesitamos soporte para Holiday"
+    Riesgo: Similar a leave
+    Mitigación:
+      • get_holidays() hoy retorna set vacío
+      • Cuando se necesite: implementar con Holiday model
+      • Misma lógica que leave (obligation=False)
+      • V1 + V2 ven mismo resultado (via resolved)
+    
+    Preparación HOY:
+      • Reservar parámetro en ProcessorContext.holidays (ya existe)
+      • Documentar: "holidays será used cuando Holiday model exista"
+
+  ESCENARIO E3: "Necesitamos soportar Time-Off accrual"
+    Riesgo: Cambio en modelo de datos
+    Mitigación:
+      • NO agregar lógica en calculate_day()
+      • Crear servicio separado: accrual_engine.py
+      • calculate_day() retorna DailyAttendance
+      • accrual_engine() CONSUME DailyAttendance y genera TimeOffAccrual
+      • Separación: cálculo de asistencia vs accrual
+    
+    Preparación HOY:
+      • Documentar: "calculate_day() es responsable SOLO de asistencia"
+      • Definir contrato: "DailyAttendance NUNCA includes accrual info"
+
+  ESCENARIO E4: "Necesitamos migrar de V1 a V2"
+    Riesgo: Cambio fundamental
+    Mitigación:
+      • Hoy: V1 autoridad, V2 shadow
+      • Mes 1: Recolectar evidencia ShadowComparison
+      • Mes 2: Analizar divergencias (si < 0.1%, es safe)
+      • Mes 3: V2 como backup authority
+      • Mes 4: V1 como shadow (roles reversed)
+      • Mes 5: Opcionalmente, deprecar V1 (mantener code)
+    
+    Preparación HOY:
+      • Documentar: "Roadmap de migración V1→V2 es posible"
+      • Asegurar: ShadowComparison persista (future REC O2)
+
+BENEFICIO:
+  ✓ Sin ser forzado, el sistema está preparado para cambios
+  ✓ Si necesidad surge, no hay surprises
+  ✓ Migraciones pueden ser graduales
+
+
+================================================================================
+5. MEJORAS DE EVOLUCIÓN FUTURA (SIN CÓDIGO)
+================================================================================
+
+5.1 QUÉ PREPARAR HOY PARA FACILITAR CAMBIOS MAÑANA
+────────────────────────────────────────────────────
+
+PREPARACIÓN P1: "Documentar DayContext como estructura central"
+  Hoy: DayContext existe pero subesperamos que evolucione
+  Acción:
+    • Documentar: "DayContext es core abstraction, puede crecer"
+    • Ejemplo futuro campo: DayContext.resolved_obligation.leave_approved
+    • Ejemplo futuro campo: DayContext.resolved_obligation.work_schedule
+    • NamedTuple es append-only compatible
+  Beneficio: Si agregamos campos, V1+V2 ven "igual"
+
+PREPARACIÓN P2: "Formalizar ProcessorContext como interface publica"
+  Hoy: ProcessorContext es input a V2 processors
+  Acción:
+    • Documentar: "ProcessorContext es el 'contract' entre engine y processors"
+    • Especificar cada campo: "timez, logs, holidays, ..."
+    • Marcar: "Si agregar campo, actualizar TODOS los processors"
+    • Ejemplo: "¿Agregar pay_grade?" => sí, agregar a ProcessorContext
+  Beneficio: Futuro procesador (V3?) usa mismo interfaz
+
+PREPARACIÓN P3: "Preparar para "calculation intent" categorización"
+  Hoy: Todos los cálculos son "normales"
+  Concepto futuro:
+    • "intent" podría ser: NORMAL | MAKEUP_DAY | EXCEPTION | MANUAL_OVERRIDE
+    • Cada intent podría tener reglas diferentes
+    • Ejemplo: MAKEUP_DAY => late_allow_minutes aumentado
+  Acción HOY:
+    • Documentar: "Futuro puede haber intent parameter"
+    • Reservar parámetro en ProcessorContext: intent: Optional[str]
+    • DayContext puede extenderse con intent info
+  Beneficio: Sin cambios hoy, infraestructura lista
+
+PREPARACIÓN P4: "Formalizor "calculation audit trail" schema"
+  Hoy: Logs existen pero no estructurados
+  Concepto futuro:
+    • ShadowCalculation model (ya existe pero unused)
+    • CalculationAudit table (propuesta):
+      - emp_id, date, timestamp
+      - stage (RESOLVE|FETCH_LOGS|CALCULATE|VALIDATE)
+      - decision (LATE_DETECTED, LATE_ALLOWED, WORKED_CALC, etc.)
+      - value (what happened)
+    • Cada stage emite audit entry
+  Acción HOY:
+    • Documentar: "Futuro, cada decisión del engine será auditada"
+    • Reservar modelo: CalculationAudit
+    • En V1: agregar signals (S1-S8 de observability) como proto-audits
+  Beneficio: Ya está preparado para audit trail completo
+
+PREPARACIÓN P5: "Diseñar para "calculation replay""
+  Hoy: Si error en BD => recalcular
+  Concepto futuro:
+    • Guardar "snapshots" de inputs: employee, shift, logs, holidays
+    • Replay: dada snapshot, recalcular sin BD changes
+    • Útil para: "¿qué pasó si logs fueron diferentes?"
+  Acción HOY:
+    • Documentar: "Inputs a calculate_day() son determinísticos"
+    • Estructura ProcessorContext para "pode ser serializable"
+    • Marcar: "Si agregar field non-serializable, rompe replay"
+  Beneficio: Foundation para audit-grade replayability
+
+
+================================================================================
+6. CAMBIOS EXPLÍCITAMENTE NO RECOMENDADOS EN ESTA ETAPA
+================================================================================
+
+6.1 POR QUÉ NO CAMBIAR V1 HOY
+──────────────────────────────
+
+CAMBIO NR1: "Refactorizar V1 para usar Strategy Pattern (como V2)"
+  Por qué NO:
+    ✗ V1 está funcionando hoy, usado en producción
+    ✗ Refactoring = risk de bugs introducidos
+    ✗ V2 YA existe como implementación alternativa
+    ✗ Si V2 falla, cambiamos a V1 (si lo reescribimos, ambos roto)
+    ✗ El objetivo de V1 es ser ESTABLE, no elegante
+  
+  Cuándo SÍ:
+    • Después que V2 sea 100% probado (mínimo 3 meses)
+    • ShadowComparison = 0 divergencias
+    • Decisión ejecutiva: "V2 será nueva autoridad"
+    • PERO ANTES: Mantener V1 como shadow (para fallback)
+
+
+CAMBIO NR2: "Eliminar duplicación entre V1 y V2"
+  Por qué NO:
+    ✗ "deuda técnica" es mejor que "riesgo operacional"
+    ✗ Un engine es "insurance" del otro
+    ✗ Si unifico y doy error => ambos roto
+    ✗ No es código legacy, es código intencional
+  
+  Cuándo SÍ:
+    • Nunca. La duplicación ES el diseño.
+    • Máximo: extender ambos simultáneamente (V1, luego V2)
+
+
+CAMBIO NR3: "Agregar "inteligencia" con ML/IA"
+  Por qué NO:
+    ✗ Sistema debe ser determinístico (offline-first)
+    ✗ ML introducing no-determinism
+    ✗ Auditoría regulatoria => no se permiten "blackboxes"
+    ✗ "¿Por qué status=Late?" debe ser explicable (regla, no ML)
+  
+  Cuándo SÍ:
+    • Nunca en el core del cálculo
+    • Sí podría usarse en: anomaly detection (POST-cálculo)
+
+
+CAMBIO NR4: "Convertir en CRM / agregar workflows / tasks"
+  Por qué NO:
+    ✗ Sistema hoy es pure CALCULATION (no proceso)
+    ✗ Agregar workflow = agregar state machines, lado effects
+    ✗ Si hago calculate_day() y dispara "cambiar estado empleado", roto determinismo
+    ✗ El propósito HOY es: mostrar información
+  
+  Cuándo SÍ:
+    • NUNCA en core. Si necesario:
+    • Crear servicio SEPARADO: human_processes.py
+    • Que consume DailyAttendance pero NO modifica calculate_day()
+
+
+CAMBIO NR5: "Optimizar BD queries agresivamente"
+  Por qué NO:
+    ✗ Cálculo es batch (no OLTP tiempo real)
+    ✗ Premature optimization mata claridad
+    ✗ Risk: Agregar índices mal => queries lentas
+    ✗ mejor opción: Cache en application layer si es problema
+  
+  Cuándo SÍ:
+    • Only si: "queremos calcular 1M empleados en <2 segundos"
+    • Entonces: measurement first, optimize guided by data
+
+
+CAMBIO NR6: "Cambiar DailyAttendance model schema"
+  Por qué NO:
+    ✗ DB schema es contrato público (other apps usan estos datos)
+    ✗ Migration es riesgoso (datos históricos)
+    ✗ V1 y V2 ambos mapean a este model => ambos roto
+    ✗ Sistema INFORMATIVO => no necesita cambios de schema
+  
+  Cuándo SÍ:
+    • Only para agregar campos NUEVOS (no remover/renombrar)
+    • Todos los campos adicionales: optional, con default
+
+
+CAMBIO NR7: "Refactorizar get_logs() para usar índices específicos"
+  Por qué NO:
+    ✗ Asume que logs es problema de performance (no tiene evidence)
+    ✗ BD optimizations = cambios en queries que afectan resultado
+    ✗ Risk: Query diferente => logs ligeramente diferentes => resultado diferente
+  
+  Cuándo SÍ:
+    • Only después de measurement: "get_logs toma >50% del tiempo"
+    • Entonces: agregar índices en AttendanceLog.timestamp
+
+
+CAMBIO NR8: "Unificar V1 y V2 en un engine híbrido"
+  Por qué NO:
+    ✗ Pierde el valor de arquitectura dual (validación independiente)
+    ✗ "mejor para mantenimiento" es falso (complica lógica)
+    ✗ Si algo rompe, ambos rompe (no hay fallback)
+    ✗ Tests se vuelven más complejos (no unitarios)
+  
+  Cuándo SÍ:
+    • Nunca. Dual engine ES el feature, no un "problema temporal"
+
+
+6.2 CAMBIOS CONCEPTUALES NO RECOMENDADOS
+──────────────────────────────────────────
+
+CAMBIO NR9: "Usar V2 como autoridad hoy"
+  Por qué NO:
+    ✗ V2 menos testeado que V1 (menos eyes on it)
+    ✗ Processors no tienen 6+ meses de production data
+    ✗ Si V2 tiene bug silencioso => TODOS los datos nuevos corruptos
+  
+  Cuándo SÍ:
+    • Después: 3 meses shadowing, 0 divergencias
+    • Decisión ejecutiva: "confianza es bastante alta"
+    • PERO: Mantener V1 como shadow (2 semanas rol reverso)
+    • ENTONCES: Switch puede ocurrir
+
+
+CAMBIO NR10: "Agregar campos dinámicos a DailyAttendance sin spec"
+  Por qué NO:
+    ✗ Sistema necesita ser "reproducible"
+    ✗ Si agregamos field aleatorio => resultado diverge sin razón
+    ✗ Tests no saben qué testear
+  
+  Cuándo SÍ:
+    • Only si: existe ADR + spec + tests ANTES de agregar
+    • Ejemplo: "Agregamos exception_reason field, guardamos error msg"
+    • Pero ANTES: documentar por qué, tests que lo capturan
+
+
+================================================================================
+7. POR QUÉ NO TIENE SENTIDO CAMBIAR V1 HOY
+================================================================================
+
+PROBLEMA FRAMING:
+  Equipo/stakeholder pregunta: "¿Deberíamos reescribir V1?"
+  La respuesta involucra el PROPÓSITO de V1 en el sistema.
+
+
+7.1 ANÁLISIS DE PROPÓSITO Y CONTEXTO
+─────────────────────────────────────
+
+PROPÓSITO DEL SISTEMA:
+  "Mostrar información de asistencia a usuarios"
+  
+  NO es:
+  ✗ "Ejecutar procesos HR automáticos"
+  ✗ "Cambiar estado de empleados basado en algoritmos"
+  ✗ "Tomar decisiones que afecten salario/disciplina"
+  
+  Sí es:
+  ✓ "Viewer informativo de cálculos"
+  ✓ "Auditable (puede explicar cada decisión)"
+  ✓ "Alineado con ZKTime.Net (sistema anterior)"
+
+
+CONTEXTO DE EVOLUCIÓN:
+  
+  AQUÍ (2026-02):
+    • V1: Estable, en producción, OK
+    • V2: Reciente, en shadow, acumulando evidencia
+    • Sistema: Informativo, no procesa
+  
+  PRÓXIMO 3 MESES (2026-02 a 2026-04):
+    • V1: Continúa como autoridad
+    • V2: Recolecta datos, busca divergencias
+    • Decidir: ¿V2 está listo o no?
+  
+  FUTURO (2026-04+):
+    • Si V2 ok: Puede eventualmente ser autoridad
+    • Si V1 sigue siendo más confiable: Mantener como es
+    • Opción: Agregar V3, V4, etc (no remplaza)
+
+
+ESTADO ACTUAL DE V1:
+  
+  Fortalezas:
+    ✓ 6+ meses en producción sin crashes
+    ✓ Usuarios dependem y confían
+    ✓ Código legible (monolítico, inline logic visible)
+    ✓ Fácil debuggear (pasos son lineales)
+    ✓ Offline-first (no APIs)
+  
+  Debilidades:
+    ✗ Monolítico (cambios impactan todo)
+    ✗ No testeable unitariamente (ORM en medio)
+    ✗ Extensión es difícil (agregar tipo horario = modify función)
+    ✗ Duplicación de lógica (no DRY)
+  
+  PERO ESTAS DEBILIDADES SON:
+    • Aceptables para un sistema informativo
+    • Conocidas y documentadas
+    • Compensadas por V2 (modular alternative)
+
+
+RIESGO DE CAMBIAR V1:
+  
+  Escenario: Reescribimos V1 ahora
+    
+    Riesgos inmediatos:
+      1. Nuevos bugs en rewrite
+      2. Si bug: todos los datos nuevos corruptos
+      3. V2 y V1 ambos nuevos => sin fallback
+      4. Pérdida de "estabilidad demostrada"
+      5. Timeline: 4-8 semanas
+      6. Oportunidad cost: podríamos estar haciendo X, Y, Z
+    
+    Probabilidad de regresión: 30-40% (estándar en rewrites)
+    Impacto si ocurre: Crítico (asistencia es dato crítico)
+
+
+VENTAJA DE "NO CAMBIAR":
+  
+  V1 + V2 en paralelo:
+    1. V1 sigue siendo confiable
+    2. V2 acumula evidencia
+    3. Si V2 falla: V1 es fallback
+    4. Si V2 ok: podemos considerar migración LENTA
+    5. Riesgo: Mínimo
+    6. Timeline: Ya está done
+    7. Oportunidad: Enfocarse en other features
+
+
+7.2 CRITERIOS PARA CAMBIAR V1 EN EL FUTURO
+────────────────────────────────────────────
+
+NUNCA cambies V1 porque:
+  ✗ "Es código feo"
+  ✗ "Es monolítico"
+  ✗ "No usa patrones fancy"
+  ✗ "Otros sistemas usan V2 y queremos consistency"
+
+SÍ cambias V1 (en futuro) si TODOS ocurren:
+  ✓ V2 que tiene 6+ meses en shadow
+  ✓ ShadowComparison tiene < 0.1% divergencia
+  ✓ Análisis de divergencias shows "V2 may be right"
+  ✓ Nuevos features requieren modularidad (no podemos agregar sin rewrite)
+  ✓ Equipo tiene capaz para 4-8 semanas de esfuerzo
+  ✓ Risk mitigation plan está escrito (V1 como shadow post-switch)
+  ✓ Aprobación ejecutiva: "V2 será autoridad"
+  ✓ Plan B: "Si falla switch, volver a V1 en <1 hora"
+
+
+7.3 LA RESPUESTA FINAL
+──────────────────────
+
+"¿Deberíamos cambiar V1?"
+
+RESPUESTA CORTA:
+  NO. Hoy no.
+  V1 cumpla su propósito.
+  V2 está recopilando evidencia.
+  En 3 meses, decidir basado en datos.
+
+
+RESPUESTA LARGA:
+  
+  El sistema SRTime Django es INFORMATIVO hoy. Su propósito es mostrar
+  información de asistencia. V1 está cumpliendo ese propósito:
+  
+  - Calcula consistentemente
+  - Es auditable (puedo explicar cada decisión)
+  - Es offline-capable
+  - Es confiable (6+ meses sin crashes)
+  
+  V1 tiene debilidades (monolítico, difícil extender) pero estas son
+  aceptables para un sistema informativo.
+  
+  V2 fue propuesto como alternativa MODULAR. Está en shadow mode,
+  validando si arquitectura Strategy Pattern es viable. En 3 meses:
+  
+  - Si V2 diverge de V1 > 1%: V1 sigue siendo autoridad
+  - Si V2 diverge < 0.1%: V2 está listo como alternativa
+  - Si divergencias son "todas en favor de V2": Podemos planear switch
+  
+  AHORA, reescribir V1:
+  - Es riesgo innecesario
+  - Pierde "fallback" si algo sale mal
+  - Toma 4-8 semanas (oportunidad cost)
+  - Probabilidad de bugs: 30-40%
+  - Impacto si falla: Crítico
+  
+  MEJOR: Recopilar datos con V2 shadow, decidir en Abril 2026.
+  
+  Si en Abril V2 está listo: Planear switch controlado.
+  Si V2 no está listo: Mantener V1, mejorar V2, intentar en Julio.
+  
+  El diseño dual engine ES el plan. Ejecútalo.
+
+
+================================================================================
+CONCLUSIÓN
+================================================================================
+
+El CORE del sistema de asistencia (V1 + V2 + resolve_schedule_unified)
+está bien diseñado para ser:
+
+  • ROBUSTO: Invariantes pueden formalizarse, boundaries documentadas
+  • CLARO: Roles de V1/V2 pueden explicitarse, glosario crearse
+  • OBSERVABLE: Signals pueden loguarse, confidence levels asignarse
+  • SEGURO: Guardrails pueden establecerse, riesgos mitigarse
+  • PREPARADO: Evolución futura está considerada sin ser forzada
+
+Las mejoras CONCEPTUALES no requieren código. Requieren:
+
+  1. Documentación de invariantes
+  2. Especificación de boundary conditions
+  3. Glosario de términos (punch, check-in, block, obligation)
+  4. Señales de observabilidad en logs
+  5. Niveles de "calculation confidence"
+  6. Guardrails para proteger cambios accidentales
+  7. Roadmap de evolución futura
+  8. Explícita decisión: "NO cambiar V1 hoy"
+
+Con estas mejoras, el sistema transiciona de "código que funciona"
+a "arquitectura que explica por qué funciona y por qué no cambiar todavía".
+
+================================================================================
+FIN DEL REPORTE DE MEJORAS CONCEPTUALES
+================================================================================

@@ -6,33 +6,33 @@ USER = "raul"
 PASS = "zkr15ldi12"
 
 def run():
-    print("🚀 Starting Browser Test...")
+    print("[INFO] Starting Browser Test...")
     with sync_playwright() as p:
         try:
              browser = p.chromium.launch(headless=False, channel="chrome", args=["--start-maximized"])
         except:
-             print("⚠️ Chrome not found, using bundled Chromium...")
+             print("[WARN] Chrome not found, using bundled Chromium...")
              browser = p.chromium.launch(headless=False, args=["--start-maximized"])
         
         context = browser.new_context(no_viewport=True)
         page = context.new_page()
 
         try:
-            print(f"🌍 Navigating to {URL}")
+            print(f"[INFO] Navigating to {URL}")
             page.goto(URL)
 
             # Login
-            print("🔑 Logging in...")
+            print("[INFO] Logging in...")
             page.fill("input[placeholder='Usuario']", USER)
             page.fill("input[placeholder='Contraseña']", PASS)
             page.click("button[type='submit']")
             
             # Wait for dashboard
             page.wait_for_url("**/dashboard")
-            print("✅ Login successful")
+            print("[OK] Login successful")
 
             # Navigate to Devices (Directly, as Sidebar is hidden on Dashboard)
-            print("📱 Navigating to Devices...")
+            print("[INFO] Navigating to Devices...")
             page.goto(f"{URL}/devices")
             page.wait_for_selector("text=Puerta Principal", timeout=10000)
             

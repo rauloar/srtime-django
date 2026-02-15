@@ -1,6 +1,7 @@
 
 from django.db import models
 from django.utils import timezone
+from datetime import date
 
 
 class Company(models.Model):
@@ -463,6 +464,54 @@ class EmployeeShift(models.Model):
         verbose_name = 'Asignación de Turno'
         verbose_name_plural = 'Asignaciones de Turnos'
         ordering = ['-start_date']
+
+    def clean(self):
+        """
+        Validate that no overlapping assignments exist for the same scope/target.
+        
+        Rules:
+        - If scope='EMPLOYEE', check for overlaps with same employee_id
+        - If scope='DEPARTMENT', check for overlaps with same department_id
+        - Handle end_date=None as infinite (unbounded)
+        - Exclude self.id during update (self.pk check)
+        """
+        from django.core.exceptions import ValidationError
+        from django.db.models import Q
+        
+        if not self.start_date:
+            return  # start_date must exist, skip overlap check
+        
+        # Determine target based on scope
+        if self.scope == 'EMPLOYEE':
+            if not self.employee_id:
+                raise ValidationError({'employee': 'employee_id required for EMPLOYEE scope'})
+            target_filter = {'employee_id': self.employee_id}
+        elif self.scope == 'DEPARTMENT':
+            if not self.department_id:
+                raise ValidationError({'department': 'department_id required for DEPARTMENT scope'})
+            target_filter = {'department_id': self.department_id}
+        else:
+            return  # Unknown scope, skip validation
+        
+        # Find overlapping assignments
+        overlapping = models.EmployeeShift.objects.filter(
+            scope=self.scope,
+            start_date__lte=self.end_date if self.end_date else date(9999, 12, 31),
+            **target_filter
+        ).filter(
+            Q(end_date__gte=self.start_date) | Q(end_date__isnull=True)
+        )
+        
+        # Exclude self during update
+        if self.pk:
+            overlapping = overlapping.exclude(pk=self.pk)
+        
+        if overlapping.exists():
+            existing = overlapping.first()
+            raise ValidationError(
+                f"Overlapping assignment detected: "
+                f"{existing.shift.name} from {existing.start_date} to {existing.end_date or 'unbounded'}"
+            )
 
     def __str__(self):
         target = self.employee.name if self.employee else (self.department.name if self.department else 'Sin asignar')

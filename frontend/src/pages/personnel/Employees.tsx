@@ -1,20 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, Download } from 'lucide-react';
-import { getEmployees, createEmployee, updateEmployee, deleteEmployee, getDepartments, type Employee } from '../../api';
+import { getEmployees, createEmployee, updateEmployee, deleteEmployee, getDepartments, getDevices, getNextUid, type Employee, type Device } from '../../api';
+import { EMPLOYEE_PAGE_SIZE } from '../../config/paging';
 import { sortDepartmentsTree, type DepartmentNode } from '../../utils/treeUtils';
 import * as XLSX from 'xlsx';
 import { DataGrid, type Column } from '../../components/ui/DataGrid';
 import { PageToolbar } from '../../components/ui/PageToolbar';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { useToast } from '../../hooks/useToast';
 
 export const Employees: React.FC = () => {
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [departments, setDepartments] = useState<DepartmentNode[]>([]);
+    const [devices, setDevices] = useState<Device[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedDepartment, setSelectedDepartment] = useState<number | null>(null);
+    const { error: showError } = useToast();
     // const fileInputRef = useRef<HTMLInputElement>(null);  // Removed: import functionality disabled
 
     // Confirm Dialog
@@ -24,11 +28,18 @@ export const Employees: React.FC = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [empData, deptData] = await Promise.all([getEmployees(0, 2000), getDepartments()]);
+            const [empData, deptData, devData] = await Promise.all([
+                getEmployees(0, EMPLOYEE_PAGE_SIZE),
+                getDepartments(),
+                getDevices()
+            ]);
             setEmployees(empData);
             setDepartments(sortDepartmentsTree(deptData));
+            // @ts-ignore - API might return {results: []} or []
+            const devList = Array.isArray(devData) ? devData : (devData.results || []);
+            setDevices(devList);
         } catch (error) {
-            console.error(error);
+            showError('No se pudieron cargar empleados y departamentos');
         } finally {
             setLoading(false);
         }
@@ -45,7 +56,11 @@ export const Employees: React.FC = () => {
             setIsModalOpen(false);
             fetchData();
         } catch (error: any) {
-            alert('Error saving employee: ' + (error.response?.data?.detail || error.message));
+            console.error(error);
+            const detail = error.response?.data?.detail
+                || JSON.stringify(error.response?.data)
+                || error.message;
+            alert('Error saving employee: ' + detail);
         }
     };
 
@@ -126,9 +141,9 @@ export const Employees: React.FC = () => {
     const filteredEmployees = employees.filter(e => {
         const matchesSearch = e.user_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (e.name && e.name.toLowerCase().includes(searchTerm.toLowerCase()));
-        
+
         const matchesDepartment = selectedDepartment === null || e.department_id === selectedDepartment;
-        
+
         return matchesSearch && matchesDepartment;
     });
 
@@ -137,7 +152,7 @@ export const Employees: React.FC = () => {
             field: 'user_id',
             header: 'ID Usuario',
             width: '100px',
-            render: (emp) => <span style={{ fontWeight: 500 }}>{emp.user_id}</span>
+            render: (emp) => <span className="font-medium">{emp.user_id}</span>
         },
         {
             field: 'name',
@@ -155,7 +170,7 @@ export const Employees: React.FC = () => {
             align: 'right',
             width: '80px',
             render: (emp) => (
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '5px' }}>
+                <div className="flex-row gap-2 flex-end">
                     <button
                         className="icon-btn"
                         onClick={(e) => { e.stopPropagation(); setEditingEmp(emp); setIsModalOpen(true); }}
@@ -176,7 +191,7 @@ export const Employees: React.FC = () => {
     ];
 
     return (
-        <div style={{ width: '100%' }}>
+        <div className="w-full">
             <PageToolbar
                 title="Empleados"
                 subtitle="Gestión de personal y accesos"
@@ -187,8 +202,7 @@ export const Employees: React.FC = () => {
                         <select
                             value={selectedDepartment ?? ''}
                             onChange={(e) => setSelectedDepartment(e.target.value ? parseInt(e.target.value) : null)}
-                            className="form-control"
-                            style={{ minWidth: '200px', height: '36px' }}
+                            className="form-control min-w-200 h-36"
                         >
                             <option value="">Todos los Departamentos</option>
                             {departments.map(d => (
@@ -221,6 +235,7 @@ export const Employees: React.FC = () => {
                 <EmployeeModal
                     employee={editingEmp}
                     departments={departments}
+                    devices={devices}
                     onClose={() => setIsModalOpen(false)}
                     onSave={handleSave}
                 />
@@ -241,17 +256,30 @@ export const Employees: React.FC = () => {
 const EmployeeModal: React.FC<{
     employee: Employee | null,
     departments: DepartmentNode[],
+    devices: Device[],
     onClose: () => void,
     onSave: (e: Employee) => void
-}> = ({ employee, departments, onClose, onSave }) => {
+}> = ({ employee, departments, devices, onClose, onSave }) => {
     const [activeTab, setActiveTab] = useState<'basic' | 'contact' | 'personal'>('basic');
 
-    // Datos Básicos
     const [userId, setUserId] = useState(employee?.user_id || '');
     const [name, setName] = useState(employee?.name || '');
     const [card, setCard] = useState(employee?.card || '');
     const [deptId, setDeptId] = useState<number | undefined>(employee?.department_id);
     const [privilege, setPrivilege] = useState(employee?.privilege || 0);
+    // Device Selection
+    const [deviceId, setDeviceId] = useState<number | undefined>(employee?.device);
+    const [uid, setUid] = useState<number | undefined>(employee?.uid);
+
+    // Auto-set UID if new employee
+    useEffect(() => {
+        if (!employee && deviceId) {
+            getNextUid(deviceId).then(data => {
+                setUid(data.next_uid);
+            }).catch(err => console.error("Error fetching next UID", err));
+        }
+    }, [deviceId, employee]);
+
 
     // Datos de Contacto
     const [email, setEmail] = useState(employee?.email || '');
@@ -267,8 +295,26 @@ const EmployeeModal: React.FC<{
     const [ssn, setSsn] = useState(employee?.ssn || '');
 
     const handleSaveClick = () => {
+        if (!deviceId) {
+            alert("Debe seleccionar una terminal.");
+            return;
+        }
+        if (!userId) {
+            alert("El ID de Usuario es obligatorio.");
+            return;
+        }
+        // UID 0 is valid? Yes. undefined/null is not.
+        if (uid === undefined || uid === null) {
+            alert("El UID es obligatorio (seleccione terminal para auto-asignar o ingrese valor).");
+            return;
+        }
+
         onSave({
             ...employee,
+            // Ensure mandatory fields for UserSerializer are present
+            device: deviceId,
+            uid: uid,
+
             user_id: userId,
             name,
             card,
@@ -288,50 +334,26 @@ const EmployeeModal: React.FC<{
 
     return (
         <div className="modal-desktop">
-            <div className="card modal-content-desktop" style={{ maxWidth: '700px' }}>
+            <div className="card modal-content-desktop max-w-700">
                 <h3>{employee ? 'Editar Empleado' : 'Nuevo Empleado'}</h3>
 
                 {/* Tabs */}
-                <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid var(--border)', marginBottom: '20px' }}>
+                <div className="modal-tabs">
                     <button
                         onClick={() => setActiveTab('basic')}
-                        style={{
-                            padding: '10px 20px',
-                            background: 'transparent',
-                            border: 'none',
-                            borderBottom: activeTab === 'basic' ? '2px solid var(--primary)' : '2px solid transparent',
-                            color: activeTab === 'basic' ? 'var(--primary)' : 'var(--text-secondary)',
-                            cursor: 'pointer',
-                            fontWeight: activeTab === 'basic' ? 600 : 400
-                        }}
+                        className={`modal-tab ${activeTab === 'basic' ? 'active' : ''}`}
                     >
                         Datos Básicos
                     </button>
                     <button
                         onClick={() => setActiveTab('contact')}
-                        style={{
-                            padding: '10px 20px',
-                            background: 'transparent',
-                            border: 'none',
-                            borderBottom: activeTab === 'contact' ? '2px solid var(--primary)' : '2px solid transparent',
-                            color: activeTab === 'contact' ? 'var(--primary)' : 'var(--text-secondary)',
-                            cursor: 'pointer',
-                            fontWeight: activeTab === 'contact' ? 600 : 400
-                        }}
+                        className={`modal-tab ${activeTab === 'contact' ? 'active' : ''}`}
                     >
                         Datos de Contacto
                     </button>
                     <button
                         onClick={() => setActiveTab('personal')}
-                        style={{
-                            padding: '10px 20px',
-                            background: 'transparent',
-                            border: 'none',
-                            borderBottom: activeTab === 'personal' ? '2px solid var(--primary)' : '2px solid transparent',
-                            color: activeTab === 'personal' ? 'var(--primary)' : 'var(--text-secondary)',
-                            cursor: 'pointer',
-                            fontWeight: activeTab === 'personal' ? 600 : 400
-                        }}
+                        className={`modal-tab ${activeTab === 'personal' ? 'active' : ''}`}
                     >
                         Datos Personales
                     </button>
@@ -341,17 +363,43 @@ const EmployeeModal: React.FC<{
                 {activeTab === 'basic' && (
                     <div className="modal-form-grid">
                         <div className="flex-col gap-2">
-                            <label className="text-muted" style={{ fontSize: '12px' }}>ID Usuario (Requerido)</label>
+                            <label className="form-label">Terminal ({devices.length}) <span className="text-red-500">*</span></label>
+                            <select
+                                value={deviceId || ''}
+                                onChange={e => setDeviceId(Number(e.target.value))}
+                                className="w-full p-2 border rounded form-control"
+                            >
+                                <option value="">-- Seleccionar Terminal --</option>
+                                {devices.map(d => (
+                                    <option key={d.id} value={d.id}>{d.name} ({d.ip})</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="flex-col gap-2">
+                            <label className="form-label">UID (Auto-asignado por Terminal)</label>
+                            <input
+                                type="number"
+                                value={uid || ''}
+                                readOnly
+                                disabled
+                                className="bg-gray-100 cursor-not-allowed"
+                                placeholder="Se asignará automáticamente al seleccionar terminal"
+                            />
+                        </div>
+
+                        <div className="flex-col gap-2">
+                            <label className="form-label">ID Usuario (Global)</label>
                             <input value={userId} onChange={e => setUserId(e.target.value)} disabled={!!employee} placeholder="Ej: 1001" />
                         </div>
 
                         <div className="flex-col gap-2">
-                            <label className="text-muted" style={{ fontSize: '12px' }}>Nombre</label>
+                            <label className="form-label">Nombre</label>
                             <input value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Juan Perez" />
                         </div>
 
                         <div className="flex-col gap-2">
-                            <label className="text-muted" style={{ fontSize: '12px' }}>Departamento</label>
+                            <label className="form-label">Departamento</label>
                             <select value={deptId || ''} onChange={e => setDeptId(e.target.value ? Number(e.target.value) : undefined)}>
                                 <option value="">-- Seleccionar --</option>
                                 {departments.map(d => (
@@ -363,12 +411,12 @@ const EmployeeModal: React.FC<{
                         </div>
 
                         <div className="flex-col gap-2">
-                            <label className="text-muted" style={{ fontSize: '12px' }}>Número Tarjeta</label>
+                            <label className="form-label">Número Tarjeta</label>
                             <input value={card} onChange={e => setCard(e.target.value)} placeholder="" />
                         </div>
 
                         <div className="flex-col gap-2">
-                            <label className="text-muted" style={{ fontSize: '12px' }}>Privilegio</label>
+                            <label className="form-label">Privilegio</label>
                             <select value={privilege} onChange={e => setPrivilege(Number(e.target.value))}>
                                 <option value={0}>Usuario Normal</option>
                                 <option value={14}>Administrador</option>
@@ -381,32 +429,32 @@ const EmployeeModal: React.FC<{
                 {activeTab === 'contact' && (
                     <div className="modal-form-grid">
                         <div className="flex-col gap-2">
-                            <label className="text-muted" style={{ fontSize: '12px' }}>Email</label>
+                            <label className="form-label">Email</label>
                             <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ejemplo@correo.com" />
                         </div>
 
                         <div className="flex-col gap-2">
-                            <label className="text-muted" style={{ fontSize: '12px' }}>Teléfono</label>
+                            <label className="form-label">Teléfono</label>
                             <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+507 123-4567" />
                         </div>
 
                         <div className="flex-col gap-2">
-                            <label className="text-muted" style={{ fontSize: '12px' }}>Teléfono Celular</label>
+                            <label className="form-label">Teléfono Celular</label>
                             <input value={mobilePhone} onChange={e => setMobilePhone(e.target.value)} placeholder="+507 6000-0000" />
                         </div>
 
-                        <div className="flex-col gap-2" style={{ gridColumn: '1 / -1' }}>
-                            <label className="text-muted" style={{ fontSize: '12px' }}>Dirección</label>
+                        <div className="flex-col gap-2 grid-col-span-full">
+                            <label className="form-label">Dirección</label>
                             <input value={address} onChange={e => setAddress(e.target.value)} placeholder="Calle, Avenida, etc." />
                         </div>
 
                         <div className="flex-col gap-2">
-                            <label className="text-muted" style={{ fontSize: '12px' }}>Ciudad</label>
+                            <label className="form-label">Ciudad</label>
                             <input value={city} onChange={e => setCity(e.target.value)} placeholder="Ciudad" />
                         </div>
 
                         <div className="flex-col gap-2">
-                            <label className="text-muted" style={{ fontSize: '12px' }}>País</label>
+                            <label className="form-label">País</label>
                             <input value={country} onChange={e => setCountry(e.target.value)} placeholder="País" />
                         </div>
                     </div>
@@ -416,17 +464,17 @@ const EmployeeModal: React.FC<{
                 {activeTab === 'personal' && (
                     <div className="modal-form-grid">
                         <div className="flex-col gap-2">
-                            <label className="text-muted" style={{ fontSize: '12px' }}>DNI / Documento</label>
+                            <label className="form-label">DNI / Documento</label>
                             <input value={ssn} onChange={e => setSsn(e.target.value)} placeholder="8-123-456" />
                         </div>
 
                         <div className="flex-col gap-2">
-                            <label className="text-muted" style={{ fontSize: '12px' }}>Fecha de Nacimiento</label>
+                            <label className="form-label">Fecha de Nacimiento</label>
                             <input type="date" value={birthday} onChange={e => setBirthday(e.target.value)} />
                         </div>
 
                         <div className="flex-col gap-2">
-                            <label className="text-muted" style={{ fontSize: '12px' }}>Género</label>
+                            <label className="form-label">Género</label>
                             <select value={gender} onChange={e => setGender(e.target.value)}>
                                 <option value="">-- Seleccionar --</option>
                                 <option value="M">Masculino</option>
@@ -436,7 +484,7 @@ const EmployeeModal: React.FC<{
                     </div>
                 )}
 
-                <div className="flex-row gap-2" style={{ marginTop: '20px', justifyContent: 'flex-end' }}>
+                <div className="flex-row gap-2 mt-5 flex-end">
                     <button onClick={onClose}>Cancelar</button>
                     <button className="primary" onClick={handleSaveClick}>Guardar</button>
                 </div>

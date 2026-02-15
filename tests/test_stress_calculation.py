@@ -53,7 +53,7 @@ def test_time_calculation_engine():
         
         elapsed = time.time() - start_time
         
-        print(f" ✅")
+        print(f" [OK]")
         print(f"Status: {response.status_code}")
         print(f"Time: {elapsed:.2f}s")
         
@@ -101,7 +101,7 @@ def test_time_calculation_engine():
             if response.status_code == 200:
                 data = response.json()
                 records = data.get('count', 0)
-                print(f" ✅ {records} records in {elapsed:.2f}s ({records/elapsed:.1f} rec/sec)")
+                print(f" [OK] {records} records in {elapsed:.2f}s ({records/elapsed:.1f} rec/sec)")
             else:
                 print(f" ❌ Status {response.status_code}")
                 
@@ -128,7 +128,7 @@ def test_time_calculation_engine():
             total_emp_time += elapsed
             
             if response.status_code == 200:
-                print(f" ✅ {elapsed:.2f}s")
+                print(f" [OK] {elapsed:.2f}s")
             else:
                 print(f" ❌ Status {response.status_code}")
                 

@@ -196,6 +196,26 @@ class AttendanceLogSerializer(serializers.ModelSerializer):
             return employee.name
         except Employee.DoesNotExist:
             return None
+    
+    def validate(self, data):
+        """
+        Validate that user_id exists in Employee table.
+        
+        HR System is source of truth for employee data.
+        Device sync and imports should only create attendance for valid employees.
+        """
+        user_id = data.get('user_id')
+        if user_id:
+            from core.models import Employee
+            if not Employee.objects.filter(user_id=user_id).exists():
+                raise serializers.ValidationError({
+                    'user_id': (
+                        f"Employee with user_id '{user_id}' does not exist in HR system. "
+                        f"HR system is the source of truth for employee master data. "
+                        f"Please sync device users to HR system first."
+                    )
+                })
+        return data
 
 
 class ImportBatchSerializer(serializers.ModelSerializer):
@@ -212,6 +232,36 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = '__all__'
+
+    def to_representation(self, instance):
+        """Merge HR Employee data into the response"""
+        data = super().to_representation(instance)
+        
+        if instance.user_id:
+            from .models import Employee
+            # Try to find linked HR employee
+            emp = Employee.objects.filter(user_id=instance.user_id).select_related('department', 'position').first()
+            if emp:
+                # Merge HR fields (frontend expects these at top level)
+                data['email'] = emp.email
+                data['phone'] = emp.phone
+                data['mobile_phone'] = emp.mobile_phone
+                data['address'] = emp.address
+                data['city'] = emp.city
+                data['country'] = emp.country
+                data['birthday'] = emp.birthday
+                data['gender'] = emp.gender
+                data['ssn'] = emp.ssn
+                data['photo_path'] = emp.photo_path
+                data['hire_date'] = emp.hire_date
+                
+                # Relations
+                data['department_id'] = emp.department_id
+                data['department_name'] = emp.department.name if emp.department else None
+                data['position'] = emp.position_id
+                data['position_name'] = emp.position.name if emp.position else None
+                
+        return data
 
 
 class BiometricTemplateSerializer(serializers.ModelSerializer):
@@ -337,6 +387,27 @@ class EmployeeShiftSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmployeeShift
         fields = '__all__'
+    
+    def validate(self, data):
+        """
+        Verify that assigned shift has at least one ShiftTimetable configured.
+        
+        Fail-fast validation to prevent assigning misconfigured shifts.
+        Without this check, employees assigned to shifts without timetables
+        would be silently treated as IMPLICIT_REST during schedule resolution.
+        """
+        # Get shift from data (create) or instance (update)
+        shift = data.get('shift') or (self.instance.shift if self.instance else None)
+        
+        if shift:
+            has_timetables = ShiftTimetable.objects.filter(shift=shift).exists()
+            if not has_timetables:
+                raise serializers.ValidationError(
+                    f"El turno '{shift.name}' no tiene ciclo configurado. "
+                    "Configure al menos un horario antes de asignarlo."
+                )
+        
+        return data
 
 
 class LeaveSerializer(serializers.ModelSerializer):
@@ -371,4 +442,96 @@ class DailyAttendanceSerializer(serializers.ModelSerializer):
         return get_attendance_status_info(obj.status)
 
 
-
+class DailyAttendanceV2Serializer(serializers.ModelSerializer):
+    """
+    CONTRATO FORMAL v2 - Dominio fuerte
+    
+    Estructura de respuesta EXACTA y GARANTIZADA:
+    {
+      "identity": { "id", "employee_id", "date" },
+      "status": { "code", "label", "color" },
+      "metrics": { "worked_minutes", "late_minutes", "early_minutes", "overtime_minutes" },
+      "schedule": { "check_in", "check_out" },
+      "employee": { "name", "user_id", "department_name" }
+    }
+    
+    REGLAS INVIOLABLES:
+    - Campos numéricos NUNCA null (garantizados)
+    - status.code siempre presente
+    - status.label siempre presente
+    - status.color siempre {light, dark} theme-aware
+    - employee.name siempre presente
+    - employee.user_id siempre presente
+    """
+    
+    identity = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+    metrics = serializers.SerializerMethodField()
+    schedule = serializers.SerializerMethodField()
+    employee = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = DailyAttendance
+        fields = ['identity', 'status', 'metrics', 'schedule', 'employee']
+    
+    def get_identity(self, obj):
+        """Identidad del registro"""
+        return {
+            'id': obj.id,
+            'employee_id': obj.employee_id,
+            'date': obj.date.isoformat()
+        }
+    
+    def get_status(self, obj):
+        """
+        Estado normalizado con código canónico.
+        Mapeo: "Normal" → "NORMAL", "Late" → "LATE", etc.
+        """
+        status_info = get_attendance_status_info(obj.status)
+        
+        # Mapeo de status textual a código canónico en UPPER_CASE con underscore
+        status_code_map = {
+            'Normal': 'NORMAL',
+            'Late': 'LATE',
+            'Absent': 'ABSENT',
+            'Early': 'EARLY',
+            'Partial': 'PARTIAL',
+            'Leave': 'LEAVE',
+            'Worked': 'WORKED',
+            'Incomplete': 'INCOMPLETE',
+            'Excessive': 'EXCESSIVE',
+            'HolidayWorked': 'HOLIDAY_WORKED',
+            'Rest Day': 'REST_DAY',
+        }
+        
+        canonical_code = status_code_map.get(obj.status, obj.status.upper().replace(" ", "_"))
+        
+        return {
+            'code': canonical_code,
+            'label': status_info.get('display', obj.status),
+            'color': status_info.get('color', '#666666')
+        }
+    
+    def get_metrics(self, obj):
+        """Métricas numéricas - GARANTIZADAS no-null"""
+        return {
+            'worked_minutes': obj.worked_minutes or 0,
+            'late_minutes': obj.late_minutes or 0,
+            'early_minutes': obj.early_minutes or 0,
+            'overtime_minutes': obj.overtime_minutes or 0
+        }
+    
+    def get_schedule(self, obj):
+        """Timestamps de entrada/salida"""
+        return {
+            'check_in': obj.check_in.isoformat() if obj.check_in else None,
+            'check_out': obj.check_out.isoformat() if obj.check_out else None
+        }
+    
+    def get_employee(self, obj):
+        """Información del empleado - GARANTIZADA completa"""
+        return {
+            'name': obj.employee.name if obj.employee else '',
+            'user_id': obj.employee.user_id if obj.employee else '',
+            'department_name': obj.employee.department.name if obj.employee and obj.employee.department else None
+        }

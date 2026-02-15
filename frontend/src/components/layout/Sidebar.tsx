@@ -1,9 +1,11 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 
 interface MenuItem {
     label: string;
     path: string;
+    allowedGroups?: string[];
 }
 
 const MENU_STRUCTURE: { [key: string]: { title: string, items: MenuItem[] } } = {
@@ -11,56 +13,59 @@ const MENU_STRUCTURE: { [key: string]: { title: string, items: MenuItem[] } } = 
         title: 'Principal',
         items: []
     },
-    'employees': {
-        title: 'Visualización',
-        items: [
-            { label: 'Empleados', path: '/employees' },
-        ]
-    },
     'personnel': {
         title: 'Organización',
         items: [
-            { label: 'Departamentos', path: '/personnel/departments' },
-            { label: 'Horarios', path: '/personnel/timetables' },
-            { label: 'Turnos', path: '/personnel/shifts' },
-            { label: 'Empleados', path: '/personnel/employees' },
-            { label: 'Asignación Individual', path: '/attendance/schedule' },
+            { label: 'Empresas', path: '/personnel/company', allowedGroups: ['admin_system', 'hr_manager'] },
+            { label: 'Departamentos', path: '/personnel/departments', allowedGroups: ['admin_system', 'hr_manager'] },
+            { label: 'Horarios', path: '/personnel/timetables', allowedGroups: ['admin_system', 'hr_manager'] },
+            { label: 'Turnos', path: '/personnel/shifts', allowedGroups: ['admin_system', 'hr_manager'] },
+            { label: 'Empleados', path: '/personnel/employees', allowedGroups: ['admin_system', 'hr_manager'] },
+            { label: 'Asignación Individual', path: '/attendance/schedule', allowedGroups: ['admin_system', 'hr_manager'] },
         ]
     },
     'attendance': {
         title: 'Asistencia',
         items: [
-            { label: 'Marcaciones', path: '/attendance/logs' },
-            { label: 'Reporte Diario', path: '/attendance/reports' },
-            { label: 'Ausencias', path: '/attendance/absences' },
+            { label: 'Marcaciones', path: '/attendance/logs', allowedGroups: ['admin_system', 'hr_manager', 'attendance_admin', 'viewer'] },
+            { label: 'Reporte Diario', path: '/attendance/reports', allowedGroups: ['admin_system', 'hr_manager', 'attendance_admin', 'viewer'] },
+            { label: 'Ausencias', path: '/attendance/absences', allowedGroups: ['admin_system', 'hr_manager', 'attendance_admin', 'viewer'] },
         ]
     },
     'system': {
         title: 'Configuración',
         items: [
-            { label: 'Ajustes', path: '/system/settings' },
-            { label: 'Terminales', path: '/devices' },
+            { label: 'Ajustes', path: '/system/settings', allowedGroups: ['admin_system'] },
         ]
     }
 };
 
 export const Sidebar: React.FC = () => {
     const location = useLocation();
+    const { groups, isSuperuser } = useAuth();
+
+    const hasGroup = (allowed?: string[]) => {
+        if (!allowed || allowed.length === 0) return true;
+        if (isSuperuser) return true;
+        return allowed.some((group) => groups.includes(group));
+    };
 
     // Determine active module from path
     const pathSegments = location.pathname.split('/').filter(Boolean);
     let activeModule = pathSegments[0] || 'dashboard';
 
     // Map legacy/other paths to main sections
-    if (activeModule === 'employees') activeModule = 'employees';
     if (activeModule === 'devices') activeModule = 'system';
-    if (activeModule === 'access') activeModule = 'system';
     if (activeModule === 'attendance' && pathSegments[1] === 'schedule') activeModule = 'personnel';
 
     const menu = MENU_STRUCTURE[activeModule];
 
     // Don't show sidebar for dashboard
     if (activeModule === 'dashboard' || !menu) return null;
+
+    const visibleItems = menu.items.filter((item) => hasGroup(item.allowedGroups));
+
+    if (visibleItems.length === 0) return null;
 
     return (
         <aside style={{
@@ -82,7 +87,7 @@ export const Sidebar: React.FC = () => {
             </div>
 
             <nav style={{ display: 'flex', flexDirection: 'column' }}>
-                {menu.items.map((item) => (
+                {visibleItems.map((item) => (
                     <NavLink
                         key={item.path}
                         to={item.path}

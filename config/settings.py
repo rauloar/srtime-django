@@ -1,5 +1,6 @@
 """
 Django settings for SRTimeWeb project.
+# Force reload for static files update v2
 """
 
 import os
@@ -17,7 +18,11 @@ load_dotenv(BASE_DIR / '.env')
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-me')
 DEBUG = True
 CUSTOM_PORT = os.getenv('DJANGO_PORT', '9000')
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [
+    '127.0.0.1',
+    'localhost',
+    '192.168.1.34',
+]
 
 # Application definition
 INSTALLED_APPS = [
@@ -119,29 +124,23 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ============================================================================
 
 # CORS Configuration
-# [DEV] Allow all origins for development convenience
-CORS_ALLOW_ALL_ORIGINS = True  # [PROD] Set to False and use CORS_ALLOWED_ORIGINS list
-# [PROD] Uncomment and configure:
-# CORS_ALLOWED_ORIGINS = [
-#     'https://yourdomain.com',
-#     'https://www.yourdomain.com',
-# ]
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGINS = [
+    'http://192.168.1.34:9000',
+]
 CORS_ALLOW_CREDENTIALS = True  # Required for CSRF token cookies
 
 # CSRF Configuration
 # [DEV] Trust local development servers
 CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:3000', 
-    'http://127.0.0.1:3000', 
-    'http://localhost:9000', 
-    'http://127.0.0.1:9000'
+    'http://192.168.1.34:9000',
 ]
 # [PROD] Replace with production domains:
 # CSRF_TRUSTED_ORIGINS = ['https://yourdomain.com', 'https://www.yourdomain.com']
 
-# [DEV] Allow JavaScript to read CSRF token (required for React/SPA)
-CSRF_COOKIE_HTTPONLY = False  
-# [PROD] Consider keeping False if using SPA, or implement alternative CSRF strategy
+# [DEV] Cookie settings for LAN access
+CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_HTTPONLY = True
 
 # [DEV] Lax allows cookies in some cross-site requests
 CSRF_COOKIE_SAMESITE = 'Lax'  
@@ -150,6 +149,10 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 # [DEV] Secure flag disabled for local HTTP development
 CSRF_COOKIE_SECURE = False  
 # [PROD] MUST set to True when using HTTPS in production
+
+# [DEV] Basic hardening for LAN
+SECURE_BROWSER_XSS_FILTER = True
+X_FRAME_OPTIONS = 'DENY'
 
 # Additional Production Security Settings to Enable:
 # [PROD] Uncomment these for production:
@@ -169,7 +172,7 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.AllowAny',
+        'rest_framework.permissions.IsAuthenticated',
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,

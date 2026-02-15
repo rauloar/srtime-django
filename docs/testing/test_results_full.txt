@@ -1,0 +1,661 @@
+Traceback (most recent call last):
+  File "C:\Proyectos\srtime-django\tests\test_import.py", line 10, in <module>
+    from backend import models
+ModuleNotFoundError: No module named 'backend'
+Creating test database for alias 'default' ('test_srtimeweb')...
+
+Got an error creating the test database: la base de datos ½test_srtimeweb╗ ya existe
+
+
+Destroying old test database for alias 'default' ('test_srtimeweb')...
+
+Importing models...
+FAILED to import: No module named 'backend'
+Found 153 test(s).
+Operations to perform:
+  Synchronize unmigrated apps: corsheaders, django_filters, messages, rest_framework, rest_framework_simplejwt, staticfiles
+  Apply all migrations: admin, auth, contenttypes, core, sessions
+Synchronizing apps without migrations:
+  Creating tables...
+    Running deferred SQL...
+Running migrations:
+  Applying contenttypes.0001_initial... OK
+  Applying auth.0001_initial... OK
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying contenttypes.0002_remove_content_type_name... OK
+  Applying auth.0002_alter_permission_name_max_length... OK
+  Applying auth.0003_alter_user_email_max_length... OK
+  Applying auth.0004_alter_user_username_opts... OK
+  Applying auth.0005_alter_user_last_login_null... OK
+  Applying auth.0006_require_contenttypes_0002... OK
+  Applying auth.0007_alter_validators_add_error_messages... OK
+  Applying auth.0008_alter_user_username_max_length... OK
+  Applying auth.0009_alter_user_last_name_max_length... OK
+  Applying auth.0010_alter_group_name_max_length... OK
+  Applying auth.0011_update_proxy_permissions... OK
+  Applying auth.0012_alter_user_first_name_max_length... OK
+  Applying core.0001_initial... OK
+  Applying core.0099_forensic_triggers... OK
+  Applying core.0002_delete_authuser... OK
+  Applying core.0003_biometrictemplate_uix_bio_template... OK
+  Applying core.0100_merge_20260202_1337... OK
+  Applying core.0101_remove_dailyattendance_uix_daily_att_and_more... OK
+  Applying core.0102_attendancelog_edited_at_attendancelog_edited_by_and_more... OK
+  Applying core.0103_shift_cycle_days... OK
+  Applying core.0104_add_overtime_threshold_to_timetable... OK
+  Applying core.0105_timetable_time_fields... OK
+  Applying core.0106_create_shadow_calculation_table... OK
+  Applying core.0107_allow_null_timetable_times... OK
+tests.test_override (unittest.loader._FailedTest.tests.test_override) ... ERROR
+tests.test_recalculation (unittest.loader._FailedTest.tests.test_recalculation) ... ERROR
+tests.test_unscheduled_work (unittest.loader._FailedTest.tests.test_unscheduled_work) ... ERROR
+tests.test_updated_schema (unittest.loader._FailedTest.tests.test_updated_schema) ... ERROR
+test_admin_cannot_add (tests.forensic.test_forced_service_path.TestForcedServicePath.test_admin_cannot_add)
+Django admin should not allow add on forensic models. ... INFO 2026-02-11 14:14:34 - ADMIN_ACCESS: admin attempted add on <MagicMock name='mock._meta.model_name' id='2859603299360'>
+ok
+test_admin_cannot_change (tests.forensic.test_forced_service_path.TestForcedServicePath.test_admin_cannot_change)
+Django admin should not allow change on forensic models. ... INFO 2026-02-11 14:14:34 - ADMIN_ACCESS: admin attempted change on <MagicMock name='mock._meta.model_name' id='2859603296672'> (id=list)
+ok
+test_admin_cannot_delete (tests.forensic.test_forced_service_path.TestForcedServicePath.test_admin_cannot_delete)
+Django admin should not allow delete on forensic models. ... WARNING 2026-02-11 14:14:34 - ADMIN_DELETE_ATTEMPT: admin attempted delete on <MagicMock name='mock._meta.model_name' id='2859603300704'> (id=list)
+ok
+test_closure_creates_hash_chain (tests.forensic.test_forced_service_path.TestForcedServicePath.test_closure_creates_hash_chain)
+Closing case should create integrity hash node. ... ok
+test_decision_creates_hash_chain (tests.forensic.test_forced_service_path.TestForcedServicePath.test_decision_creates_hash_chain)
+Submitting decision should create integrity hash node. ... ok
+test_direct_review_save_blocked (tests.forensic.test_forced_service_path.TestForcedServicePath.test_direct_review_save_blocked)
+Direct save on review model should be blocked. ... ok
+test_duplicate_idempotency_key_returns_cached (tests.forensic.test_forced_service_path.TestForcedServicePath.test_duplicate_idempotency_key_returns_cached)
+Duplicate idempotency key should return cached response. ... ok
+test_export_creates_hash_chain (tests.forensic.test_forced_service_path.TestForcedServicePath.test_export_creates_hash_chain)
+Exporting PDF should create integrity hash node. ... ok
+test_missing_idempotency_key_rejected (tests.forensic.test_forced_service_path.TestForcedServicePath.test_missing_idempotency_key_rejected)
+Requests without idempotency key should be rejected. ... WARNING 2026-02-11 14:14:34 - Missing idempotency key: POST /api/forensic/shadow/review/decision from 127.0.0.1
+ok
+test_modify_closed_case_blocked (tests.forensic.test_forced_service_path.TestForcedServicePath.test_modify_closed_case_blocked)
+Modifying a CLOSED case should be blocked. ... ok
+test_service_path_allowed (tests.forensic.test_forced_service_path.TestForcedServicePath.test_service_path_allowed)
+Operations through ForensicReviewService should work. ... ok
+test_version_mismatch_rejected (tests.forensic.test_forced_service_path.TestForcedServicePath.test_version_mismatch_rejected)
+Operations with wrong version should be rejected. ... ok
+test_context_clears_after_operation (tests.forensic.test_forced_service_path.TestForensicContextFlow.test_context_clears_after_operation)
+Context should be cleared after operation completes. ... ok
+test_context_clears_on_exception (tests.forensic.test_forced_service_path.TestForensicContextFlow.test_context_clears_on_exception)
+Context should be cleared even if exception occurs. ... ok
+test_context_propagates_to_guard (tests.forensic.test_forced_service_path.TestForensicContextFlow.test_context_propagates_to_guard)
+Forensic context should propagate to transaction guard. ... ok
+test_export_service_uses_tsa (tests.forensic.test_forced_service_path.TestForensicServiceIntegration.test_export_service_uses_tsa)
+ForensicExportService should use TSAService. ... ok
+test_review_service_uses_guard (tests.forensic.test_forced_service_path.TestForensicServiceIntegration.test_review_service_uses_guard)
+ForensicReviewService should use ForensicTransactionGuard. ... ok
+test_logs_error_for_5xx (tests.forensic.test_forensic_middleware.TestForensicAuditMiddleware.test_logs_error_for_5xx)
+Should log error level for 5xx responses. ... ok
+test_logs_forensic_requests (tests.forensic.test_forensic_middleware.TestForensicAuditMiddleware.test_logs_forensic_requests)
+Should log requests to forensic endpoints. ... ok
+test_logs_warning_for_4xx (tests.forensic.test_forensic_middleware.TestForensicAuditMiddleware.test_logs_warning_for_4xx)
+Should log warning level for 4xx responses. ... ok
+test_passes_through_non_forensic (tests.forensic.test_forensic_middleware.TestForensicAuditMiddleware.test_passes_through_non_forensic)
+Should pass through non-forensic requests without logging. ... ok
+test_adds_correlation_header_to_response (tests.forensic.test_forensic_middleware.TestForensicRequestMiddleware.test_adds_correlation_header_to_response)
+Middleware should add X-Correlation-ID to response. ... ok
+test_attaches_forensic_meta (tests.forensic.test_forensic_middleware.TestForensicRequestMiddleware.test_attaches_forensic_meta)
+Middleware should attach forensic_meta to request. ... INFO 2026-02-11 14:14:34 - Forensic request: GET /api/forensic/test correlation_id=c88f0670-e6b9-4b98-9950-0412e1ab4093 idempotency_key=None actor=None
+ok
+test_extracts_correlation_id (tests.forensic.test_forensic_middleware.TestForensicRequestMiddleware.test_extracts_correlation_id)
+Middleware should extract X-Correlation-ID header. ... INFO 2026-02-11 14:14:34 - Forensic request: GET /api/forensic/test correlation_id=corr-456 idempotency_key=None actor=None
+ok
+test_extracts_idempotency_key (tests.forensic.test_forensic_middleware.TestForensicRequestMiddleware.test_extracts_idempotency_key)
+Middleware should extract X-Idempotency-Key header. ... INFO 2026-02-11 14:14:34 - Forensic request: GET /api/forensic/test correlation_id=d44eb294-017b-49cc-867c-f6e71e4e10bb idempotency_key=test-key-123 actor=None
+ok
+test_generates_correlation_id_if_missing (tests.forensic.test_forensic_middleware.TestForensicRequestMiddleware.test_generates_correlation_id_if_missing)
+Middleware should generate correlation ID if not provided. ... INFO 2026-02-11 14:14:34 - Forensic request: GET /api/forensic/test correlation_id=af62816d-0417-48e0-8e8a-c0fd533eb5b3 idempotency_key=None actor=None
+ok
+test_allows_get_without_key (tests.forensic.test_forensic_middleware.TestIdempotencyKeyRequiredMiddleware.test_allows_get_without_key)
+Should allow GET requests without idempotency key. ... ok
+test_allows_non_forensic_without_key (tests.forensic.test_forensic_middleware.TestIdempotencyKeyRequiredMiddleware.test_allows_non_forensic_without_key)
+Should allow non-forensic endpoints without key. ... ok
+test_allows_with_key (tests.forensic.test_forensic_middleware.TestIdempotencyKeyRequiredMiddleware.test_allows_with_key)
+Should allow request with idempotency key. ... ok
+test_close_endpoint_requires_key (tests.forensic.test_forensic_middleware.TestIdempotencyKeyRequiredMiddleware.test_close_endpoint_requires_key)
+Close endpoint should require idempotency key. ... WARNING 2026-02-11 14:14:34 - Missing idempotency key: POST /api/forensic/shadow/review/close from 127.0.0.1
+ok
+test_decision_endpoint_requires_key (tests.forensic.test_forensic_middleware.TestIdempotencyKeyRequiredMiddleware.test_decision_endpoint_requires_key)
+Decision endpoint should require idempotency key. ... WARNING 2026-02-11 14:14:34 - Missing idempotency key: POST /api/forensic/shadow/review/decision from 127.0.0.1
+ok
+test_requires_key_for_forensic_write (tests.forensic.test_forensic_middleware.TestIdempotencyKeyRequiredMiddleware.test_requires_key_for_forensic_write)
+Should return 400 for forensic write without idempotency key. ... WARNING 2026-02-11 14:14:34 - Missing idempotency key: POST /api/forensic/shadow/review/start from 127.0.0.1
+ok
+test_context_active_within_operation (tests.forensic.test_model_protection.TestForensicContext.test_context_active_within_operation)
+Context should be active within forensic_operation block. ... ok
+test_context_has_operation_id (tests.forensic.test_model_protection.TestForensicContext.test_context_has_operation_id)
+Context should auto-generate operation_id if not provided. ... ok
+test_context_inactive_after_operation (tests.forensic.test_model_protection.TestForensicContext.test_context_inactive_after_operation)
+Context should be None after exiting forensic_operation block. ... ok
+test_context_records_saves (tests.forensic.test_model_protection.TestForensicContext.test_context_records_saves)
+Context should track model saves. ... ok
+test_context_uses_provided_operation_id (tests.forensic.test_model_protection.TestForensicContext.test_context_uses_provided_operation_id)
+Context should use provided operation_id. ... ok
+test_nested_contexts_allowed (tests.forensic.test_model_protection.TestForensicContext.test_nested_contexts_allowed)
+Nested forensic operations should return outer context. ... ok
+test_no_context_by_default (tests.forensic.test_model_protection.TestForensicContext.test_no_context_by_default)
+Context should be None when not in forensic operation. ... ok
+test_complete_flow_with_context (tests.forensic.test_model_protection.TestForensicIntegration.test_complete_flow_with_context)
+Complete flow: context \u2192 save \u2192 record tracking. ... ERROR
+test_context_cleans_up_on_exception (tests.forensic.test_model_protection.TestForensicIntegration.test_context_cleans_up_on_exception)
+Context should be cleared even if exception occurs. ... ok
+test_exception_raised_for_unauthorized_update (tests.forensic.test_model_protection.TestForensicIntegration.test_exception_raised_for_unauthorized_update)
+Unauthorized update should raise and log. ... ERROR
+test_closed_record_blocked (tests.forensic.test_model_protection.TestImmutableStatus.test_closed_record_blocked)
+Updating record with CLOSED status should be blocked. ... FAIL
+test_pending_record_allowed (tests.forensic.test_model_protection.TestImmutableStatus.test_pending_record_allowed)
+Updating record with PENDING status should be allowed. ... ok
+test_delete_always_blocked (tests.forensic.test_model_protection.TestModelProtection.test_delete_always_blocked)
+Deleting protected model should always raise error. ... ERROR
+test_new_record_allowed_without_context (tests.forensic.test_model_protection.TestModelProtection.test_new_record_allowed_without_context)
+Creating new record should be allowed (FORENSIC_ALLOW_INITIAL_CREATE=True). ... ERROR
+test_save_allowed_with_context (tests.forensic.test_model_protection.TestModelProtection.test_save_allowed_with_context)
+Saving protected model with context should succeed. ... ERROR
+test_save_blocked_without_context (tests.forensic.test_model_protection.TestModelProtection.test_save_blocked_without_context)
+Saving protected model without context should raise error. ... ERROR
+test_unprotected_model_allowed (tests.forensic.test_model_protection.TestModelProtection.test_unprotected_model_allowed)
+Model with FORENSIC_PROTECTED=False should allow all operations. ... ERROR
+test_violation_logged (tests.forensic.test_model_protection.TestViolationLogging.test_violation_logged)
+Violations should be logged to database. ... ERROR
+test_absent_no_logs_calculation_v1 (tests.test_engines_consistency.TestEngineCalculationConsistency.test_absent_no_logs_calculation_v1)
+Test V1 marks absent when no logs exist. ... ok
+test_early_departure_calculation_v1 (tests.test_engines_consistency.TestEngineCalculationConsistency.test_early_departure_calculation_v1)
+Test V1 calculates early departure correctly. ... C:\Proyectos\srtime-django\.venv\Lib\site-packages\django\db\models\fields\__init__.py:1670: RuntimeWarning: DateTimeField AttendanceLog.timestamp received a naive datetime (2026-02-09 09:00:00) while time zone support is active.
+  warnings.warn(
+C:\Proyectos\srtime-django\.venv\Lib\site-packages\django\db\models\fields\__init__.py:1670: RuntimeWarning: DateTimeField AttendanceLog.timestamp received a naive datetime (2026-02-09 16:40:00) while time zone support is active.
+  warnings.warn(
+ok
+test_late_arrival_calculation_v1 (tests.test_engines_consistency.TestEngineCalculationConsistency.test_late_arrival_calculation_v1)
+Test V1 calculates late arrival correctly. ... C:\Proyectos\srtime-django\.venv\Lib\site-packages\django\db\models\fields\__init__.py:1670: RuntimeWarning: DateTimeField AttendanceLog.timestamp received a naive datetime (2026-02-09 09:20:00) while time zone support is active.
+  warnings.warn(
+C:\Proyectos\srtime-django\.venv\Lib\site-packages\django\db\models\fields\__init__.py:1670: RuntimeWarning: DateTimeField AttendanceLog.timestamp received a naive datetime (2026-02-09 17:00:00) while time zone support is active.
+  warnings.warn(
+ok
+test_normal_day_calculation_v1 (tests.test_engines_consistency.TestEngineCalculationConsistency.test_normal_day_calculation_v1)
+Test V1 calculates normal day correctly. ... ok
+test_overtime_calculation_v1 (tests.test_engines_consistency.TestEngineCalculationConsistency.test_overtime_calculation_v1)
+Test V1 calculates overtime correctly. ... C:\Proyectos\srtime-django\.venv\Lib\site-packages\django\db\models\fields\__init__.py:1670: RuntimeWarning: DateTimeField AttendanceLog.timestamp received a naive datetime (2026-02-09 19:00:00) while time zone support is active.
+  warnings.warn(
+ok
+test_multiple_logs_same_type_both_engines (tests.test_engines_consistency.TestEngineEdgeCases.test_multiple_logs_same_type_both_engines)
+Test both engines handle multiple check-ins/check-outs consistently. ... C:\Proyectos\srtime-django\.venv\Lib\site-packages\django\db\models\fields\__init__.py:1670: RuntimeWarning: DateTimeField AttendanceLog.timestamp received a naive datetime (2026-02-09 12:00:00) while time zone support is active.
+  warnings.warn(
+ok
+test_no_shift_assigned_both_engines (tests.test_engines_consistency.TestEngineEdgeCases.test_no_shift_assigned_both_engines)
+Test both engines handle 'no shift assigned' consistently. ... WARNING 2026-02-11 14:14:35 - No schedule found for employee 7 on 2026-02-09 - implicit rest day
+WARNING 2026-02-11 14:14:35 - No schedule found for employee 7 on 2026-02-09 - implicit rest day
+ok
+test_shift_with_no_timetables_both_engines (tests.test_engines_consistency.TestEngineEdgeCases.test_shift_with_no_timetables_both_engines)
+Test both engines handle 'shift without timetables' consistently. ... WARNING 2026-02-11 14:14:35 - Shift 9 (Empty Shift) has no ShiftTimetable configured
+WARNING 2026-02-11 14:14:35 - Employee has shift assigned but timetable resolution failed: ScheduleResolutionError.SHIFT_NO_TIMETABLES
+WARNING 2026-02-11 14:14:35 - Shift 9 (Empty Shift) has no ShiftTimetable configured
+WARNING 2026-02-11 14:14:35 - Employee has shift assigned but timetable resolution failed: ScheduleResolutionError.SHIFT_NO_TIMETABLES
+ok
+test_overnight_shift_calculation_v1 (tests.test_engines_consistency.TestEngineOvernightShiftConsistency.test_overnight_shift_calculation_v1)
+Test V1 calculates overnight shift correctly. ... C:\Proyectos\srtime-django\.venv\Lib\site-packages\django\db\models\fields\__init__.py:1670: RuntimeWarning: DateTimeField AttendanceLog.timestamp received a naive datetime (2026-02-09 22:00:00) while time zone support is active.
+  warnings.warn(
+C:\Proyectos\srtime-django\.venv\Lib\site-packages\django\db\models\fields\__init__.py:1670: RuntimeWarning: DateTimeField AttendanceLog.timestamp received a naive datetime (2026-02-10 06:00:00) while time zone support is active.
+  warnings.warn(
+ok
+test_overnight_shift_schedule_resolution (tests.test_engines_consistency.TestEngineOvernightShiftConsistency.test_overnight_shift_schedule_resolution)
+Test unified resolver handles overnight shifts correctly. ... ok
+test_both_engines_use_unified_resolver (tests.test_engines_consistency.TestEngineScheduleConsistency.test_both_engines_use_unified_resolver)
+Verify both engines import and use unified resolver. ... ok
+test_schedule_resolution_consistency_department_scope (tests.test_engines_consistency.TestEngineScheduleConsistency.test_schedule_resolution_consistency_department_scope)
+Test that both engines resolve department-level shift consistently. ... ok
+test_schedule_resolution_consistency_employee_scope (tests.test_engines_consistency.TestEngineScheduleConsistency.test_schedule_resolution_consistency_employee_scope)
+Test that both engines resolve employee-level shift consistently. ... ok
+test_schedule_resolution_consistency_override (tests.test_engines_consistency.TestEngineScheduleConsistency.test_schedule_resolution_consistency_override)
+Test that both engines prioritize schedule override consistently. ... ok
+test_monday_schedule_resolution (tests.test_engines_consistency.TestEngineWeeklyCycleConsistency.test_monday_schedule_resolution)
+Test both engines resolve Monday schedule correctly. ... ok
+test_tuesday_no_timetable (tests.test_engines_consistency.TestEngineWeeklyCycleConsistency.test_tuesday_no_timetable)
+Test both engines handle Tuesday (no timetable) consistently. ... WARNING 2026-02-11 14:14:35 - No ShiftTimetable for shift 17 on day_index 1 (target_date: 2026-02-10) - shift has timetables but not for this day
+WARNING 2026-02-11 14:14:35 - Employee has shift assigned but timetable resolution failed: ScheduleResolutionError.SHIFT_TIMETABLE_MISSING_DAY
+ok
+test_wednesday_schedule_resolution (tests.test_engines_consistency.TestEngineWeeklyCycleConsistency.test_wednesday_schedule_resolution)
+Test both engines resolve Wednesday schedule correctly. ... ok
+test_resolution_handles_date_ranges (tests.test_schedule_resolver.TestScheduleResolverConsistency.test_resolution_handles_date_ranges)
+Test that resolver handles date ranges correctly. ... WARNING 2026-02-11 14:14:35 - No schedule found for employee 18 on 2026-01-31 - implicit rest day
+WARNING 2026-02-11 14:14:35 - No schedule found for employee 18 on 2026-02-16 - implicit rest day
+ok
+test_resolution_idempotent (tests.test_schedule_resolver.TestScheduleResolverConsistency.test_resolution_idempotent)
+Test that calling resolver multiple times gives same result. ... ok
+test_resolve_no_assignment (tests.test_schedule_resolver.TestScheduleResolverUnified.test_resolve_no_assignment)
+Test resolution when employee has no shift assignment. ... WARNING 2026-02-11 14:14:35 - No schedule found for employee 20 on 2026-02-09 - implicit rest day
+ok
+test_resolve_overnight_shift (tests.test_schedule_resolver.TestScheduleResolverUnified.test_resolve_overnight_shift)
+Test resolution handles overnight shifts correctly. ... ok
+test_resolve_shift_no_timetables (tests.test_schedule_resolver.TestScheduleResolverUnified.test_resolve_shift_no_timetables)
+Test resolution when shift has no ShiftTimetables configured. ... WARNING 2026-02-11 14:14:35 - Shift 25 (Empty Shift) has no ShiftTimetable configured
+WARNING 2026-02-11 14:14:35 - Employee has shift assigned but timetable resolution failed: ScheduleResolutionError.SHIFT_NO_TIMETABLES
+ok
+test_resolve_shift_timetable_missing_day (tests.test_schedule_resolver.TestScheduleResolverUnified.test_resolve_shift_timetable_missing_day)
+Test resolution when shift has no timetable for this day of week. ... WARNING 2026-02-11 14:14:35 - No ShiftTimetable for shift 26 on day_index 1 (target_date: 2026-02-10) - shift has timetables but not for this day
+WARNING 2026-02-11 14:14:35 - Employee has shift assigned but timetable resolution failed: ScheduleResolutionError.SHIFT_TIMETABLE_MISSING_DAY
+ok
+test_resolve_with_department_shift (tests.test_schedule_resolver.TestScheduleResolverUnified.test_resolve_with_department_shift)
+Test resolution with department-level shift assignment (fallback). ... ok
+test_resolve_with_employee_shift (tests.test_schedule_resolver.TestScheduleResolverUnified.test_resolve_with_employee_shift)
+Test resolution with employee-level shift assignment. ... ok
+test_resolve_with_override (tests.test_schedule_resolver.TestScheduleResolverUnified.test_resolve_with_override)
+Test that ScheduleOverride has highest priority. ... ok
+test_shadow_comparison_endpoint_requires_params (tests.test_shadow_mode.TestShadowModeAPI.test_shadow_comparison_endpoint_requires_params)
+Test that endpoint handles both missing and valid parameters. ... INFO 2026-02-11 14:14:35 - \u2192 GET /api/daily-attendance/shadow_comparison/ | IP: 127.0.0.1 | User: Anonymous
+INFO 2026-02-11 14:14:35 - \u2190 GET /api/daily-attendance/shadow_comparison/ | Status: 200 | Duration: 21.23ms
+ok
+test_comparison_results_different_status (tests.test_shadow_mode.TestShadowModeService.test_comparison_results_different_status)
+Test comparison when status differs. ... ok
+test_comparison_results_matching (tests.test_shadow_mode.TestShadowModeService.test_comparison_results_matching)
+Test comparison when V1 and V2 results match. ... ok
+test_comparison_results_worked_minutes_outside_tolerance (tests.test_shadow_mode.TestShadowModeService.test_comparison_results_worked_minutes_outside_tolerance)
+Test that worked minutes outside tolerance are flagged as difference. ... ok
+test_comparison_results_worked_minutes_within_tolerance (tests.test_shadow_mode.TestShadowModeService.test_comparison_results_worked_minutes_within_tolerance)
+Test that worked minutes within tolerance are considered matching. ... ok
+test_extract_v1_results_no_attendance (tests.test_shadow_mode.TestShadowModeService.test_extract_v1_results_no_attendance)
+Test extracting V1 results when no DailyAttendance exists. ... ok
+test_extract_v1_results_with_attendance (tests.test_shadow_mode.TestShadowModeService.test_extract_v1_results_with_attendance)
+Test extracting V1 results from DailyAttendance. ... ok
+test_shadow_service_initialization (tests.test_shadow_mode.TestShadowModeService.test_shadow_service_initialization)
+Test that shadow service initializes correctly. ... ok
+test_force_requires_reason (tests.api.test_forensic_api.TestCalculateAttendanceInputValidation.test_force_requires_reason)
+Force=true requires reason. ... ok
+test_force_with_reason_valid (tests.api.test_forensic_api.TestCalculateAttendanceInputValidation.test_force_with_reason_valid)
+Force=true with reason is valid. ... ok
+test_future_date_invalid (tests.api.test_forensic_api.TestCalculateAttendanceInputValidation.test_future_date_invalid)
+Future date is invalid. ... ok
+test_valid_input (tests.api.test_forensic_api.TestCalculateAttendanceInputValidation.test_valid_input)
+Valid input passes validation. ... ok
+test_error_format (tests.api.test_forensic_api.TestErrorResponses.test_error_format)
+Error responses have correct format. ... ok
+test_transition_error_includes_states (tests.api.test_forensic_api.TestErrorResponses.test_transition_error_includes_states)
+Transition errors include from/to states. ... ok
+test_calculate_no_change_is_safe (tests.api.test_forensic_api.TestIdempotency.test_calculate_no_change_is_safe)
+Calculating same day twice returns NO_CHANGE. ... ok
+test_start_review_twice_fails (tests.api.test_forensic_api.TestIdempotency.test_start_review_twice_fails)
+Starting review twice is an invalid transition. ... ok
+test_attendance_admin_group_allowed (tests.api.test_forensic_api.TestIsAttendanceAdminPermission.test_attendance_admin_group_allowed)
+User in attendance_admin group is allowed. ... ok
+test_no_group_denied (tests.api.test_forensic_api.TestIsAttendanceAdminPermission.test_no_group_denied)
+User with no group is denied. ... ok
+test_other_group_denied (tests.api.test_forensic_api.TestIsAttendanceAdminPermission.test_other_group_denied)
+User in other group is denied. ... ok
+test_staff_allowed (tests.api.test_forensic_api.TestIsAttendanceAdminPermission.test_staff_allowed)
+Staff user is allowed. ... ok
+test_superuser_allowed (tests.api.test_forensic_api.TestIsAttendanceAdminPermission.test_superuser_allowed)
+Superuser is always allowed. ... ok
+test_unauthenticated_denied (tests.api.test_forensic_api.TestIsAttendanceAdminPermission.test_unauthenticated_denied)
+Unauthenticated user is denied. ... ok
+test_attendance_admin_denied_for_shadow (tests.api.test_forensic_api.TestIsShadowReviewerPermission.test_attendance_admin_denied_for_shadow)
+attendance_admin alone is not enough for shadow review. ... ok
+test_hr_supervisor_group_allowed (tests.api.test_forensic_api.TestIsShadowReviewerPermission.test_hr_supervisor_group_allowed)
+User in hr_supervisor group is allowed. ... ok
+test_legal_group_allowed (tests.api.test_forensic_api.TestIsShadowReviewerPermission.test_legal_group_allowed)
+User in legal group is allowed. ... ok
+test_shadow_reviewer_group_allowed (tests.api.test_forensic_api.TestIsShadowReviewerPermission.test_shadow_reviewer_group_allowed)
+User in shadow_reviewer group is allowed. ... ok
+test_superuser_allowed (tests.api.test_forensic_api.TestIsShadowReviewerPermission.test_superuser_allowed)
+Superuser is always allowed. ... ok
+test_unauthenticated_denied (tests.api.test_forensic_api.TestIsShadowReviewerPermission.test_unauthenticated_denied)
+Unauthenticated user is denied. ... ok
+test_cannot_close_from_in_progress (tests.api.test_forensic_api.TestReviewWorkflowViaAPI.test_cannot_close_from_in_progress)
+Cannot close directly from IN_PROGRESS. ... ok
+test_cannot_reopen_closed (tests.api.test_forensic_api.TestReviewWorkflowViaAPI.test_cannot_reopen_closed)
+Cannot transition from CLOSED to anything. ... ok
+test_close_from_accepted (tests.api.test_forensic_api.TestReviewWorkflowViaAPI.test_close_from_accepted)
+Can close when status is ACCEPTED. ... ok
+test_decision_from_in_progress (tests.api.test_forensic_api.TestReviewWorkflowViaAPI.test_decision_from_in_progress)
+Can submit decision when status is IN_PROGRESS. ... ok
+test_start_review_from_pending (tests.api.test_forensic_api.TestReviewWorkflowViaAPI.test_start_review_from_pending)
+Can start review when status is PENDING. ... ok
+test_invalid_decision_rejected (tests.api.test_forensic_api.TestSubmitDecisionInputValidation.test_invalid_decision_rejected)
+Invalid decision value is rejected. ... ok
+test_short_notes_invalid (tests.api.test_forensic_api.TestSubmitDecisionInputValidation.test_short_notes_invalid)
+Notes less than 10 chars are invalid. ... ok
+test_valid_decision (tests.api.test_forensic_api.TestSubmitDecisionInputValidation.test_valid_decision)
+Valid decision input. ... ok
+test_break_deduction_detected (tests.shadow.test_difference_analysis_service.TestBreakPolicyDetection.test_break_deduction_detected)
+V2 deducted 30 min break, V1 didn't but almost same base worked. ... ok
+test_no_break_change (tests.shadow.test_difference_analysis_service.TestBreakPolicyDetection.test_no_break_change)
+No break difference - should not match. ... ok
+test_negative_values (tests.shadow.test_difference_analysis_service.TestEngineBugV1Detection.test_negative_values)
+V1 bug: negative values. ... ok
+test_overtime_exceeds_worked (tests.shadow.test_difference_analysis_service.TestEngineBugV1Detection.test_overtime_exceeds_worked)
+V1 bug: overtime > worked. ... ok
+test_large_worked_diff_detected (tests.shadow.test_difference_analysis_service.TestFlexibleSplitDetection.test_large_worked_diff_detected)
+Significant difference in raw worked time. ... ok
+test_critical_difference_requires_review (tests.shadow.test_difference_analysis_service.TestMajorDifferenceReviewFlag.test_critical_difference_requires_review)
+CRITICAL difference type should require review. ... ok
+test_major_difference_requires_review (tests.shadow.test_difference_analysis_service.TestMajorDifferenceReviewFlag.test_major_difference_requires_review)
+MAJOR difference type should require review. ... ok
+test_minor_difference_no_review (tests.shadow.test_difference_analysis_service.TestMajorDifferenceReviewFlag.test_minor_difference_no_review)
+MINOR difference should not require review by default. ... ok
+test_overtime_decrease_detected (tests.shadow.test_difference_analysis_service.TestOvertimePolicyDetection.test_overtime_decrease_detected)
+V2 calculated less overtime. ... ok
+test_overtime_increase_detected (tests.shadow.test_difference_analysis_service.TestOvertimePolicyDetection.test_overtime_increase_detected)
+V2 calculated more overtime. ... ok
+test_minor_rounding_detected (tests.shadow.test_difference_analysis_service.TestRoundingDetection.test_minor_rounding_detected)
+Small difference due to rounding. ... ok
+test_zero_diff_is_not_rounding (tests.shadow.test_difference_analysis_service.TestRoundingDetection.test_zero_diff_is_not_rounding)
+Zero difference should not be rounding. ... ok
+test_bug_has_highest_priority (tests.shadow.test_difference_analysis_service.TestRulePriority.test_bug_has_highest_priority)
+ENGINE_BUG_V1 should match before other rules. ... ok
+test_absent_to_worked (tests.shadow.test_difference_analysis_service.TestStatusChangeDetection.test_absent_to_worked)
+V1: Absent, V2: Worked. ... ok
+test_worked_to_absent (tests.shadow.test_difference_analysis_service.TestStatusChangeDetection.test_worked_to_absent)
+V1: Worked, V2: Absent. ... ok
+test_no_matching_rule_returns_unknown (tests.shadow.test_difference_analysis_service.TestUnknownCase.test_no_matching_rule_returns_unknown)
+When no rule matches, return UNKNOWN with LOW confidence. ... ok
+test_close_case_creates_audit (tests.shadow.test_review_workflow_service.TestAuditGeneration.test_close_case_creates_audit)
+Audit created for close_case. ... ok
+test_full_workflow_creates_three_audits (tests.shadow.test_review_workflow_service.TestAuditGeneration.test_full_workflow_creates_three_audits)
+Full workflow creates 3 audit entries. ... ok
+test_start_review_creates_audit (tests.shadow.test_review_workflow_service.TestAuditGeneration.test_start_review_creates_audit)
+Audit created for start_review. ... ok
+test_submit_decision_creates_audit (tests.shadow.test_review_workflow_service.TestAuditGeneration.test_submit_decision_creates_audit)
+Audit created for submit_decision. ... ok
+test_accepted_to_in_progress_fails (tests.shadow.test_review_workflow_service.TestBackwardTransitions.test_accepted_to_in_progress_fails)
+Invalid: ACCEPTED \u2192 IN_PROGRESS (backward). ... ok
+test_closed_to_accepted_fails (tests.shadow.test_review_workflow_service.TestBackwardTransitions.test_closed_to_accepted_fails)
+Invalid: CLOSED \u2192 ACCEPTED (terminal state). ... ok
+test_in_progress_to_pending_fails (tests.shadow.test_review_workflow_service.TestBackwardTransitions.test_in_progress_to_pending_fails)
+Invalid: IN_PROGRESS \u2192 PENDING (backward). ... ok
+test_accepted_to_closed_ok (tests.shadow.test_review_workflow_service.TestCloseCaseTransitions.test_accepted_to_closed_ok)
+Valid: ACCEPTED \u2192 CLOSED. ... ok
+test_in_progress_to_closed_fails (tests.shadow.test_review_workflow_service.TestCloseCaseTransitions.test_in_progress_to_closed_fails)
+Invalid: IN_PROGRESS \u2192 CLOSED (skipping decision). ... ok
+test_pending_to_closed_fails (tests.shadow.test_review_workflow_service.TestCloseCaseTransitions.test_pending_to_closed_fails)
+Invalid: PENDING \u2192 CLOSED (skipping all steps). ... ok
+test_empty_notes_fails (tests.shadow.test_review_workflow_service.TestDecisionNotesRequired.test_empty_notes_fails)
+Invalid: Empty notes. ... ok
+test_whitespace_notes_fails (tests.shadow.test_review_workflow_service.TestDecisionNotesRequired.test_whitespace_notes_fails)
+Invalid: Whitespace-only notes. ... ok
+test_in_progress_to_accepted_ok (tests.shadow.test_review_workflow_service.TestInProgressToDecided.test_in_progress_to_accepted_ok)
+Valid: IN_PROGRESS \u2192 ACCEPTED with V2_CORRECT. ... ok
+test_in_progress_to_adjusted_ok (tests.shadow.test_review_workflow_service.TestInProgressToDecided.test_in_progress_to_adjusted_ok)
+Valid: IN_PROGRESS \u2192 ADJUSTED with POLICY_CHANGE_NEEDED. ... ok
+test_in_progress_to_escalated_ok (tests.shadow.test_review_workflow_service.TestInProgressToDecided.test_in_progress_to_escalated_ok)
+Valid: IN_PROGRESS \u2192 ESCALATED with INCONCLUSIVE. ... ok
+test_pending_to_accepted_fails (tests.shadow.test_review_workflow_service.TestPendingToInProgress.test_pending_to_accepted_fails)
+Invalid: PENDING \u2192 ACCEPTED (skipping IN_PROGRESS). ... ok
+test_pending_to_in_progress_ok (tests.shadow.test_review_workflow_service.TestPendingToInProgress.test_pending_to_in_progress_ok)
+Valid: PENDING \u2192 IN_PROGRESS. ... ok
+test_closed_to_anything_fails (tests.shadow.test_review_workflow_service.TestTerminalState.test_closed_to_anything_fails)
+Invalid: CLOSED \u2192 any state. ... ok
+test_wrong_reviewer_fails (tests.shadow.test_review_workflow_service.TestWrongReviewer.test_wrong_reviewer_fails)
+Invalid: Different reviewer tries to decide. ... ok
+test_import_job_error_handling (tests.test_device_safety_manual.TestDeviceSafety.test_import_job_error_handling)
+Verify that Enable is called even if an error occurs during download ... ERROR
+test_import_job_safe_workflow (tests.test_device_safety_manual.TestDeviceSafety.test_import_job_safe_workflow)
+Verify that import job follows: Connect -> Disable -> Get -> Enable -> Disconnect ... ERROR
+
+======================================================================
+ERROR: tests.test_override (unittest.loader._FailedTest.tests.test_override)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: tests.test_override
+Traceback (most recent call last):
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 426, in _find_test_path
+    module = self._get_module_from_name(name)
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 367, in _get_module_from_name
+    __import__(name)
+    ~~~~~~~~~~^^^^^^
+  File "C:\Proyectos\srtime-django\tests\test_override.py", line 5, in <module>
+    from sqlalchemy import create_engine
+ModuleNotFoundError: No module named 'sqlalchemy'
+
+
+======================================================================
+ERROR: tests.test_recalculation (unittest.loader._FailedTest.tests.test_recalculation)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: tests.test_recalculation
+Traceback (most recent call last):
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 426, in _find_test_path
+    module = self._get_module_from_name(name)
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 367, in _get_module_from_name
+    __import__(name)
+    ~~~~~~~~~~^^^^^^
+  File "C:\Proyectos\srtime-django\tests\test_recalculation.py", line 5, in <module>
+    from sqlalchemy import create_engine
+ModuleNotFoundError: No module named 'sqlalchemy'
+
+
+======================================================================
+ERROR: tests.test_unscheduled_work (unittest.loader._FailedTest.tests.test_unscheduled_work)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: tests.test_unscheduled_work
+Traceback (most recent call last):
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 426, in _find_test_path
+    module = self._get_module_from_name(name)
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 367, in _get_module_from_name
+    __import__(name)
+    ~~~~~~~~~~^^^^^^
+  File "C:\Proyectos\srtime-django\tests\test_unscheduled_work.py", line 6, in <module>
+    from sqlalchemy import create_engine
+ModuleNotFoundError: No module named 'sqlalchemy'
+
+
+======================================================================
+ERROR: tests.test_updated_schema (unittest.loader._FailedTest.tests.test_updated_schema)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: tests.test_updated_schema
+Traceback (most recent call last):
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 426, in _find_test_path
+    module = self._get_module_from_name(name)
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\loader.py", line 367, in _get_module_from_name
+    __import__(name)
+    ~~~~~~~~~~^^^^^^
+  File "C:\Proyectos\srtime-django\tests\test_updated_schema.py", line 7, in <module>
+    print("\U0001f510 Autenticando...")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f510' in position 0: character maps to <undefined>
+
+
+======================================================================
+ERROR: test_complete_flow_with_context (tests.forensic.test_model_protection.TestForensicIntegration.test_complete_flow_with_context)
+Complete flow: context \u2192 save \u2192 record tracking.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Proyectos\srtime-django\tests\forensic\test_model_protection.py", line 281, in test_complete_flow_with_context
+    model.save()
+    ~~~~~~~~~~^^
+  File "C:\Proyectos\srtime-django\tests\forensic\test_model_protection.py", line 70, in save
+    super().save(*args, **kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Proyectos\srtime-django\core\forensic\model_protection.py", line 178, in save
+    return super().save(*args, **kwargs)
+           ^^^^^^^^^^^^
+AttributeError: 'super' object has no attribute 'save'
+
+======================================================================
+ERROR: test_exception_raised_for_unauthorized_update (tests.forensic.test_model_protection.TestForensicIntegration.test_exception_raised_for_unauthorized_update)
+Unauthorized update should raise and log.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Proyectos\srtime-django\tests\forensic\test_model_protection.py", line 291, in test_exception_raised_for_unauthorized_update
+    model.save()
+    ~~~~~~~~~~^^
+  File "C:\Proyectos\srtime-django\tests\forensic\test_model_protection.py", line 70, in save
+    super().save(*args, **kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Proyectos\srtime-django\core\forensic\model_protection.py", line 178, in save
+    return super().save(*args, **kwargs)
+           ^^^^^^^^^^^^
+AttributeError: 'super' object has no attribute 'save'
+
+======================================================================
+ERROR: test_delete_always_blocked (tests.forensic.test_model_protection.TestModelProtection.test_delete_always_blocked)
+Deleting protected model should always raise error.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Proyectos\srtime-django\tests\forensic\test_model_protection.py", line 185, in test_delete_always_blocked
+    model.delete()
+    ~~~~~~~~~~~~^^
+  File "C:\Proyectos\srtime-django\tests\forensic\test_model_protection.py", line 74, in delete
+    super().delete(*args, **kwargs)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Proyectos\srtime-django\core\forensic\model_protection.py", line 214, in delete
+    return super().delete(*args, **kwargs)
+           ^^^^^^^^^^^^^^
+AttributeError: 'super' object has no attribute 'delete'
+
+======================================================================
+ERROR: test_new_record_allowed_without_context (tests.forensic.test_model_protection.TestModelProtection.test_new_record_allowed_without_context)
+Creating new record should be allowed (FORENSIC_ALLOW_INITIAL_CREATE=True).
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Proyectos\srtime-django\tests\forensic\test_model_protection.py", line 175, in test_new_record_allowed_without_context
+    model.save()
+    ~~~~~~~~~~^^
+  File "C:\Proyectos\srtime-django\tests\forensic\test_model_protection.py", line 70, in save
+    super().save(*args, **kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Proyectos\srtime-django\core\forensic\model_protection.py", line 178, in save
+    return super().save(*args, **kwargs)
+           ^^^^^^^^^^^^
+AttributeError: 'super' object has no attribute 'save'
+
+======================================================================
+ERROR: test_save_allowed_with_context (tests.forensic.test_model_protection.TestModelProtection.test_save_allowed_with_context)
+Saving protected model with context should succeed.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Proyectos\srtime-django\tests\forensic\test_model_protection.py", line 167, in test_save_allowed_with_context
+    model.save()
+    ~~~~~~~~~~^^
+  File "C:\Proyectos\srtime-django\tests\forensic\test_model_protection.py", line 70, in save
+    super().save(*args, **kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Proyectos\srtime-django\core\forensic\model_protection.py", line 178, in save
+    return super().save(*args, **kwargs)
+           ^^^^^^^^^^^^
+AttributeError: 'super' object has no attribute 'save'
+
+======================================================================
+ERROR: test_save_blocked_without_context (tests.forensic.test_model_protection.TestModelProtection.test_save_blocked_without_context)
+Saving protected model without context should raise error.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 1617, in __enter__
+    setattr(self.target, self.attribute, new_attr)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: __class__ must be set to a class, not 'MagicMock' object
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Proyectos\srtime-django\tests\forensic\test_model_protection.py", line 151, in test_save_blocked_without_context
+    with patch.object(TestableProtectedModel, '__class__') as mock_class:
+         ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 1630, in __enter__
+    if not self.__exit__(*sys.exc_info()):
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 1641, in __exit__
+    delattr(self.target, self.attribute)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: can't delete __class__ attribute
+
+======================================================================
+ERROR: test_unprotected_model_allowed (tests.forensic.test_model_protection.TestModelProtection.test_unprotected_model_allowed)
+Model with FORENSIC_PROTECTED=False should allow all operations.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Proyectos\srtime-django\tests\forensic\test_model_protection.py", line 195, in test_unprotected_model_allowed
+    model.save()
+    ~~~~~~~~~~^^
+  File "C:\Proyectos\srtime-django\tests\forensic\test_model_protection.py", line 70, in save
+    super().save(*args, **kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Proyectos\srtime-django\core\forensic\model_protection.py", line 178, in save
+    return super().save(*args, **kwargs)
+           ^^^^^^^^^^^^
+AttributeError: 'super' object has no attribute 'save'
+
+======================================================================
+ERROR: test_violation_logged (tests.forensic.test_model_protection.TestViolationLogging.test_violation_logged)
+Violations should be logged to database.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 1429, in patched
+    with self.decoration_helper(patched,
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+                                args,
+                                ^^^^^
+                                keywargs) as (newargs, newkeywargs):
+                                ^^^^^^^^^
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 141, in __enter__
+    return next(self.gen)
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 1411, in decoration_helper
+    arg = exit_stack.enter_context(patching)
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 530, in enter_context
+    result = _enter(cm)
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 1503, in __enter__
+    original, local = self.get_original()
+                      ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 1473, in get_original
+    raise AttributeError(
+        "%s does not have the attribute %r" % (target, name)
+    )
+AttributeError: <module 'core.forensic.model_protection' from 'C:\\Proyectos\\srtime-django\\core\\forensic\\model_protection.py'> does not have the attribute 'ForensicImmutabilityViolation'
+
+======================================================================
+ERROR: test_import_job_error_handling (tests.test_device_safety_manual.TestDeviceSafety.test_import_job_error_handling)
+Verify that Enable is called even if an error occurs during download
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 1432, in patched
+    return func(*newargs, **newkeywargs)
+  File "C:\Proyectos\srtime-django\tests\test_device_safety_manual.py", line 111, in test_import_job_error_handling
+    print("\u2705 Error handling Safe Mode verified (Device enabled after crash).")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 0: character maps to <undefined>
+
+======================================================================
+ERROR: test_import_job_safe_workflow (tests.test_device_safety_manual.TestDeviceSafety.test_import_job_safe_workflow)
+Verify that import job follows: Connect -> Disable -> Get -> Enable -> Disconnect
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\unittest\mock.py", line 1432, in patched
+    return func(*newargs, **newkeywargs)
+  File "C:\Proyectos\srtime-django\tests\test_device_safety_manual.py", line 76, in test_import_job_safe_workflow
+    print("\u2705 Normal workflow Safe Mode verified.")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\rdifo\AppData\Local\Programs\Python\Python314\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 0: character maps to <undefined>
+
+======================================================================
+FAIL: test_closed_record_blocked (tests.forensic.test_model_protection.TestImmutableStatus.test_closed_record_blocked)
+Updating record with CLOSED status should be blocked.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Proyectos\srtime-django\tests\forensic\test_model_protection.py", line 217, in test_closed_record_blocked
+    with self.assertRaises(ForensicUpdateBlockedError) as context:
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ForensicUpdateBlockedError not raised
+
+----------------------------------------------------------------------
+Ran 153 tests in 1.413s
+
+FAILED (failures=1, errors=14)
+Destroying test database for alias 'default' ('test_srtimeweb')...
+
+  Applying sessions.0001_initial... OK
+System check identified no issues (0 silenced).
+
+Testing Error Handling safety...
+
+Testing Normal Workflow safety...
+Verifying enable/disable calls...

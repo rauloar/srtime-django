@@ -1,15 +1,18 @@
 """
 Device Operation Views
 """
+import logging
 from datetime import datetime
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from core import models
 from core.services import get_zk_service, JobManager
 from core.serializers import UserSerializer
+
+logger = logging.getLogger(__name__)
 from core.services.zk_workers import (
     run_test_connection_job,
     run_import_attendance_job,
@@ -21,6 +24,18 @@ from core.services.zk_workers import (
 import threading
 
 
+class DeviceAdminPermission(BasePermission):
+    """Allow access to device_admin or admin_system groups, or superusers."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        if user.is_superuser:
+            return True
+        return user.groups.filter(name__in=['device_admin', 'admin_system']).exists()
+
+
 def run_in_background(func, *args):
     """Helper to run job in background thread"""
     thread = threading.Thread(target=func, args=args, daemon=True)
@@ -28,7 +43,7 @@ def run_in_background(func, *args):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def test_connection(request, device_id):
     """
     POST /api/v1/devices/{device_id}/test-connection/
@@ -49,7 +64,7 @@ def test_connection(request, device_id):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def test_connection_sync(request, device_id):
     """
     GET /api/v1/devices/{device_id}/test-connection-sync/
@@ -69,7 +84,7 @@ def test_connection_sync(request, device_id):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def import_attendance(request, device_id):
     """
     POST /api/v1/devices/{device_id}/import-attendance/
@@ -107,7 +122,7 @@ def import_attendance(request, device_id):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def clear_attendance(request, device_id):
     """
     POST /api/v1/devices/{device_id}/clear-attendance/
@@ -128,7 +143,7 @@ def clear_attendance(request, device_id):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def download_users(request, device_id):
     """
     POST /api/v1/devices/{device_id}/download-users/
@@ -149,23 +164,24 @@ def download_users(request, device_id):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def sync_users(request, device_id):
     """
     POST /api/v1/devices/{device_id}/sync-users/
     Body: {
-        "employee_ids": [1, 2, 3]  // Optional, sync all if not provided
+        "employee_ids": [1, 2, 3]  // Optional, sync all if not provided. Now maps to User IDs.
     }
     """
     device = get_object_or_404(models.Device, id=device_id)
     
-    employee_ids = request.data.get('employee_ids')
+    # Accept both user_ids or employee_ids for compatibility
+    user_ids = request.data.get('user_ids') or request.data.get('employee_ids')
     
     # Create Job
     job = JobManager.create_job("sync_users", device_id=device_id)
     
     # Launch Background Task
-    run_in_background(run_sync_users_job, job.id, device_id, employee_ids)
+    run_in_background(run_sync_users_job, job.id, device_id, user_ids)
     
     return Response({
         "job_id": job.id,
@@ -175,7 +191,7 @@ def sync_users(request, device_id):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def clear_all_data(request, device_id):
     """
     POST /api/v1/devices/{device_id}/clear-all-data/
@@ -197,7 +213,7 @@ def clear_all_data(request, device_id):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def all_devices_status(request):
     """
     GET /api/v1/devices/connection-status/all/
@@ -230,7 +246,7 @@ def all_devices_status(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def restart_device(request, device_id):
     """
     POST /api/v1/devices/{device_id}/restart/
@@ -245,7 +261,7 @@ def restart_device(request, device_id):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def poweroff_device(request, device_id):
     """
     POST /api/v1/devices/{device_id}/poweroff/
@@ -260,7 +276,7 @@ def poweroff_device(request, device_id):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def sync_time(request, device_id):
     """
     POST /api/v1/devices/{device_id}/sync-time/
@@ -275,7 +291,7 @@ def sync_time(request, device_id):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def test_voice(request, device_id):
     """
     POST /api/v1/devices/{device_id}/test-voice/
@@ -292,7 +308,7 @@ def test_voice(request, device_id):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def get_memory_info(request, device_id):
     """
     GET /api/v1/devices/{device_id}/memory/
@@ -307,7 +323,7 @@ def get_memory_info(request, device_id):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def get_recent_attendance(request, device_id):
     """
     GET /api/v1/devices/{device_id}/attendance/recent/
@@ -324,11 +340,37 @@ def get_recent_attendance(request, device_id):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def get_device_templates(request, device_id):
     """
     POST /api/v1/devices/{device_id}/templates/
-    Downloads templates from device and saves them to database
+    Downloads biometric templates (fingerprints/faces) from device and saves to database.
+    
+    ARCHITECTURAL PRINCIPLE - DEVICE IS SOURCE:
+    ==========================================
+    The biometric device is the authoritative source for biometric templates.
+    This function downloads templates FROM device TO database (one-way).
+    
+    DOMAIN SEPARATION:
+    =================
+    - Requires User record to exist (User is device mirror from run_download_users_job)
+    - Does NOT create Employee records
+    - Does NOT create User records
+    - Skips templates for which User does not exist (logged explicitly)
+    
+    TEMPLATE TYPES:
+    ==============
+    - FINGER: fid 0-9 (10 finger indexes)
+    - FACE: fid >= 10 (face recognition data)
+    
+    CONTRACT COMPLIANCE:
+    ===================
+    - Principle 7: Hardware Abstraction (templates are device-specific format)
+    - Templates are metadata only, actual biometric matching happens on device
+    - User model is mirror/audit, NOT HR source of truth
+    
+    Returns:
+        Response with counts: saved, skipped (no User), errors, total
     """
     device = get_object_or_404(models.Device, id=device_id)
     try:
@@ -344,6 +386,15 @@ def get_device_templates(request, device_id):
                 # Find user by uid AND device to ensure correct association
                 user = models.User.objects.filter(device_id=device_id, uid=t.uid).first()
                 if not user:
+                    # P0 GAP FIX: Explicit logging when User not found (contract compliance)
+                    logger.warning(
+                        "Biometric template skipped - User not found",
+                        extra={
+                            "device_id": device_id,
+                            "uid": t.uid,
+                            "fid": t.fid if hasattr(t, 'fid') else None
+                        }
+                    )
                     skipped_count += 1
                     continue
                 
@@ -380,7 +431,7 @@ def get_device_templates(request, device_id):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def get_device_info(request, device_id):
     """
     GET /api/v1/devices/{device_id}/info/
@@ -394,7 +445,7 @@ def get_device_info(request, device_id):
         return Response({"success": False, "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, DeviceAdminPermission])
 def get_device_users(request, device_id):
     try:
         # Check if device exists

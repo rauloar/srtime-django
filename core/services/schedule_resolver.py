@@ -76,8 +76,18 @@ def resolve_schedule_unified(
     """
     Unified schedule resolution for both V1 and V2 engines.
     
-    This is the SINGLE SOURCE OF TRUTH for schedule resolution.
-    Both engines call this function to ensure consistency.
+    Schedule resolution priority (highest to lowest):
+    1. ScheduleOverride (highest priority)
+    2. EmployeeShift (scope='EMPLOYEE')
+    3. EmployeeShift (scope='DEPARTMENT')
+    4. Implicit rest (no schedule)
+    
+    If multiple assignments overlap:
+    - The one with most recent start_date wins
+    - If start_date is equal, highest id wins
+    
+    This deterministic behavior is required for shadow comparison consistency
+    between V1 and V2 engines.
     
     Args:
         employee_id: Employee ID
@@ -113,7 +123,7 @@ def resolve_schedule_unified(
             start_date__lte=target_date,
         ).filter(
             Q(end_date__gte=target_date) | Q(end_date__isnull=True)
-        ).select_related('shift').first()
+        ).order_by('-start_date', '-id').select_related('shift').first()
         
         if emp_shift and emp_shift.shift:
             shift_tt, error_code = _resolve_shift_timetable(
@@ -158,7 +168,7 @@ def resolve_schedule_unified(
                 start_date__lte=target_date,
             ).filter(
                 Q(end_date__gte=target_date) | Q(end_date__isnull=True)
-            ).select_related('shift').first()
+            ).order_by('-start_date', '-id').select_related('shift').first()
             
             if dept_shift and dept_shift.shift:
                 shift_tt, error_code = _resolve_shift_timetable(

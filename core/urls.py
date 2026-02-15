@@ -12,10 +12,10 @@ from .viewsets import (
 )
 from .auth_views import (
     auth_login, auth_users_list, auth_user_delete, auth_user_password_update,
-    server_info
+    server_info, auth_me
 )
 from .views import enums_list, dashboard_summary, get_csrf_token
-from .views_attendance import calculate_attendance, daily_reports, calculate_single_day, get_simple_day_view, calculate_attendance_detailed, get_all_absences, get_logs_with_validation
+from .views_attendance import calculate_attendance, daily_reports, daily_reports_v2, calculate_single_day, get_simple_day_view, calculate_attendance_detailed, get_all_absences, get_logs_with_validation
 from .views_devices import (
     test_connection, test_connection_sync, import_attendance,
     clear_attendance, download_users, sync_users, clear_all_data,
@@ -29,10 +29,13 @@ from .views_system import (
     database_test, database_import
 )
 from .views_stubs import stub_timeline, stub_explanation
+from .views_schedule import ScheduleCalendarView
 
 router = DefaultRouter()
 
-
+# Personnel router for /personnel/* endpoints
+personnel_router = DefaultRouter()
+personnel_router.register(r'employees', UserViewSet, basename='personnel-employees')
 
 # Catálogos organizacionales
 router.register(r'companies', CompanyViewSet, basename='company')
@@ -69,6 +72,7 @@ router.register(r'daily-attendance', DailyAttendanceViewSet, basename='dailyatte
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('personnel/', include(personnel_router.urls)),
     
     # Enums - Provides all enum definitions for front-end consumption
     path('enums/', enums_list, name='enums_list'),
@@ -82,6 +86,7 @@ urlpatterns = [
     # Auth endpoints compatibles con frontend React
     path('auth/login', auth_login, name='auth_login'),
     path('auth/server-info', server_info, name='server_info'),
+    path('auth/me', auth_me, name='auth_me'),
     path('auth/users', auth_users_list, name='auth_users_list'),
     path('auth/users/<int:user_id>', auth_user_delete, name='auth_user_delete'),
     path('auth/users/<int:user_id>/password', auth_user_password_update, name='auth_user_password_update'),
@@ -91,6 +96,10 @@ urlpatterns = [
     path('attendance/calculate/detailed/', calculate_attendance_detailed, name='calculate_attendance_detailed'),
     path('attendance/calculate/<int:employee_id>/', calculate_single_day, name='calculate_single_day'),
     path('attendance/reports/daily/', daily_reports, name='daily_reports'),
+    path('attendance/reports/daily/v2/', daily_reports_v2, name='daily_reports_v2'),
+    
+    # Schedule Calendar (new simple endpoint)
+    path('attendance/schedule/', ScheduleCalendarView.as_view(), name='schedule_calendar'),
     
     # Device Operation Endpoints
     path('devices/connection-status/all/', all_devices_status, name='all_devices_status'),

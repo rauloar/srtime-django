@@ -1,32 +1,9 @@
-/**
- * Dashboard - Central Hub for SRTime System
- *
- * DESIGN PHILOSOPHY:
- * - Central entry point, no sidebar, full-width layout
- * - Circular navigation: all quick links point to Topbar-accessible routes
- * - Historical data only (NO real-time/today metrics) - respects non-live-capture design
- * - All metric values from API, NO hardcoded values
- *
- * NAVIGATION MAP:
- * Dashboard (/) → Quick Links/Topbar → Any page → Topbar Home → Dashboard
- * No dead-ends, no back-button needed (except by choice)
- *
- * RELATED:
- * - Endpoint: GET /api/v1/dashboard/summary/?limit=N
- * - Analytics page: Currently not in Topbar (pending redesign, no new links/tabs)
- * - Future: Analytics may be redefined as historical analysis module (on hold)
- *
- * @see core/views.py for dashboard_summary() implementation
- * @see frontend/src/api.ts for DashboardSummary interface
- */
-
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     BarChart3,
     Users,
     Calendar,
-    FileText,
     Building2,
     Clock,
     Layers
@@ -46,7 +23,6 @@ export const Dashboard: React.FC = () => {
                 setSummary(response);
                 setSummaryError(false);
             } catch (error) {
-                console.error('Dashboard summary error:', error);
                 setSummaryError(true);
             }
         };
@@ -75,13 +51,6 @@ export const Dashboard: React.FC = () => {
             icon: <Users size={28} />,
             path: '/personnel',
             colorClass: 'dash-color-warning'
-        },
-        {
-            title: 'Reportes',
-            description: 'Reportes y estadisticas del sistema',
-            icon: <FileText size={28} />,
-            path: '/analytics',
-            colorClass: 'dash-color-accent'
         }
     ]), []);
 
@@ -110,13 +79,6 @@ export const Dashboard: React.FC = () => {
             icon: <Clock size={20} />,
             colorClass: 'dash-color-warning'
         }
-        // LEGACY: Access Control Module - Reserved for future updates
-        // {
-        //     title: 'Grupos',
-        //     value: summary?.counts.groups ?? null,
-        //     icon: <Users size={20} />,
-        //     colorClass: 'dash-color-success'
-        // }
     ]), [summary]);
 
     const formatMinutes = (minutes: number | null) => {

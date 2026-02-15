@@ -23,7 +23,6 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo);
     this.props.onError?.(error, errorInfo);
   }
 
@@ -83,7 +82,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 }
 
 export const PageErrorBoundary: React.FC<{ children: ReactNode }> = ({ children }) => (
-  <ErrorBoundary onError={(error) => console.error('Page error:', error)}>
+  <ErrorBoundary>
     {children}
   </ErrorBoundary>
 );

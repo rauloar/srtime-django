@@ -38,10 +38,13 @@ export const JobProgressModal: React.FC<JobProgressModalProps> = ({ jobId, isOpe
                     getJobLogs(jobId)
                 ]);
 
+                // Ensure logs is always an array
+                const logsArray = Array.isArray(logs) ? logs : [];
+
                 setJob({
                     ...status,
                     status: status.status as any, // Cast string to enum
-                    logs: logs || []
+                    logs: logsArray
                 });
 
                 if (status.status === 'completed' || status.status === 'failed') {
@@ -49,7 +52,15 @@ export const JobProgressModal: React.FC<JobProgressModalProps> = ({ jobId, isOpe
                     clearInterval(interval);
                 }
             } catch (error) {
-                console.error("Failed to poll job status", error);
+                setJob(prev => prev || {
+                    id: jobId,
+                    status: 'failed',
+                    progress: 0,
+                    error: 'No se pudo consultar el estado del proceso.',
+                    logs: []
+                });
+                setIsFinished(true);
+                clearInterval(interval);
             }
         }, 1000);
 

@@ -1,0 +1,47 @@
+RESUMEN EJECUTIVO RC 1.0 (SOBRIO)
+═════════════════════════════════════════════════════════════════════════════
+
+Objetivo: RC 1.0 estable y limpio (HR informativo, single company, DEV mode).
+No enterprise, no SaaS, sin capas extra.
+
+ALCANCE REAL (SIN SOBRE-INGENIERÍA)
+═════════════════════════════════════════════════════════════════════════════
+
+1) Endpoint hygiene
+  - Fix ruta rota /asistencia/buscar
+  - Mantener endpoints existentes, sin duplicaciones nuevas
+
+2) Error handling mínimo
+  - 401: logout (limpiar token)
+  - 403: mensaje simple
+  - 500: mensaje genérico
+  - timeout: mensaje simple
+  - Sin retry automático
+
+3) N+1 fix real
+  - Solo si existe (no inventar optimizaciones)
+
+4) Hardcoding crítico
+  - Mantener API base/timeout como está
+  - No crear nuevos archivos de config
+
+FUERA DE ALCANCE
+═════════════════════════════════════════════════════════════════════════════
+
+- Observabilidad avanzada
+- Documentación masiva
+- Breadcrumbs globales
+- Badges nuevos
+- Hooks custom innecesarios
+- Virtualización/paginación avanzada
+
+CRITERIO DE CIERRE
+═════════════════════════════════════════════════════════════════════════════
+
+- Sin rutas rotas
+- Sin sobre-abstracciones
+- Sin archivos huérfanos
+- Error handling mínimo funcionando
+- Código más simple que antes
+
+Estado: RC 1.0 sobrio listo

@@ -5,6 +5,7 @@ import { getTimetables, createTimetable, deleteTimetable, updateTimetable, type 
 import { DataGrid, type Column } from '../../components/ui/DataGrid';
 import { PageToolbar } from '../../components/ui/PageToolbar';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { useToast } from '../../hooks/useToast';
 
 export const Timetables: React.FC = () => {
     const [timetables, setTimetables] = useState<Timetable[]>([]);
@@ -12,6 +13,7 @@ export const Timetables: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTimetable, setEditingTimetable] = useState<Timetable | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const { error: showError } = useToast();
 
     // Confirm Dialog
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -23,7 +25,7 @@ export const Timetables: React.FC = () => {
             const data = await getTimetables();
             setTimetables(data);
         } catch (error) {
-            console.error(error);
+            showError('No se pudieron cargar los horarios');
         } finally {
             setLoading(false);
         }

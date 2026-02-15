@@ -5,6 +5,7 @@ import { getShifts, createShift, deleteShift, getTimetables, configureShiftCycle
 import { DataGrid, type Column } from '../../components/ui/DataGrid';
 import { PageToolbar } from '../../components/ui/PageToolbar';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { useToast } from '../../hooks/useToast';
 
 export const Shifts: React.FC = () => {
     const [shifts, setShifts] = useState<Shift[]>([]);
@@ -13,6 +14,7 @@ export const Shifts: React.FC = () => {
     const [isCycleModalOpen, setIsCycleModalOpen] = useState(false);
     const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const { error: showError } = useToast();
 
     // Confirm Dialog
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -24,7 +26,7 @@ export const Shifts: React.FC = () => {
             const data = await getShifts();
             setShifts(data);
         } catch (error) {
-            console.error(error);
+            showError('No se pudieron cargar los turnos');
         } finally {
             setLoading(false);
         }
@@ -186,6 +188,7 @@ const CycleModal: React.FC<{
     onClose: () => void
 }> = ({ shift, onClose }) => {
     const [timetables, setTimetables] = useState<Timetable[]>([]);
+    const { error: showError } = useToast();
     // 0=Mon, 6=Sun. We'll store timetable_id for each index.
     const [cycle, setCycle] = useState<(number | "")[]>(Array(7).fill(""));
     const [loading, setLoading] = useState(true);
@@ -211,7 +214,7 @@ const CycleModal: React.FC<{
                 setCycle(newCycle);
 
             } catch (e) {
-                console.error(e);
+                showError('No se pudieron cargar los horarios del ciclo');
             } finally {
                 setLoading(false);
             }

@@ -14,15 +14,14 @@ import {
     getMemoryInfo,
     clearAllData,
     clearAttendance,
-    getRecentAttendance,
-    getDeviceTemplates
+    getRecentAttendance
 } from '../api';
 import { Download, RefreshCw, Cpu, Users, Fingerprint, Activity, FileText, Clock, Smile, CreditCard, Key, Power, Volume2, Trash2, AlertTriangle, Upload } from 'lucide-react';
 import type { Device, TestResponse, JobResponse, DeviceUser, MemoryInfo, RecentAttendanceRecord } from '../api';
 import { JobProgressModal } from '../components/ui/JobProgressModal';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { useToast } from '../hooks/useToast';
-import { CommandCard, MemoryCard, RecentLogsCard, TemplatesCard } from '../components/device/FunctionCards';
+import { CommandCard, MemoryCard, RecentLogsCard } from '../components/device/FunctionCards';
 
 export function DeviceDetail() {
     const { id } = useParams<{ id: string }>();
@@ -44,8 +43,6 @@ export function DeviceDetail() {
     const [loadingMemory, setLoadingMemory] = useState(false);
     const [recentLogs, setRecentLogs] = useState<RecentAttendanceRecord[]>([]);
     const [loadingRecentLogs, setLoadingRecentLogs] = useState(false);
-    const [templates, setTemplates] = useState<any | null>(null);
-    const [loadingTemplates, setLoadingTemplates] = useState(false);
     const [processingCommand, setProcessingCommand] = useState(false);
 
     // Progress Modal State
@@ -72,7 +69,7 @@ export function DeviceDetail() {
             const d = await getDevice(deviceId);
             setDevice(d);
         } catch (e) {
-            console.error(e);
+            toast.error('No se pudo cargar el dispositivo');
         } finally {
             setLoading(false);
         }
@@ -284,22 +281,7 @@ export function DeviceDetail() {
         }
     };
 
-    const handleLoadTemplates = async () => {
-        setLoadingTemplates(true);
-        try {
-            const res = await getDeviceTemplates(deviceId);
-            if (res.success) {
-                setTemplates(res); // Save full response with saved/skipped/errors
-                toast.success(res.message);
-            } else {
-                toast.warning('⚠️ No se pudo conectar al dispositivo. Intentar conectar más tarde');
-            }
-        } catch (e) {
-            toast.warning('⚠️ No se pudo conectar al dispositivo. Intentar conectar más tarde');
-        } finally {
-            setLoadingTemplates(false);
-        }
-    };
+
 
     useEffect(() => {
         if (activeTab === 'users' && users.length === 0) {
@@ -609,11 +591,7 @@ export function DeviceDetail() {
                             loading={loadingRecentLogs}
                         />
 
-                        <TemplatesCard
-                            templates={templates}
-                            onLoad={handleLoadTemplates}
-                            loading={loadingTemplates}
-                        />
+
                     </div>
                 </>
             )}

@@ -1,6 +1,6 @@
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework.response import Response
 from django.core.management import call_command
 from django.db import connection
@@ -10,13 +10,25 @@ import os
 from datetime import datetime
 import io
 
+
+class AdminSystemPermission(BasePermission):
+    """Allow access only to admin_system group or superusers."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        if user.is_superuser:
+            return True
+        return user.groups.filter(name='admin_system').exists()
+
 # Directorio para backups
 BACKUP_DIR = Path(__file__).resolve().parent.parent / 'backups'
 BACKUP_DIR.mkdir(exist_ok=True)
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, AdminSystemPermission])
 def database_backup(request):
     """
     Crear backup de la base de datos.
@@ -66,7 +78,7 @@ def database_backup(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, AdminSystemPermission])
 def list_backups(request):
     """
     Listar todos los backups disponibles.
@@ -101,7 +113,7 @@ def list_backups(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, AdminSystemPermission])
 def database_restore(request):
     """
     Restaurar base de datos desde un backup.
@@ -149,7 +161,7 @@ def database_restore(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, AdminSystemPermission])
 def database_test(request):
     """
     Probar conexión a la base de datos y obtener información.
@@ -195,7 +207,7 @@ def database_test(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, AdminSystemPermission])
 def database_import(request):
     """
     Importar datos desde un archivo SQL/JSON.

@@ -1,6 +1,6 @@
 from rest_framework import serializers, status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated, BasePermission
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.hashers import make_password, check_password
@@ -51,6 +51,16 @@ class UserListSerializer(serializers.ModelSerializer):
 class PasswordUpdateSerializer(serializers.Serializer):
     """Serializer para actualizar contraseña"""
     password = serializers.CharField(write_only=True, required=True)
+
+
+class AdminSystemPermission(BasePermission):
+    """Allow access only to superusers for critical system operations."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        return user.is_superuser
 
 
 @csrf_exempt
@@ -119,7 +129,7 @@ def server_info(request):
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, AdminSystemPermission])
 def auth_users_list(request):
     """
     Endpoint para listar y crear usuarios usando el modelo estándar de Django.
@@ -141,7 +151,7 @@ def auth_users_list(request):
 
 
 @api_view(['DELETE'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, AdminSystemPermission])
 def auth_user_delete(request, user_id):
     """
     Endpoint para eliminar usuario usando el modelo estándar de Django.
@@ -160,7 +170,7 @@ def auth_user_delete(request, user_id):
 
 
 @api_view(['PUT'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, AdminSystemPermission])
 def auth_user_password_update(request, user_id):
     """
     Endpoint para actualizar contraseña usando el modelo estándar de Django.
@@ -183,3 +193,20 @@ def auth_user_password_update(request, user_id):
     user.set_password(password)
     user.save()
     return Response({'detail': 'Contraseña actualizada correctamente'}, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def auth_me(request):
+    """
+    Endpoint para obtener datos del usuario autenticado.
+    GET /api/v1/auth/me
+    Response: {"username": "", "groups": [], "is_superuser": false}
+    """
+    user = request.user
+    groups = list(user.groups.values_list('name', flat=True))
+    return Response({
+        'username': user.username,
+        'groups': groups,
+        'is_superuser': user.is_superuser
+    }, status=status.HTTP_200_OK)

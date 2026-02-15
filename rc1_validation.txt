@@ -1,0 +1,60 @@
+WARNING 2026-02-14 23:34:57 - No schedule found for employee 1 on 2026-02-01 - implicit rest day
+================================================================================
+PRE-DEPLOY VALIDATION CHECKLIST - v1.0.0-rc1
+Endpoint: GET /attendance/schedule/
+================================================================================
+
+
+================================================================================
+1. QUERY COUNT VALIDATION
+================================================================================
+
+[PASS] Query count is constant: 5 queries
+  Expected: 5-8, Got: 5
+[PASS] No N+1 detected (1 employees, 5 queries)
+
+================================================================================
+2. FUNCTIONAL CASES
+================================================================================
+
+[PASS] Employee schedule retrieved (3/3 rest days)
+[WARN] EmployeeShift test: No employee shifts found
+[WARN] DepartmentShift test: No department shifts found
+[PASS] Override priority correct (source=OVERRIDE on 2026-02-13)
+[PASS] Range validation rejects >31 days
+[WARN] Invalid date format: Tested at API View level (not service)
+
+================================================================================
+3. EDGE CASES
+================================================================================
+
+[WARN] Employee no department: No employees without department
+[PASS] Shift end_date boundary handled (no errors)
+[PASS] Multiple overrides handled (5 overrides)
+[PASS] Timetable None handled (no errors)
+
+================================================================================
+4. SYSTEM STABILITY
+================================================================================
+
+[PASS] Attendance calculation system intact (resolve_schedule_unified works)
+[PASS] No 500 errors (3 scenarios tested)
+
+================================================================================
+FINAL REPORT
+================================================================================
+
+Total Tests: 10
+Passed: 10
+Warnings: 4
+Pass Rate: 100.0%
+
+================================================================================
+RECOMMENDATION: READY FOR v1.0.0-rc1
+================================================================================
+
+Next steps:
+  1. Commit changes
+  2. Tag as v1.0.0-rc1
+  3. Deploy to staging
+  4. Manual smoke test

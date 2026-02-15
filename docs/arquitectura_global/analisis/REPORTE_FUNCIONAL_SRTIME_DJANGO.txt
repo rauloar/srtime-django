@@ -1,0 +1,1228 @@
+================================================================================
+REPORTE FUNCIONAL — SRTIME DJANGO (DEV)
+Qué hace el sistema y cómo funciona en tiempo de ejecución
+================================================================================
+Fecha análisis: 2026-02-10
+Código base local: Sincronizado (HEAD activo)
+Contexto: ÚNICAMENTE DESARROLLO — Configuración DEV intencional
+
+================================================================================
+1. RESUMEN FUNCIONAL DEL SISTEMA
+================================================================================
+
+SRTime Django es un SISTEMA DE GESTIÓN DE ASISTENCIA LABORAL basado en 
+dispositivos ZKTeco (biometría) + cálculo de matemático de horas trabajadas.
+
+QUÉ HACE:
+• Ingesta raw de marcaciones biométricas (check-in / check-out) desde dispositivos
+• Cálculo automático de métricas diarias por empleado (worked_minutes, late, early, overtime)
+• Aplicación de reglas: schedule resolution, flexible vs fixed hours, late allowance
+• Visualización de logs, reportes, y gestión de configuración de horarios
+• Operaciones en dispositivos: importar, limpiar, sincronizar usuarios
+
+QUÉ NO HACE:
+• No genera nóminas ni retribuciones
+• No integra con RR.HH externo
+• No hace forecasting ni predicciones
+• No maneja aprobaciones de licencias (solo almacenamiento)
+• No es real-time (calcula en batch por período)
+
+MODELO DE OPERACIÓN:
+  1. Dispositivo ZKTeco registra marcaciones → Device local
+  2. Sistema importa logs a AttendanceLog (raw: ts, user_id, status, punch)
+  3. Usuario ejecuta cálculo en período (start_date → end_date)
+  4. Engine resuelve horarios (override > shift > default) e calcula métricas
+  5. DailyAttendance guardados (estado: Normal, Late, Absent, Leave, etc.)
+  6. Frontend visualiza logs, reportes, y permite ediciones manuales
+
+
+================================================================================
+2. CASOS DE USO PRINCIPALES (END-TO-END)
+================================================================================
+
+FLUJO PRINCIPAL: INGESTA Y CÁLCULO DE ASISTENCIA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Caso 1: IMPORTAR MARCACIONES DE DISPOSITIVO
+  Entrada: Usuario selecciona dispositivo en UI → Devices → Device Detail
+  Acción: Click "Importar Marcaciones"
+  Backend:
+    POST /api/v1/devices/{id}/import-attendance/
+    → pyzk.get_attendance() → AttendanceLog bulk create
+    → Retorna Job(async) con status "running"
+  Salida: Logs importados en BD (tabla AttendanceLog)
+  UI actualiza: "✓ X marcaciones importadas"
+
+Caso 2: CALCULAR ASISTENCIA EN PERÍODO
+  Entrada: Usuario va a Attendance → Calculation
+  Acción: Selecciona fecha inicio, fin, departmento (opcional) → "Calcular"
+  Backend:
+    POST /api/v1/attendance/calculate/
+    Body: { "start_date": "2026-02-01", "end_date": "2026-02-07", "department_id": null }
+    → Para cada empleado + fecha:
+      1. resolve_schedule_unified(employee_id, date) → Timetable
+      2. calculate_day(employee, date, timetable) → metrics
+      3. DailyAttendance.save()
+    → Retorna: { "processed_records": X, "skipped_employees": Y, ... }
+  Salida: DailyAttendance con status (Normal/Late/Early/Absent/Leave/Incomplete)
+  UI muestra: Resumen de cálculo, employees procesados, excepciones
+
+Caso 3: VER REPORTES DE ASISTENCIA
+  Entrada: Usuario va a Attendance → Reports
+  Acción: Selecciona período → "Ver Reportes"
+  Backend:
+    GET /api/v1/daily-attendance/?date__gte=...&date__lte=...
+    → Retorna array de DailyAttendance con métricas
+  UI renderiza: Tabla empleado × día con status, minutos trabajados, etc.
+
+Caso 4: EDITAR LOG MANUAL
+  Entrada: Usuario ve log en Attendance → Logs → Edit
+  Acción: Modifica check_in, check_out, guarda cambios
+  Backend:
+    PUT /api/v1/attendance-logs/{id}/
+    Body: { "timestamp": "...", "edited_by": "admin", "edited_reason": "Device offline", "is_manual": true }
+    → AttendanceLog.save() con audit trail
+  Salida: Log editado, auditoría registrada
+  UI: Toast "✓ Log actualizado"
+
+
+FLUJO OPERACIONAL: GESTIÓN DE CONFIGURACIÓN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Caso 5: CREAR HORARIO
+  Entrada: Usuario va a Personnel → Timetables → "Nuevo"
+  Acción: Ingresa on_duty_time (09:00), off_duty_time (17:00), breaks, etc.
+  Backend:
+    POST /api/v1/timetables/
+    Body: { "name": "9-5 Fijo", "on_duty_time": "09:00:00", ... }
+    → Timetable.save()
+  Salida: Horario guardado, ID retornado
+
+Caso 6: CREAR TURNO Y ASIGNAR HORARIOS
+  Entrada: Usuario va a Personnel → Shifts → "Nuevo"
+  Acción: Ingresa nombre "Morning" → "Agregar Horarios por día"
+  Backend:
+    POST /api/v1/shifts/
+    Body: { "name": "Morning", "cycle_days": 0 }
+    → Shift.save() → ID retornado
+    
+    POST /api/v1/shift-timetables/
+    Body: { "shift": shift_id, "timetable": timetable_id, "day_index": 0 }  # Lunes
+    → ShiftTimetable.save() para cada día
+  Salida: Turno con horarios por día creado
+
+Caso 7: ASIGNAR TURNO A EMPLEADO
+  Entrada: Usuario va a Personnel → Employees → Empleado → "Asignar Turno"
+  Acción: Selecciona turno, fecha inicio → "Guardar"
+  Backend:
+    POST /api/v1/employee-shifts/
+    Body: { "scope": "EMPLOYEE", "employee": emp_id, "shift": shift_id, "start_date": "2026-02-01" }
+    → EmployeeShift.save()
+  Salida: Asignación guardada, próximos cálculos usan este horario
+
+Caso 8: EXCEPTIONS / SCHEDULE OVERRIDE
+  Entrada: Usuario edita empleado → "Fecha Excepcional (Hoy)"
+  Acción: Selecciona new timetable para hoy → "Guardar"
+  Backend:
+    POST /api/v1/schedule-overrides/
+    Body: { "employee": emp_id, "date": "2026-02-10", "timetable": timetable_id }
+    → ScheduleOverride.save()
+  Salida: Horario override guardado
+  Efecto: Próximo cálculo en esta fecha usa override en lugar de shift/departamento
+
+
+FLUJO ADMINISTRATIVO: OPERACIONES EN DISPOSITIVOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Caso 9: TEST DE CONEXIÓN
+  Acción: Usuario va a Devices → Device Detail → "Test Conexión"
+  Backend:
+    POST /api/v1/devices/{id}/test-connection/
+    → pyzk.connect() + ping básico → Job async
+    → Retorna { "success": true/false, "message": "Connected" }
+  UI: Muestra estado (Online/Offline) con indicador visual
+
+Caso 10: DESCARGA DE USUARIOS
+  Acción: Usuario va a Devices → "Descargar Usuarios"
+  Backend:
+    POST /api/v1/devices/{id}/download-users/
+    → pyzk.download_users() → User table
+    → JobLog: "Downloaded 28 users"
+  Salida: Tabla User con info de dispositivo
+
+
+================================================================================
+3. ARQUITECTURA FUNCIONAL (DIAGRAMA TEXTUAL)
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         NIVEL PRESENTACIÓN (Frontend)                       │
+│                         React 18.2 + TypeScript + Vite                       │
+│                                                                              │
+│  ┌──── Dashboard ────┐  ┌──── Personnel ────┐  ┌──── Attendance ────┐      │
+│  │ • Quick links     │  │ • Departments     │  │ • Logs             │      │
+│  │ • Metrics widget  │  │ • Employees       │  │ • Reports          │      │
+│  │ • Company info    │  │ • Positions/Zones │  │ • Calculation      │      │
+│  │                   │  │ • Shifts/Timetables│ │ • Absences         │      │
+│  └───────────────────┘  └───────────────────┘  └────────────────────┘      │
+│  ┌──── Devices ────────────────────────────────────────────────────────┐   │
+│  │ • Device List (tabla: name, IP, status, conexión)                   │   │
+│  │ • Device Detail (operaciones: import, clear, test, sync, restart)   │   │
+│  │ • User List (usuarios en dispositivo)                               │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌──── Analytics ────────────────────────────────────────────────────────┐ │
+│  │ • Charts + histórico (pendiente rediseño, no enlazado en topbar)     │ │
+│  └──────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    ↓ HTTP REST
+                         Authorization: Bearer {JWT}
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    NIVEL API (Django REST Framework)                        │
+│                     config/urls.py + core/urls.py                           │
+│                                                                              │
+│  RUTAS BASE: /api/v1/                                                      │
+│  └─ companies (CRUD)                                                       │
+│  └─ departments (CRUD)                                                     │
+│  └─ employees (CRUD + serialización embed: current_shift, current_timetable)
+│  └─ positions, zones (CRUD)                                                │
+│  └─ devices (CRUD)                                                         │
+│  └─ attendance-logs (CRUD + edit audit)                                    │
+│  └─ timetables (CRUD)                                                      │
+│  └─ shifts (CRUD)                                                          │
+│  └─ shift-timetables (CRUD)                                                │
+│  └─ employee-shifts (CRUD)                                                 │
+│  └─ schedule-overrides (CRUD)                                              │
+│  └─ daily-attendance (Read + batch create via calculate)                   │
+│  └─ leaves, holidays (CRUD)                                                │
+│  └─ jobs, job-logs (Read)                                                  │
+│                                                                              │
+│  CUSTOM ENDPOINTS:                                                          │
+│  └─ attendance/calculate/ (POST) → calcula período                         │
+│  └─ attendance/calculate/detailed/ (POST) → cal. con detalles              │
+│  └─ attendance/reports/daily/ (GET) → dailyattendance filtrado            │
+│  └─ devices/{id}/import-attendance/ (POST) → Job async                    │
+│  └─ devices/{id}/test-connection/ (POST) → Job async                      │
+│  └─ devices/{id}/download-users/ (POST) → Job async                       │
+│  └─ devices/{id}/sync-users/ (POST) → Job async                           │
+│  └─ devices/{id}/test-connection-sync/ (GET) → sync check                 │
+│  └─ devices/connection-status/all/ (GET) → status all devices             │
+│  └─ devices/{id}/restart, /poweroff, /sync-time, /test-voice              │
+│                                                                              │
+│  AUTH:                                                                       │
+│  └─ auth/login (POST) → JWT token                                          │
+│  └─ auth/server-info (GET) → build info                                    │
+│  └─ /api/token/ (POST) → obtener JWT                                       │
+│  └─ /api/token/refresh/ (POST) → refresh JWT                               │
+│                                                                              │
+│  PERMISOS (DEV): AllowAny global (sem autenticación requerida)            │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    ↓ psycopg2
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                  NIVEL SERVICIOS (Lógica Negocio)                           │
+│                        core/services/xxxxx.py                               │
+│                                                                              │
+│  ┌─ schedule_resolver.py ──────────────────────────────────────────────┐  │
+│  │ resolve_schedule_unified(employee_id, date) → ResolvedSchedule      │  │
+│  │ Priority:                                                            │  │
+│  │   1. ScheduleOverride (highest)                                     │  │
+│  │   2. EmployeeShift (EMPLOYEE scope)                                 │  │
+│  │   3. EmployeeShift (DEPARTMENT scope)                               │  │
+│  │   4. Implicit rest day (no schedule)                                │  │
+│  │                                                                       │  │
+│  │ Output: Timetable (horario del día) + source (origin)               │  │
+│  └────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  ┌─ attendance_engine.py (V1 - Producción) ───────────────────────────┐  │
+│  │ calculate_day(employee, date, timetable) → DailyAttendance         │  │
+│  │                                                                      │  │
+│  │ Algoritmo:                                                           │  │
+│  │   1. Buscar AttendanceLog del día (check_in, check_out)            │  │
+│  │   2. Aplicar rounding (según Timetable.rounding_rule)              │  │
+│  │   3. Calcular: worked_minutes, late_minutes, early_minutes         │  │
+│  │   4. Aplicar late_allowance, early_leave_allowance                 │  │
+│  │   5. Calcular overtime (worked - required)                          │  │
+│  │   6. Check break compliance                                         │  │
+│  │   7. Determinar estado (Normal, Late, Early, Absent, Leave)        │  │
+│  │                                                                      │  │
+│  │ Output: DailyAttendance (metricas + status)                        │  │
+│  └────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  ┌─ attendance_engine_v2.py (Shadow Mode) ────────────────────────────┐  │
+│  │ Same as V1, pero en modo "validación"                               │  │
+│  │ Corre en paralelo, resultados comparados pero no usados             │  │
+│  │ (útil para refactoring sin romper producción)                       │  │
+│  └────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  ┌─ zk.py ───────────────────────────────────────────────────────────┐   │
+│  │ ZKClient (pyzk wrapper)                                            │   │
+│  │   • connect(ip, port, password)                                    │   │
+│  │   • get_attendance() → [(user_id, timestamp, status, punch), ...]  │   │
+│  │   • download_users() → User objects                                │   │
+│  │   • sync_users(employees) → empuja updates a dispositivo           │   │
+│  │   • get_device_info() → firmware, serial, platform, etc.           │   │
+│  │   • restart(), poweroff(), sync_time(), test_voice()               │   │
+│  ├─────────────────────────────────────────────────────────────────┤   │
+│  │ Usa librería pyzk (muslimbi/pyzk)                                  │   │
+│  │ Protocolo: socket TCP 4370, protocolo ZKTeco binario               │   │
+│  └────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  ┌─ zk_workers.py ───────────────────────────────────────────────────┐   │
+│  │ JobManager (gestión trabajos async)                                │   │
+│  │   • create_job(type, device_id) → Job.save()                       │   │
+│  │   • start_job(job_id) → cambiar status a "running"                 │   │
+│  │   • finish_job(job_id, status, error_msg) → completar              │   │
+│  │   • append_log(job_id, message) → JobLog.save()                    │   │
+│  │                                                                      │   │
+│  │ Nota: Jobs are sync (no Celery validado en DEV)                    │   │
+│  └────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  ┌─ shadow_comparison_service.py ─────────────────────────────────────┐  │
+│  │ compare_engines(employee, date) → ShadowCalculation                │  │
+│  │ Almacena diferencias V1 vs V2 para auditoría                       │  │
+│  └────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                   NIVEL PERSISTENCIA (Django ORM)                           │
+│                         core/models.py                                      │
+│                                                                              │
+│  ┌─ CATALÓGOS ORGANIZACIONALES ────────────────────────────────────┐      │
+│  │ Company, Position, Zone, Department                             │      │
+│  └────────────────────────────────────────────────────────────────┘      │
+│                                                                             │
+│  ┌─ PERSONAL ─────────────────────────────────────────────────────┐      │
+│  │ Employee (user_id, name, email, phone, ssn, department, etc.)  │      │
+│  │ User (device-local: uid, name, privilege, card, templates)     │      │
+│  │ BiometricTemplate (finger/face templates)                      │      │
+│  └────────────────────────────────────────────────────────────────┘      │
+│                                                                             │
+│  ┌─ DISPOSITIVOS ─────────────────────────────────────────────────┐      │
+│  │ Device (name, ip, port, password, serialnumber, firmware, ...)  │      │
+│  │ AttendanceLog (device_id, user_id, timestamp, status, punch)    │      │
+│  │              + audit fields: edited_by, edited_reason, is_manual │     │
+│  │ ImportBatch (device_id, imported_at, count)                     │      │
+│  └────────────────────────────────────────────────────────────────┘      │
+│                                                                             │
+│  ┌─ HORARIOS & ASIGNACIONES ──────────────────────────────────────┐      │
+│  │ Timetable (on_duty_time, off_duty_time, break_minutes, etc.)    │      │
+│  │ Shift (name, cycle_days: 0=weekly, >0=rotating)                 │      │
+│  │ ShiftTimetable (shift ↔ timetable, day_index: 0=Mon, 6=Sun)    │      │
+│  │ EmployeeShift (scope: EMPLOYEE|DEPARTMENT, shift, dates)       │      │
+│  │ ScheduleOverride (employee, date, timetable) — excepciones      │      │
+│  └────────────────────────────────────────────────────────────────┘      │
+│                                                                             │
+│  ┌─ AUSENCIAS ────────────────────────────────────────────────────┐      │
+│  │ Leave (employee_id, type, start_time, end_time, status)         │      │
+│  │ Holiday (name, start_date, end_date)                            │      │
+│  └────────────────────────────────────────────────────────────────┘      │
+│                                                                             │
+│  ┌─ ASISTENCIA CALCULADA ─────────────────────────────────────────┐      │
+│  │ DailyAttendance (employee, date, check_in, check_out,          │      │
+│  │                  worked_minutes, late_minutes, status, ...)     │      │
+│  └────────────────────────────────────────────────────────────────┘      │
+│                                                                             │
+│  ┌─ SISTEMA ──────────────────────────────────────────────────────┐      │
+│  │ Job (id, type, device_id, status, progress, started_at, ...)   │      │
+│  │ JobLog (job_id, message, timestamp)                             │      │
+│  │ Setting (key, value, description)                               │      │
+│  └────────────────────────────────────────────────────────────────┘      │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    ↓ psycopg2 driver
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         POSTGRESQL DATABASE                                 │
+│                    Database: srtimeweb                                       │
+│                    Tables: 24+ (ídem modelos)                                │
+│                    Índices: user_id, timestamp, device_id, etc.             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      PERIFÉRICOS / INTEGRACIONES                            │
+│                                                                              │
+│  DISPOSITIVOS ZKTECO:                                                       │
+│    Protocolo: TCP socket en puerto 4370 (defecto)                           │
+│    Integración: pyzk library (módulo core.services.zk)                      │
+│    Conexión: Sincrónica (blocking I/O, no async)                            │
+│                                                                              │
+│  REDIS / CELERY (OPCIONAL):                                                 │
+│    config en settings.py: CELERY_BROKER_URL, RESULT_BACKEND                 │
+│    Status en DEV: NO VALIDADO (jobs son sync, no async)                     │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+4. BACKEND — FUNCIONAMIENTO REAL
+================================================================================
+
+4.1 APPS USADAS EFECTIVAMENTE
+──────────────────────────────
+
+core/
+  ✓ USADO ACTIVAMENTE (99% del sistema)
+  • Modelos: 24 modelos, todos usados
+  • ViewSets: 21 CRUD endpoints completamente funcionales
+  • Servicios: attendance_engine (V1), schedule_resolver
+  • Views custom: calculate_attendance, device operations
+
+devices/
+  ✗ NO USADO (herencia histórica)
+  • Intención: App secundaria para dispositivos
+  • Realidad: Todo en core, devices/ vacío de funcionalidad
+
+data_entry/
+  ⚠️ PARCIALMENTE USADO (legacy)
+  • Importación CSV/LOG
+  • No referenciado en UI actual
+
+tests/
+  ✓ USADO (documentación viva)
+  • ~80 tests que validan comportamiento real
+
+
+4.2 SERVICIOS CRÍTICOS Y RESPONSABILIDADES
+────────────────────────────────────────────
+
+schedule_resolver.py (CRÍTICO)
+  Responsabilidad única: Resolver qué horario tiene un empleado en una fecha
+  Entrada: employee_id, date
+  Proceso:
+    1. Buscar ScheduleOverride(employee, date) → más prioritario
+    2. Buscar EmployeeShift(scope='EMPLOYEE', employee) → prioridad media
+    3. Buscar EmployeeShift(scope='DEPARTMENT', department) → fallback
+    4. Si nada, retorna IMPLICIT_REST (no tiene horario = día libre)
+  Salida: ResolvedSchedule(timetable, source, is_valid)
+  Usado por: Como precondición en attendance_engine.calculate_day()
+  Nota: Ambos engines (V1 y V2) usan la MISMA función (garantiza consistencia)
+
+attendance_engine.py (CRÍTICO)
+  Responsabilidad: Calcular métricas dinarias de asistencia
+  Entrada: employee, date, timetable (ya resuelto)
+  Proceso:
+    1. Buscar AttendanceLog (device, user_id, fecha) → check_in, check_out
+    2. Si no hay logs → status = "Absent"
+    3. Si hay logs:
+       a. Aplicar rounding rules (según timetable.rounding_rule)
+       b. Calcular duración bruta: checkout - checkin
+       c. Restar break_minutes
+       d. Comparar con on_duty_time, off_duty_time
+       e. Calcular discrepancias: late_minutes, early_minutes
+       f. Calcular: worked_minutes = duración - breaks
+       g. Calcular overtime_minutes = max(0, worked - required)
+       h. Determinar status (Normal, Late, Early, Incomplete, Excessive)
+    4. Guardar DailyAttendance con métricas
+  Salida: DailyAttendance (status, worked_minutes, late_minutes, etc.)
+  Nota: Cálculo determinístico — mismo input = mismo output
+
+zk.py (CRÍTICO para INTEGRACIÓN)
+  Responsabilidad: Comunicar con dispositivos ZKTeco vía pyzk
+  Funciones:
+    • connect(ip, port, password) → conexión socket
+    • get_attendance() → fetch logs desde dispositivo
+    • download_users() → descargar registro de usuarios
+    • sync_users(employees) → pusha usuarios a dispositivo
+    • device operations: restart, poweroff, sync_time, test_voice
+  Tipo de operación: SÍNCRONA (blocking TCP)
+  Timeout: Por defecto en pyzk (~10s)
+  Manejo de errores: Básico (puede lanzar excepciones)
+
+jobs.py
+  Responsabilidad: Gestionar trabajos (abstracción para operaciones async)
+  Funciones:
+    • create_job(type, device_id) → Job(status='pending')
+    • start_job(job_id) → Job(status='running', started_at=now)
+    • finish_job(job_id, status, error) → completar
+    • set_progress(job_id, %) → actualizar progreso
+    • append_log(job_id, message) → registro de paso a paso
+  Nota: "Async" en abstracción, pero implementación SÍNCRONA (no Celery)
+  Efecto: Operaciones largas (import attendance, download users) bloquean
+  Workaround en DEV: Aceptable porque usuarios son pocos
+
+4.3 FLUJO DE DATOS: REQUEST → RESPONSE
+────────────────────────────────────────
+
+Ejemplo: POST /api/v1/attendance/calculate/
+
+  1. Frontend → API
+     POST /api/v1/attendance/calculate/
+     Body: { "start_date": "2026-02-01", "end_date": "2026-02-07", "department_id": null }
+     Header: Authorization: Bearer {token} (DEV: ignorado, AllowAny)
+
+  2. Django URL routing
+     → core/urls.py → views_attendance.calculate_attendance()
+
+  3. View layer (core/views_attendance.py)
+     def calculate_attendance(request):
+       1. Parse body → start_date, end_date, department_id
+       2. Validate dates
+       3. Call calculate_period(start_date, end_date, department_id)
+
+  4. Service layer (core.services.calculate_period)
+     def calculate_period(start_date, end_date, department_id):
+       for date in date_range(start_date, end_date):
+         if department_id:
+           employees = Department.objects.get(id).employees.all()
+         else:
+           employees = Employee.objects.filter(active=True)
+         
+         for employee in employees:
+           for date_item in date_range:
+             1. schedule = resolve_schedule_unified(employee.id, date_item)
+             2. daily_att = calculate_day(employee, date_item, schedule.timetable)
+             3. DailyAttendance.save(daily_att)
+
+  5. Core logic (attendance_engine.calculate_day)
+     → Fetch AttendanceLog → Calculate metrics → Return object
+
+  6. Model persistence (ORM)
+     DailyAttendance.objects.bulk_create(results)
+
+  7. Response → Frontend
+     HTTP 200 OK
+     Body: {
+       "message": "✅ Calculated 45 records...",
+       "summary": {
+         "processed_records": 45,
+         "skipped_employees": 2,
+         "absence_reasons": {...}
+       }
+     }
+
+
+================================================================================
+5. ATTENDANCE ENGINE — FLUJO DE CÁLCULO DETALLADO
+================================================================================
+
+ENTRADA MÍNIMA:
+  employee_id: 123
+  date: 2026-02-10 (datetime.date)
+  
+PASO 1: RESOLVER HORARIO
+  ├─ resolve_schedule_unified(123, 2026-02-10)
+  │  ├─ Check ScheduleOverride(emp=123, date=2026-02-10) → None
+  │  ├─ Check EmployeeShift(scope='EMPLOYEE', emp=123)
+  │  │  → Found: Shift "Morning" starting 2026-02-01
+  │  ├─ Resolve shift → ShiftTimetable(shift=..., day_index=0) [Lunes]
+  │  │  → Timetable: "9-5 Fixed"
+  │  │    • on_duty_time: "09:00:00"
+  │  │    • off_duty_time: "17:00:00"
+  │    • break_minutes: 60
+  │    • late_allow_minutes: 10
+  │    • rounding_rule: "none"
+  │  └─ RETURN: ResolvedSchedule(timetable=Timetable(...), source='EMPLOYEE_SHIFT')
+
+PASO 2: BUSCAR LOGS DEL DÍA
+  ├─ AttendanceLog.objects.filter(
+  │    device__employee__user_id=emp.user_id,
+  │    date__date='2026-02-10'
+  │  ).order_by('timestamp')
+  │  → [
+  │      AttendanceLog(user_id='EMP001', timestamp='2026-02-10 08:45:00', status=0, punch=0),
+  │      AttendanceLog(user_id='EMP001', timestamp='2026-02-10 17:05:00', status=0, punch=1)
+  │    ]
+
+PASO 3: VALIDAR QUE HAY LOGS
+  ├─ if not logs:
+  │    return DailyAttendance(status='Absent', worked_minutes=0, ...)
+  └─ Continuamos...
+
+PASO 4: EXTRAER TIMESTAMPS
+  ├─ check_in = 08:45:00 (primer punch=0)
+  └─ check_out = 17:05:00 (último punch=1)
+
+PASO 5: APLICAR ROUNDING (si aplica)
+  ├─ rounding_rule = "none" → sin cambios
+  │  (otros: "5min", "10min", etc. → redondean hacia arriba/abajo)
+  └─ check_in = 08:45:00, check_out = 17:05:00
+
+PASO 6: CALCULAR DURACIÓN BRUTA
+  ├─ duration = 17:05:00 - 08:45:00 = 8 horas 20 minutos = 500 minutos
+
+PASO 7: RESTAR BREAKS
+  ├─ break_minutes = 60 (configurado)
+  ├─ net_worked = 500 - 60 = 440 minutos
+
+PASO 8: BUSCAR HORARIO ESPERADO
+  ├─ on_duty = 09:00:00
+  └─ off_duty = 17:00:00
+  ├─ expected_duration = 17:00 - 09:00 = 8 horas = 480 minutos
+
+PASO 9: CALCULAR DISCREPANCIAS
+  ├─ late_minutes = max(0, on_duty - check_in)
+  │  = max(0, 09:00 - 08:45) = 0 (NO llegó tarde)
+  │
+  ├─ early_minutes = max(0, check_out - off_duty)
+  │  = max(0, 17:05 - 17:00) = 5 (Salió 5 minutos tarde)
+  │
+  └─ Nota: Si llegó DESPUÉS de on_duty:
+     late_minutes = check_in - on_duty (en minutos)
+
+PASO 10: CALCULAR OVERTIME
+  ├─ required_minutes = 480 (de Timetable.required_minutes o inferido)
+  ├─ worked_minutes = net_worked = 440 (o mayor si trabajó más)
+  └─ overtime_minutes = max(0, worked_minutes - required)
+     = max(0, 440 - 480) = 0 (trabajó MENOS)
+
+PASO 11: APLICAR TOLERANCIAS
+  ├─ late_allow_minutes = 10 (configurado)
+  ├─ if late_minutes <= late_allow_minutes:
+  │    late_minutes = 0 (se perdona)
+  │
+  └─ early_leave_allow_minutes = 10 (configurado)
+     if early_minutes <= early_leave_allow_minutes:
+       early_minutes = 0 (se perdona)
+
+PASO 12: DETERMINAR STATUS
+  ├─ rules (en orden de evaluación):
+  │  1. if leave exists → status = 'Leave'
+  │  2. if holiday AND (checked_in) → status = 'HolidayWorked'
+  │  3. if not check_in AND not check_out → status = 'Absent'
+  │  4. if late_minutes > 0 → status = 'Late'
+  │  5. if early_minutes > 0 AND worked < required → status = 'Early'
+  │  6. if worked > (required * 1.5) → status = 'Excessive'
+  │  7. if worked >= required → status = 'Normal'
+  │  8. else → status = 'Incomplete'
+  │
+  └─ En este ejemplo: status = 'Incomplete' (trabajó 440 < 480 requeridos)
+
+PASO 13: GUARDAR
+  ├─ DailyAttendance.objects.create(
+  │    employee=emp,
+  │    date='2026-02-10',
+  │    check_in=datetime(2026, 2, 10, 8, 45),
+  │    check_out=datetime(2026, 2, 10, 17, 5),
+  │    on_duty='09:00:00',
+  │    off_duty='17:00:00',
+  │    late_minutes=0,
+  │    early_minutes=0,
+  │    worked_minutes=440,
+  │    overtime_minutes=0,
+  │    status='Incomplete',
+  │    exception_reason=None,
+  │    timetable=timetable
+  │  )
+
+SALIDA:
+  DailyAttendance(
+    employee_id=123,
+    date=2026-02-10,
+    status='Incomplete',
+    worked_minutes=440,
+    late_minutes=0,
+    overtime_minutes=0
+  )
+
+
+================================================================================
+6. FRONTEND — UI Y UX
+================================================================================
+
+6.1 ESTRUCTURA DE NAVEGACIÓN
+────────────────────────────
+
+MAIN LAYOUT (Navegación constante)
+  └─ Topbar (superior)
+      │ SRTime Logo / Home link
+      │ Links: Dashboard | Personnel | Attendance | Devices | Analytics
+      └─ Sidebar (izquierda, colapsible)
+          ├─ Dashboard
+          │   └─ / → Dashboard.tsx
+          │
+          ├─ Personnel (HR)
+          │   ├─ /personnel/departments → Departments.tsx
+          │   ├─ /personnel/employees → Employees.tsx
+          │   ├─ /personnel/shifts → Shifts.tsx
+          │   └─ /personnel/timetables → Timetables.tsx
+          │
+          ├─ Attendance (Asistencia)
+          │   ├─ /attendance/logs → Logs.tsx
+          │   ├─ /attendance/reports → Reports.tsx
+          │   ├─ /attendance/calculation → Calculation.tsx
+          │   ├─ /attendance/schedule → EmployeeSchedule.tsx
+          │   └─ /attendance/absences → Absences.tsx
+          │
+          ├─ Devices (Dispositivos)
+          │   ├─ /devices → DeviceList.tsx
+          │   ├─ /devices/:id → DeviceDetail.tsx
+          │   └─ /devices/:id/users → Users.tsx
+          │
+          └─ Analytics
+              └─ /analytics → Analytics.tsx (pendiente)
+
+
+6.2 PANTALLAS PRINCIPALES (FUNCIONALIDAD REAL)
+───────────────────────────────────────────────
+
+DASHBOARD.tsx
+  Propósito: Hub central, estadísticas de alto nivel
+  Datos mostrados:
+    ├─ Conteos (GET /dashboard/summary/)
+    │  • # empleados
+    │  • # dispositivos
+    │  • # marcaciones este mes
+    │  • empresa (name)
+    │
+    └─ Quick Links (botones de navegación)
+      • Marcaciones → /attendance/logs
+      • Reporte Diario → /attendance/reports
+      • RRHH → /personnel
+      • Reportes → /analytics
+
+DEVICELIST.tsx
+  Propósito: Tabla de dispositivos ZKTeco
+  Tabla:
+    │ Nombre | IP:Puerto | Estado | Conexión | Acciones
+    │ Test1  | 192.168.1.100:4370 | Habilitado | 🔴 Offline | [Test] [Import] [Delete]
+    │ Test2  | 192.168.1.101:4370 | Habilitado | 🟢 Online  | [Test] [Import] [Delete]
+  
+  Acciones:
+    • [Test Conexión] → POST /devices/{id}/test-connection/
+      Layout: Popup mostra resultado (Online/Offline)
+    
+    • [Importar Marcaciones] → POST /devices/{id}/import-attendance/
+      Layout: Job async, muestra "Importando..." → "✓ 150 logs importados"
+    
+    • Click en dispositivo → /devices/{id} → DeviceDetail
+
+DEVICEDETAIL.tsx
+  Propósito: Detalle de dispositivo + operaciones avanzadas
+  Secciones:
+    1. Información
+       • Nombre, IP, Puerto, Serial, Firmware, Platform
+       • Estadísticas: # usuarios, # huellas, # marcaciones
+    
+    2. Operaciones (botones)
+       • [Test Conexión] → verificar conectividad
+       • [Importar Marcaciones] → GET logs desde dispositivo
+       • [Limpiar Logs] → clear device logs
+       • [Descargar Usuarios] → GET users from device
+       • [Sincronizar Usuarios] → PUSH users a device
+       • [Reiniciar] → restart device
+       • [Apagar] → poweroff device
+       • [Sincronizar Hora] → sync time
+       • [Test Voz] → play voice message
+    
+    3. Vista de Usuarios (tab)
+       • Tabla: UID | user_id | Name | Finger Count | Face Count
+       • Datos: GET /devices/{id}/users/
+
+EMPLOYEES.tsx (Personnel)
+  Propósito: CRUD de empleados
+  Tabla:
+    │ ID | user_id | Nombre | Email | Depar. | Activo | Acciones
+    │ 1  | A001    | Juan   | j@... | IT     | ✓      | [Edit] [Delete]
+    │ 2  | A002    | María  | m@... | HR     | ✓      | [Edit] [Delete]
+  
+  Funcionalidad:
+    • [New] → Modal creación
+    • [Edit] → Modal: user_id, name, email, phone, department, position, gender, active
+    • [Delete] → eliminación lógica
+    • Search / Filter por nombre, user_id, depar.
+    • Import CSV (partial)
+    
+  Campos calculados (readonly):
+    • current_shift (nombre del turno asignado)
+    • current_timetable (nombre del horario)
+    • schedule_source (de dónde viene: OVERRIDE, EMPLOYEE_SHIFT, DEPARTMENT_SHIFT)
+
+SHIFTS.tsx
+  Propósito: Crear/editar turnos + asignar horarios por día
+  Tabla:
+    │ Nombre | Ciclo | Días asignados | Acciones
+    │ Mañana | Semanal | Lun-Vie | [Edit] [Delete]
+  
+  Modal Edición:
+    ├─ Nombre: "Mañana"
+    ├─ Ciclo: [Semanal ▼] o [Rotativo N días]
+    └─ Horarios por día (tabla):
+       Dia     | Horario
+       Lunes   | [9-5 Fijo ▼]
+       Martes  | [9-5 Fijo ▼]
+       Miérc   | [9-5 Fijo ▼]
+       Jueves  | [9-5 Fijo ▼]
+       Viernes | [9-5 Fijo ▼]
+       Sámad   | [Descanso ▼]
+       Domingo | [Descanso ▼]
+
+TIMETABLES.tsx
+  Propósito: Crear/editar horarios diarios
+  Tabla:
+    │ Nombre | Entrada | Salida | Breaks | Tolerancia | Flexible | Acciones
+    │ 9-5    | 09:00   | 17:00  | 60min  | 10min      | No       | [Edit] [Delete]
+  
+  Modal Edición:
+    ├─ Nombre: "9-5"
+    ├─ Tipo: [Fijo ◉] [Flexible ◎]
+    │
+    ├─ HORARIO FIJO:
+    │  ├─ Entrada: 09:00
+    │  ├─ Salida: 17:00
+    │  └─ Regla redondeo: [Ninguno ▼]
+    │
+    ├─ HORARIO FLEXIBLE:
+    │  ├─ Ventana entrada: 07:00 - 11:00
+    │  ├─ Ventana salida: 16:00 - 20:00
+    │  └─ Minutos requeridos: 480
+    │
+    ├─ Breaks: 60 minutos
+    ├─ Tolerancia llegada tarde: 10 minutos
+    ├─ Tolerancia salida temprano: 15 minutos
+    └─ Umbral hora extra: 30 minutos
+
+EMPLOYEES.tsx - Detail / AssignShift
+  Propósito: Ver/editar asignación de turno de empleado individual
+  Pantalla:
+    Empleado: Juan (A001)
+    Turno actual: [Seleccionar turno ▼] [Fecha inicio: 2026-02-01] [Guardar]
+    
+  Efecto:
+    POST /api/v1/employee-shifts/
+    Body: { "scope": "EMPLOYEE", "employee": 1, "shift": 1, "start_date": "2026-02-01" }
+
+LOGS.tsx (Attendance)
+  Propósito: Ver / editar logs crudos de marcaciones
+  Tabla:
+    │ Empleado | Fecha    | Hora       | Estado | Editar
+    │ Juan     | 2026-02-10 | 08:45:00 | Normal | [✏️]
+    │ Juan     | 2026-02-10 | 17:05:00 | Normal | [✏️]
+  
+  Funcionalidad:
+    • Filtros: Empleado, Fecha, Dispositivo, user_id
+    • Paginación: por defecto 50 items
+    • [✏️] Editar
+      Modal:
+        ├─ user_id (readonly)
+        ├─ timestamp (editable)
+        ├─ status (editable)
+        ├─ Motivo edición (texto)
+        └─ [Guardar]
+      Efecto: PUT /attendances-logs/{id}/ con audit fields
+
+CALCULATION.tsx
+  Propósito: Calcular asistencia en período
+  Interfaz (simple form):
+    Rango de Fechas:
+      desde [2026-02-01]  hasta [2026-02-07]
+    
+    Departamento: [Todos ▼]
+    
+    [▶ Calcular]
+    
+  Resultado (si éxito):
+    ✓ Éxito
+      ✅ Calculated 45 records successfully
+      - Processed: 45
+      - Skipped: 0
+      - Absence reasons:
+        • NO_SCHEDULE: 0 employees
+  
+  Efecto backend:
+    POST /api/v1/attendance/calculate/
+    → for each date in range:
+       for each employee in department (or all):
+         calculate_day() → DailyAttendance.save()
+
+REPORTS.tsx (Attendance)
+  Propósito: Visualizar matriz de asistencia calculada
+  Tabla:
+    │ Empleado | 2026-02-01 | 2026-02-02 | ...
+    │ Juan     | ✓ Normal   | ✓ Normal   |
+    │ María    | ✓ Normal   | ⚠ Late     |
+    │ Pedro    | ✗ Absent   | ✓ Normal   |
+  
+  Celda contiene: [status ícono] con hover detail
+    Hover: worked_minutes, late_minutes, overtime, etc.
+  
+  Filtros:
+    • Período: fecha inicio/fin
+    • Departamento: [Todos ▼]
+    • Status: [Todos ▼] [Normal] [Late] [Absent] ...
+
+
+6.3 PATRONES DE UX OBSERVADOS
+──────────────────────────────
+
+LAZY LOADING:
+  • Dashboard: Carga datos aparte (summary), manejacarga fallida
+  • DeviceList: Conexión status on-demand (no automático)
+
+ERROR HANDLING:
+  • Toast messages (superior derecha) para feedback
+  • Modal alerts para errores críticos
+  • Fallback values (null checks) en UI
+
+FORMS:
+  • Modales para Create/Edit
+  • Validación básica cliente (requerido)
+  • Guardado síncrono (spinner mientras espera)
+
+TABLAS:
+  • DataGrid genérico (componente reutilizable)
+  • Sorting, filtering, paginación
+  • Acciones por fila (edit, delete, detail)
+
+
+================================================================================
+7. INTEGRACIÓN FRONTEND ↔ BACKEND
+================================================================================
+
+7.1 FLUJO DE AUTENTICACIÓN (DEV)
+────────────────────────────────
+
+Teórico: JWT token auth
+  POST /api/token/ con username + password → { access_token, refresh_token }
+  
+Realidad DEV:
+  ✓ Endpoint existe
+  ✓ Frontend puede obtener token (login.json: raul/admin123)
+  ✓ Pero permiso global = AllowAny (no requerido)
+  
+Consecuencia: Frontend envía Bearer token si existe, pero backend NO lo valida
+
+Implementación:
+  src/api.ts:
+    const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:9000/api/v1'
+    api.interceptors.request.use(config => {
+      const token = sessionStorage.getItem('auth_token')
+      if (token) config.headers.Authorization = `Bearer ${token}`
+      return config
+    })
+
+
+7.2 ENDPOINTS CONSUMIDOS (REAL USAGE)
+──────────────────────────────────────
+
+Dashboard:
+  GET /api/v1/dashboard/summary/?limit=7
+
+Personnel:
+  GET/POST /api/v1/departments/
+  GET/POST /api/v1/employees/
+  GET/POST /api/v1/employees/{id}/
+  PUT /api/v1/employees/{id}/
+  DELETE /api/v1/employees/{id}/
+  GET/POST /api/v1/positions/
+  GET/POST /api/v1/zones/
+
+Attendance:
+  GET /api/v1/attendance/
+  GET /api/v1/attendance/logs/
+  PUT /api/v1/attendance-logs/{id}/  (edición manual)
+  GET /api/v1/daily-attendance/
+  POST /api/v1/attendance/calculate/
+  POST /api/v1/attendance/calculate/detailed/
+  GET /api/v1/attendance/reports/daily/
+  GET /api/v1/leaves/
+  GET /api/v1/holidays/
+
+Schedules:
+  GET/POST /api/v1/timetables/
+  GET/POST /api/v1/shifts/
+  GET/POST /api/v1/shift-timetables/
+  GET/POST /api/v1/employee-shifts/
+  GET/POST /api/v1/schedule-overrides/
+
+Devices:
+  GET /api/v1/devices/
+  GET /api/v1/devices/{id}/
+  POST /api/v1/devices/
+  PUT /api/v1/devices/{id}/
+  GET /api/v1/devices/connection-status/all/
+  POST /api/v1/devices/{id}/test-connection/
+  POST /api/v1/devices/{id}/test-connection-sync/
+  POST /api/v1/devices/{id}/import-attendance/
+  POST /api/v1/devices/{id}/download-users/
+  POST /api/v1/devices/{id}/sync-users/
+  POST /api/v1/devices/{id}/clear-attendance/
+  POST /api/v1/devices/{id}/restart/
+  POST /api/v1/devices/{id}/poweroff/
+  POST /api/v1/devices/{id}/sync-time/
+  POST /api/v1/devices/{id}/test-voice/
+  GET /api/v1/devices/{id}/memory/
+  GET /api/v1/devices/{id}/info/
+  GET /api/v1/devices/{id}/users/
+
+Jobs:
+  GET /api/v1/jobs/{id}/
+  GET /api/v1/jobs/{id}/logs/
+
+System:
+  GET /api/v1/settings/
+
+
+7.3 MANEJO DE ESTADOS (FRONTEND)
+────────────────────────────────
+
+Contextos (React Context API):
+  └─ AppContext
+      ├─ Estado global de app
+      └─ Utilities
+  
+  └─ AuthContext
+      ├─ auth_token (sessionStorage)
+      ├─ user (si existe)
+      └─ login/logout
+  
+  └─ ToastContext
+      ├─ Mensajes emergentes
+      └─ toast.success(), toast.error()
+
+Componentes stateful:
+  • DeviceList, Employees, Logs → useState para datos + loading
+  • Modales → useState para open/editing
+  • Paginación → página actual
+
+
+9.4 PAYLOADS CLAVE (EJEMPLOS REALES)
+────────────────────────────────────
+
+POST /api/v1/attendance/calculate/
+  Request:
+    {
+      "start_date": "2026-02-01",
+      "end_date": "2026-02-07",
+      "department_id": null
+    }
+  
+  Response:
+    {
+      "message": "✅ Calculated 45 records successfully",
+      "summary": {
+        "processed_records": 45,
+        "skipped_employees": 2,
+        "total_employees_expected": 47,
+        "absence_reasons": {
+          "NO_SCHEDULE": [5, 12]  # employee IDs
+        }
+      }
+    }
+
+PUT /api/v1/attendance-logs/{id}/
+  Request:
+    {
+      "timestamp": "2026-02-10T09:00:00Z",
+      "edited_by": "admin",
+      "edited_reason": "Device offline - manual entry",
+      "is_manual": true
+    }
+  
+  Response:
+    {
+      "id": 123,
+      "timestamp": "2026-02-10T09:00:00Z",
+      "status": 0,
+      "punch": 0,
+      "edited_by": "admin",
+      "edited_at": "2026-02-10T15:30:00Z",
+      "is_manual": true
+    }
+
+POST /api/v1/devices/{id}/import-attendance/
+  Request: {}
+  
+  Response:
+    {
+      "job_id": "a1b2c3d4-e5f6-...",
+      "status": "running"
+    }
+
+GET /api/v1/api/v1/daily-attendance/
+  Response:
+    [
+      {
+        "id": 1,
+        "employee_id": 1,
+        "employee_name": "Juan",
+        "date": "2026-02-10",
+        "check_in": "2026-02-10T08:45:00Z",
+        "check_out": "2026-02-10T17:05:00Z",
+        "worked_minutes": 440,
+        "late_minutes": 0,
+        "overtime_minutes": 0,
+        "status": "Incomplete",
+        "on_duty": "09:00:00",
+        "off_duty": "17:00:00"
+      },
+      ...
+    ]
+
+
+================================================================================
+8. TESTS COMO ESPECIFICACIÓN FUNCIONAL
+================================================================================
+
+Los tests son la documentación ejecutable del comportamiento real.
+Extracto de funcionalidad validada:
+
+tests/test_schedule_resolver.py
+  ✓ resolve_schedule_unified() con EMPLOYEE scope (prioridad 1)
+  ✓ resolve_schedule_unified() con DEPARTMENT scope (fallback)
+  ✓ ScheduleOverride tiene mayor prioridad que shifts
+  ✓ Implicit rest day cuando no hay schedule
+
+tests/test_engines_consistency.py
+  ✓ V1 y V2 engines producen idéntico resultado
+  ✓ Cálculo con flexible schedule funciona
+  ✓ Late/Early detection correcto
+  ✓ Overtime calculation es consistente
+
+tests/test_shadow_mode.py
+  ✓ Shadow mode puede activarse/desactivarse
+  ✓ Diferencias V1 vs V2 se loguean
+  ✓ Cálculo main (V1) no es afectado por shadow
+
+tests/test_flexible_processing_integration.py
+  ✓ Jornada flexible resuelve horario en ventana
+  ✓ Minutos requeridos se restan correctamente
+
+tests/test_attendance_config.py
+  ✓ Timetable configuration se aplica
+  ✓ Late allowance se respeta
+
+tests/test_recalculation.py
+  ✓ Recálculo por período funciona
+  ✓ DailyAttendance se actualiza (supersede)
+
+tests/test_import.py
+  ✓ Import de marcaciones parsea correctamente
+  ✓ Constraint único (device, user_id, timestamp) se respeta
+
+
+================================================================================
+9. ESTADO ACTUAL DEL SISTEMA (QUÉ FUNCIONA HOY EN DEV)
+================================================================================
+
+FUNCIONAL 100%:
+  ✓ CRUD organizacional (companies, departments, employees, positions, zones)
+  ✓ CRUD dispositivos (create, read, update list)
+  ✓ Test de conexión a dispositivo (síncrono)
+  ✓ Importación de logs desde dispositivo (bulk insert)
+  ✓ CRUD horarios (timetables, shifts, shift-timetables)
+  ✓ Asignación de turnos a empleados/departamentos
+  ✓ Excepciones de horario (schedule-overrides)
+  ✓ Cálculo de asistencia en período (V1 engine funciona)
+  ✓ Edición manual de logs con auditoría
+  ✓ Visualización de reportes diarios
+  ✓ Dashboard con estadísticas básicas
+  ✓ Descarga de usuarios desde dispositivo
+  ✓ Operaciones en dispositivo (restart, poweroff, sync-time, test-voice)
+  ✓ Sincronización de usuarios (push a dispositivo)
+  ✓ Limpieza de logs en dispositivo
+  ✓ Gestión de licencias/ausencias (CRUD)
+  ✓ Gestión de feriados (CRUD)
+
+PARCIALMENTE FUNCIONAL:
+  ⚠️ V2 engine (existe, corre, pero en shadow mode — no afecta producción)
+  ⚠️ Shadow comparison (datos almacenados, no visualizados en UI)
+  ⚠️ Jobs async (implementados como síncronos, no usa Celery)
+  ⚠️ Analytics page (ruta existe, componentes vacíos)
+  ⚠️ Datos biométricos (stored, no usados en cálculo)
+
+NO FUNCIONAL O NO USADO:
+  ✗ Celery workers (no configurado efectivamente)
+  ✗ Template forensics (modelos existen, sin UI)
+  ✗ Operaciones administrativas avanzadas (gestión usuarios auth)
+  ✗ Reports custom/complejos (solo tabla plana)
+  ✗ Exportación de datos (no hay endpoint)
+
+PERFORMANCE:
+  • Cálculo de 1 semana × 28 empleados: ~2-3 segundos
+  • Import 1500 logs: ~5-10 segundos (depende dispositivo)
+  • Queries JSON Field: aceptable con indexes
+
+
+================================================================================
+10. LIMITACIONES ACTUALES (FUNCIONALES, NO TÉCNICAS)
+================================================================================
+
+INGESTA DE DATOS:
+  • Solo desde dispositivos ZKTeco (integración rígida)
+  • No hay API para ingesta de terceros
+  • No hay importación batch CSV de logs (solo empleados)
+
+CÁLCULO:
+  • Determinístico (no hay ML, solo reglas)
+  • Aplica mismo horario a TODOS, sin excepciones individuales
+  • No ajusta por días festivos automáticos (solo manual + Holiday model)
+  • No calcula datos bifurcados (ej: parte-day shifts)
+
+REPORTES:
+  • Matriz simple (empleado × día + status)
+  • Sin agregaciones (totales por depar, mes, etc.)
+  • Sin export a Excel/PDF (solo visualización en UI)
+  • Sin análisis de tendencias
+
+CONFIGURACIÓN:
+  • Turnos: solo semanal o ciclo fijo (no custom patterns)
+  • Horarios: on/off time fijos (no múltiples ranges)
+  • Flexible schedule: solo ventana de entrada/salida
+  • Sin excepciones por rol/puesto
+
+OPERACIONES:
+  • Trabajos (jobs) son síncronos (bloquean)
+  • Sin queue de prioridad
+  • Sin retry automático en fallos de red
+
+DATOS:
+  • DTos personales (DNI, teléfono, dirección) almacenados sin cifrado
+  • Sin GDPR compliance
+  • Sin anonimización
+
+
+================================================================================
+11. CONCLUSIÓN FUNCIONAL
+================================================================================
+
+SRTime Django EN DEV HOY:
+
+QUÉ ESTÁ CONSTRUIDO Y FUNCIONA:
+  Sistema completo de ingesta y cálculo de asistencia con interfaz  
+  de usuario integral para gestión de empleados, horarios y dispositivos.
+  
+  Core: resolve_schedule_unified() + attendance_engine.calculate_day()
+  crean un pipeline determinístico y auditable.
+  
+  UI: 8 pantallas principales cubren casos de uso operacionales.
+  
+  Data: 24 modelos, índices adecuados, constraints únicos.
+
+USABILIDAD ACTUAL (DEV):
+  ✓ Un usuario técnico (admin) puede:
+    1. Configurar empleados, horarios, turnos
+    2. Conectar dispositivos, importar logs
+    3. Ejecutar cálculos automáticos
+    4. Ver reportes y editar excepciones
+    5. Auditar cambios manuales
+  
+  ⚠️ Requiere conocimiento técnico:
+    • Schedule resolution (resolución de horarios)
+    • Diferencia entre scope EMPLOYEE vs DEPARTMENT
+    • Rounding rules, late allowance, flexible windows
+    • Job status tracking
+
+VACÍOS FUNCIONALES:
+  • Sin reportes avanzados
+  • Sin bulk operations
+  • Sin automatización (siempre manual)
+  • Sin integración con otros sistemas
+  • Sin validación de datos (low-level)
+
+ESTABILIDAD OPERACIONAL:
+  • Sistema es READ-HEAVY (reportes > ediciones)
+  • Cálculos no rompen si faltan datos → fallback lógico
+  • Auditoría permite rollback manual
+  • No hay operaciones "no disruptivas"
+
+CONCLUSIÓN:
+SRTime Django funciona como sistema de CAPTURA + CÁLCULO + AUDITORÍA
+de asistencia. NO es un sistema de nómina, análisis o BI. 
+Está listo para operación por usuarios técnicos en DEV.
+Para múltiples usuarios y datos reales requeriría UI mejorada
+y validaciones de entrada más estrictas.
+
+================================================================================
+FIN DEL REPORTE FUNCIONAL
+================================================================================

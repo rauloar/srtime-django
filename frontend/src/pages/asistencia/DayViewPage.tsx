@@ -2,22 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DayHeader } from '../../components/asistencia/DayHeader';
 import { DayTimeline } from '../../components/asistencia/DayTimeline';
-// DayExplanation commented out - component is evaluative (shows anomalies/recommendations)
-// UI principle: system shows data, RRHH interprets. System should not label events as anomalies.
-// import { DayExplanation } from '../../components/asistencia/DayExplanation';
 import { DayPunchList } from '../../components/asistencia/DayPunchList';
 import { DayActions } from '../../components/asistencia/DayActions';
 import { DayNavigation } from '../../components/asistencia/DayNavigation';
-import { api } from '../../api';
+import { getDayView, type DayViewResponse } from '../../api';
 
-interface DayViewData {
-    employee_id: string;
-    employee_name: string;
-    date: string;
-    status: string;
-    worked_minutes: number;
-    logs: Array<{ type: string; time: string }>;
-}
+// Using DayViewResponse from api.ts
+type DayViewData = DayViewResponse;
 
 export const DayViewPage: React.FC = () => {
     const { employeeId, date } = useParams<{ employeeId: string; date: string }>();
@@ -44,18 +35,11 @@ export const DayViewPage: React.FC = () => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Use params object instead of template string to safely encode parameters
-                const response = await api.get('/attendance/day/', {
-                    params: {
-                        employee_id: employeeId,
-                        date: date
-                    }
-                });
-                setData(response.data);
+                const data = await getDayView(employeeId, date);
+                setData(data);
                 setError(null);
             } catch (err) {
-                console.error("Error fetching day view:", err);
-                setError("Error al cargar datos. Verifique conexión con Django.");
+                setError("Error al cargar datos. Verifique conexión con el servidor.");
             } finally {
                 setLoading(false);
             }
@@ -69,8 +53,8 @@ export const DayViewPage: React.FC = () => {
             <div style={{ padding: '40px', textAlign: 'center' }}>
                 <h2>Error</h2>
                 <p>{error}</p>
-                <button onClick={() => navigate('/asistencia/buscar')}>
-                    Volver a búsqueda
+                <button onClick={() => navigate('/attendance/reports')}>
+                    Volver a reportes
                 </button>
             </div>
         );
@@ -89,6 +73,16 @@ export const DayViewPage: React.FC = () => {
             flexDirection: 'column',
             gap: '20px'
         }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <button 
+                    onClick={() => navigate('/attendance/reports')} 
+                    className="secondary"
+                    style={{ fontSize: '14px' }}
+                >
+                    ← Volver a Reportes
+                </button>
+            </div>
+
             <DayNavigation
                 currentDate={date!}
                 employeeId={employeeId!}
@@ -111,9 +105,6 @@ export const DayViewPage: React.FC = () => {
                 // @ts-ignore
                 logs={data.logs}
             />
-
-            {/* DayExplanation hidden - evaluative content (anomalies/recommendations) removed per data audit.
-                System displays raw attendance data; RRHH provides interpretation and decision-making. */}
 
             {/* Pass REAL logs to List */}
             <DayPunchList

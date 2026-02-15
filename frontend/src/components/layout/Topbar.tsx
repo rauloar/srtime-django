@@ -19,7 +19,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuCheck }) => {
     const handleLogout = () => {
         logout();
         success('Sesión cerrada correctamente');
-        navigate('/login');
+        navigate('/dashboard');
     };
 
     const handleToggleTheme = () => {

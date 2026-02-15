@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny, DjangoModelPermissions
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
@@ -25,10 +25,15 @@ from .serializers import (
 )
 
 
+class SecureModelViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, DjangoModelPermissions]
+    authentication_classes = [JWTAuthentication]
 
 
 
-class CompanyViewSet(viewsets.ModelViewSet):
+
+
+class CompanyViewSet(SecureModelViewSet):
     queryset = Company.objects.all()
     serializer_class = CompanySerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -44,7 +49,7 @@ class CompanyViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class PositionViewSet(viewsets.ModelViewSet):
+class PositionViewSet(SecureModelViewSet):
     queryset = Position.objects.all()
     serializer_class = PositionSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -60,7 +65,7 @@ class PositionViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class ZoneViewSet(viewsets.ModelViewSet):
+class ZoneViewSet(SecureModelViewSet):
     queryset = Zone.objects.all()
     serializer_class = ZoneSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -76,7 +81,7 @@ class ZoneViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class DepartmentViewSet(viewsets.ModelViewSet):
+class DepartmentViewSet(SecureModelViewSet):
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -92,29 +97,19 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class EmployeeViewSet(viewsets.ModelViewSet):
-    queryset = Employee.objects.all()
-    serializer_class = EmployeeSerializer
+class EmployeeViewSet(SecureModelViewSet):
+    """
+    ViewSet for employees endpoint.
+    NOTE: This queries the 'users' table (User model), not 'employees' table.
+    Reason: Device users are the source of truth for employee data in this system.
+    """
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['department', 'position', 'active', 'gender']
-    search_fields = ['user_id', 'name', 'email', 'phone', 'ssn']
-    ordering_fields = ['user_id', 'name', 'hire_date']
-    ordering = ['name']
-    
-    def get_serializer_context(self):
-        """Add target_date to serializer context if provided in query params"""
-        context = super().get_serializer_context()
-        
-        date_str = self.request.query_params.get('date')
-        if date_str:
-            try:
-                from datetime import datetime
-                target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-                context['target_date'] = target_date
-            except ValueError:
-                pass  # Invalid date format, use default (today)
-        
-        return context
+    filterset_fields = ['device', 'privilege', 'group_id']
+    search_fields = ['user_id', 'name', 'card']
+    ordering_fields = ['user_id', 'name', 'updated_at']
+    ordering = ['user_id']
     
     def list(self, request, *args, **kwargs):
         """Adaptar respuesta para ser compatible con frontend FastAPI"""
@@ -137,8 +132,51 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         # Si no, usar paginación normal DRF
         return super().list(request, *args, **kwargs)
 
+    def _sync_hr_data(self, user, data):
+        """Helper to sync HR fields to Employee model"""
+        if not user.user_id:
+            return
+            
+        from .models import Employee
+        
+        # Fields to sync
+        hr_fields = [
+            'name', 'email', 'phone', 'mobile_phone', 'address', 
+            'city', 'country', 'birthday', 'gender', 'ssn', 
+            'photo_path', 'hire_date'
+        ]
+        
+        defaults = {}
+        # Only update fields present in request
+        for f in hr_fields:
+            if f in data:
+                defaults[f] = data[f]
+        
+        # Handle ForeignKeys (nullable)
+        if 'department' in data:
+            defaults['department_id'] = data['department'] or None
+        if 'position' in data:
+            defaults['position_id'] = data['position'] or None
+            
+        if defaults:
+            print(f"DEBUG: Syncing HR data for {user.user_id}: {defaults}")
+            Employee.objects.update_or_create(
+                user_id=user.user_id,
+                defaults=defaults
+            )
 
-class DeviceViewSet(viewsets.ModelViewSet):
+    def perform_create(self, serializer):
+        print(f"DEBUG: EmployeeViewSet.create payload: {self.request.data}")
+        user = serializer.save()
+        self._sync_hr_data(user, self.request.data)
+
+    def perform_update(self, serializer):
+        print(f"DEBUG: EmployeeViewSet.update payload: {self.request.data}")
+        user = serializer.save()
+        self._sync_hr_data(user, self.request.data)
+
+
+class DeviceViewSet(SecureModelViewSet):
     queryset = Device.objects.all()
     serializer_class = DeviceSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -153,8 +191,22 @@ class DeviceViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
+    @action(detail=True, methods=['get'], url_path='next-uid')
+    def next_uid(self, request, pk=None):
+        """
+        GET /api/v1/devices/{pk}/next-uid/
+        Calculate next available UID for this device (MAX(uid) + 1).
+        """
+        from django.db.models import Max
+        device = self.get_object()
+        # Find max UID for users in this device
+        max_uid = device.users.aggregate(Max('uid'))['uid__max']
+        next_val = (max_uid or 0) + 1
+        return Response({'next_uid': next_val})
 
-class AttendanceLogViewSet(viewsets.ModelViewSet):
+
+
+class AttendanceLogViewSet(SecureModelViewSet):
     queryset = AttendanceLog.objects.all()
     serializer_class = AttendanceLogSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -219,7 +271,7 @@ class AttendanceLogViewSet(viewsets.ModelViewSet):
         serializer.save()
 
 
-class ImportBatchViewSet(viewsets.ModelViewSet):
+class ImportBatchViewSet(SecureModelViewSet):
     queryset = ImportBatch.objects.all()
     serializer_class = ImportBatchSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -229,7 +281,7 @@ class ImportBatchViewSet(viewsets.ModelViewSet):
     ordering = ['-imported_at']
 
 
-class UserViewSet(viewsets.ModelViewSet):
+class UserViewSet(SecureModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -239,7 +291,7 @@ class UserViewSet(viewsets.ModelViewSet):
     ordering = ['user_id']
 
 
-class BiometricTemplateViewSet(viewsets.ModelViewSet):
+class BiometricTemplateViewSet(SecureModelViewSet):
     queryset = BiometricTemplate.objects.all()
     serializer_class = BiometricTemplateSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -249,7 +301,7 @@ class BiometricTemplateViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
 
-class SettingViewSet(viewsets.ModelViewSet):
+class SettingViewSet(SecureModelViewSet):
     queryset = Setting.objects.all()
     serializer_class = SettingSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -275,7 +327,7 @@ class SettingViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class JobViewSet(viewsets.ModelViewSet):
+class JobViewSet(SecureModelViewSet):
     queryset = Job.objects.all()
     serializer_class = JobSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -285,7 +337,7 @@ class JobViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
 
-class JobLogViewSet(viewsets.ModelViewSet):
+class JobLogViewSet(SecureModelViewSet):
     queryset = JobLog.objects.all()
     serializer_class = JobLogSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -295,7 +347,7 @@ class JobLogViewSet(viewsets.ModelViewSet):
     ordering = ['timestamp']
 
 
-class TimetableViewSet(viewsets.ModelViewSet):
+class TimetableViewSet(SecureModelViewSet):
     queryset = Timetable.objects.all()
     serializer_class = TimetableSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -312,7 +364,7 @@ class TimetableViewSet(viewsets.ModelViewSet):
 
 
 @method_decorator(csrf_exempt, name='timetables')
-class ShiftViewSet(viewsets.ModelViewSet):
+class ShiftViewSet(SecureModelViewSet):
     queryset = Shift.objects.all()
     serializer_class = ShiftSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -368,7 +420,7 @@ class ShiftViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class ShiftTimetableViewSet(viewsets.ModelViewSet):
+class ShiftTimetableViewSet(SecureModelViewSet):
     queryset = ShiftTimetable.objects.all()
     serializer_class = ShiftTimetableSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -378,7 +430,7 @@ class ShiftTimetableViewSet(viewsets.ModelViewSet):
     ordering = ['shift', 'day_index']
 
 
-class ScheduleOverrideViewSet(viewsets.ModelViewSet):
+class ScheduleOverrideViewSet(SecureModelViewSet):
     queryset = ScheduleOverride.objects.all()
     serializer_class = ScheduleOverrideSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -478,7 +530,7 @@ class ScheduleOverrideViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class EmployeeShiftViewSet(viewsets.ModelViewSet):
+class EmployeeShiftViewSet(SecureModelViewSet):
     queryset = EmployeeShift.objects.all()
     serializer_class = EmployeeShiftSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -494,7 +546,7 @@ class EmployeeShiftViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class LeaveViewSet(viewsets.ModelViewSet):
+class LeaveViewSet(SecureModelViewSet):
     queryset = Leave.objects.all()
     serializer_class = LeaveSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -504,7 +556,7 @@ class LeaveViewSet(viewsets.ModelViewSet):
     ordering = ['-start_time']
 
 
-class HolidayViewSet(viewsets.ModelViewSet):
+class HolidayViewSet(SecureModelViewSet):
     queryset = Holiday.objects.all()
     serializer_class = HolidaySerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -514,7 +566,7 @@ class HolidayViewSet(viewsets.ModelViewSet):
     ordering = ['start_date']
 
 
-class DailyAttendanceViewSet(viewsets.ModelViewSet):
+class DailyAttendanceViewSet(SecureModelViewSet):
     queryset = DailyAttendance.objects.all()
     serializer_class = DailyAttendanceSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]

@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Folder, Plus, Edit2, Trash2, ChevronRight } from 'lucide-react';
-import { getDepartments, createDepartment, updateDepartment, deleteDepartment, getEmployees, getShifts, getAssignments, assignShift, type Department, type Employee, type Shift, type ShiftAssignment } from '../../api';
+import { getDepartments, createDepartment, updateDepartment, deleteDepartment, getCompanies, getEmployees, getShifts, getAssignments, assignShift, type Department, type Employee, type Shift, type ShiftAssignment, type Company } from '../../api';
+import { EMPLOYEE_PAGE_SIZE } from '../../config/paging';
 import { DataGrid, type Column } from '../../components/ui/DataGrid';
 import { PageToolbar } from '../../components/ui/PageToolbar';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { sortDepartmentsTree, type DepartmentNode } from '../../utils/treeUtils';
+import { useToast } from '../../hooks/useToast';
 
 export const Departments: React.FC = () => {
     const [departments, setDepartments] = useState<DepartmentNode[]>([]);
@@ -16,29 +18,34 @@ export const Departments: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingDept, setEditingDept] = useState<DepartmentNode | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const { error: showError } = useToast();
 
     // Confirm Dialog State
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [deptToDelete, setDeptToDelete] = useState<number | null>(null);
 
+    // Load companies for selector in DepartmentModal
+    const [companies, setCompanies] = useState<Company[]>([]);
+
     const fetchData = async () => {
         setLoading(true);
         try {
             const today = new Date().toISOString().split('T')[0];
-            const [depts, emps, shiftsList, assignments] = await Promise.all([
+            const [depts, emps, shiftsList, assignments, companiesList] = await Promise.all([
                 getDepartments(),
-                getEmployees(0, 1000), // Fetch strict list for validation
+                getEmployees(0, EMPLOYEE_PAGE_SIZE),
                 getShifts(),
-                getAssignments(today, today) // Get all assignments for today
+                getAssignments(today, today),
+                getCompanies()
             ]);
             setOriginalDepts(depts);
             setDepartments(sortDepartmentsTree(depts));
             setEmployees(emps);
             setShifts(shiftsList);
-            // Filter only DEPARTMENT scope assignments
+            setCompanies(companiesList);
             setDeptAssignments(assignments.filter(a => a.scope === 'DEPARTMENT'));
         } catch (error) {
-            console.error(error);
+            showError('No se pudieron cargar datos');
         } finally {
             setLoading(false);
         }
@@ -90,7 +97,6 @@ export const Departments: React.FC = () => {
 
     const getParentName = (id?: number) => {
         if (!id) return '-';
-        // Use originalDepts for lookup
         const d = originalDepts.find(d => d.id === id);
         return d ? d.name : id;
     };
@@ -111,10 +117,10 @@ export const Departments: React.FC = () => {
             field: 'name',
             header: 'Nombre Departamento',
             render: (dept) => (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: `${dept.level * 20}px` }}>
+                <div className="flex-row gap-2" style={{ paddingLeft: `${dept.level * 20}px` }}>
                     {dept.level > 0 && <ChevronRight size={14} color="#aaa" />}
                     <Folder size={16} color="var(--primary)" />
-                    <span style={{ fontWeight: 500 }}>{dept.name}</span>
+                    <span className="font-medium">{dept.name}</span>
                 </div>
             )
         },
@@ -123,6 +129,16 @@ export const Departments: React.FC = () => {
             header: 'Código',
             width: '150px',
             render: (dept) => dept.code || '-'
+        },
+        {
+            field: 'company',
+            header: 'Empresa',
+            width: '180px',
+            render: (dept) => (
+                <span className="text-sm">
+                    {dept.company_name || <span className="text-muted">Sin empresa</span>}
+                </span>
+            )
         },
         {
             field: 'parent_id',
@@ -136,18 +152,11 @@ export const Departments: React.FC = () => {
             render: (dept) => {
                 const shiftName = getDepartmentShift(dept.id);
                 return shiftName ? (
-                    <span style={{ 
-                        padding: '4px 10px', 
-                        background: '#e3f2fd', 
-                        color: '#1565c0', 
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        fontWeight: 500
-                    }}>
+                    <span className="shift-badge">
                         {shiftName}
                     </span>
                 ) : (
-                    <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Sin turno</span>
+                    <span className="text-muted text-xs">Sin turno</span>
                 );
             }
         },
@@ -157,7 +166,7 @@ export const Departments: React.FC = () => {
             align: 'right',
             width: '100px',
             render: (dept) => (
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '5px' }}>
+                <div className="flex-row gap-2 flex-end">
                     <button
                         className="icon-btn"
                         onClick={(e) => { e.stopPropagation(); setEditingDept(dept); setIsModalOpen(true); }}
@@ -178,14 +187,17 @@ export const Departments: React.FC = () => {
     ];
 
     return (
-        <div style={{ width: '100%' }}>
+        <div className="w-full">
             <PageToolbar
                 title="Departamentos"
                 subtitle="Estructura organizativa de la empresa"
                 onSearch={setSearchTerm}
                 searchPlaceholder="Buscar por nombre o código..."
                 actions={
-                    <button className="primary flex-row gap-2" onClick={() => { setEditingDept(null); setIsModalOpen(true); }}>
+                    <button className="primary flex-row gap-2" onClick={() => {
+                        setEditingDept(null);
+                        setIsModalOpen(true);
+                    }}>
                         <Plus size={16} /> Nuevo Departamento
                     </button>
                 }
@@ -206,6 +218,7 @@ export const Departments: React.FC = () => {
                     onClose={() => setIsModalOpen(false)}
                     onSave={handleSave}
                     departments={departments}
+                    companies={companies}
                     shifts={shifts}
                     currentAssignment={editingDept ? deptAssignments.find(a => a.department_id === editingDept.id) : undefined}
                     onShiftAssign={async (deptId, shiftId) => {
@@ -219,7 +232,7 @@ export const Departments: React.FC = () => {
                             });
                             fetchData();
                         } catch (error) {
-                            console.error('Error assigning shift:', error);
+                            showError('No se pudo asignar el turno');
                             throw error;
                         }
                     }}
@@ -243,37 +256,49 @@ const DepartmentModal: React.FC<{
     onClose: () => void,
     onSave: (d: Department) => void,
     departments: DepartmentNode[],
+    companies: Company[],
     shifts: Shift[],
     currentAssignment?: ShiftAssignment,
     onShiftAssign: (deptId: number, shiftId: number) => Promise<void>
-}> = ({ department, onClose, onSave, departments, shifts, currentAssignment, onShiftAssign }) => {
+}> = ({ department, onClose, onSave, departments, companies, shifts, currentAssignment, onShiftAssign }) => {
     const [name, setName] = useState(department?.name || '');
     const [code, setCode] = useState(department?.code || '');
+    const [companyId, setCompanyId] = useState<number | undefined>(department?.company);
     const [parentId, setParentId] = useState<number | undefined>(department?.parent_id);
     const [selectedShiftId, setSelectedShiftId] = useState<number | undefined>(currentAssignment?.shift_id);
     const [saving, setSaving] = useState(false);
 
     return (
-        <div style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'var(--modal-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-            <div className="card" style={{ width: '400px', padding: '20px' }}>
+        <div className="modal-overlay">
+            <div className="card modal-dialog">
                 <h3>{department ? 'Editar Departamento' : 'Nuevo Departamento'}</h3>
 
                 <div className="flex-col gap-4">
                     <div className="flex-col gap-2">
-                        <label className="text-muted" style={{ fontSize: '12px' }}>Nombre</label>
+                        <label className="form-label">Nombre</label>
                         <input value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Recursos Humanos" />
                     </div>
 
                     <div className="flex-col gap-2">
-                        <label className="text-muted" style={{ fontSize: '12px' }}>Código</label>
+                        <label className="form-label">Código</label>
                         <input value={code} onChange={e => setCode(e.target.value)} placeholder="Ej: HR-001" />
                     </div>
 
                     <div className="flex-col gap-2">
-                        <label className="text-muted" style={{ fontSize: '12px' }}>Departamento Superior</label>
+                        <label className="form-label">Empresa</label>
+                        <select
+                            value={companyId || ''}
+                            onChange={e => setCompanyId(e.target.value ? Number(e.target.value) : undefined)}
+                        >
+                            <option value="">-- Sin empresa --</option>
+                            {companies.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="flex-col gap-2">
+                        <label className="form-label">Departamento Superior</label>
                         <select
                             value={parentId || ''}
                             onChange={e => setParentId(e.target.value ? Number(e.target.value) : undefined)}
@@ -290,8 +315,8 @@ const DepartmentModal: React.FC<{
                     </div>
 
                     {department && (
-                        <div className="flex-col gap-2" style={{ borderTop: '1px solid var(--border)', paddingTop: '15px' }}>
-                            <label className="text-muted" style={{ fontSize: '12px', fontWeight: 600 }}>⏰ Turno Asignado</label>
+                        <div className="flex-col gap-2 border-t pt-4">
+                            <label className="form-label font-semibold">⏰ Turno Asignado</label>
                             <select
                                 value={selectedShiftId || ''}
                                 onChange={e => setSelectedShiftId(e.target.value ? Number(e.target.value) : undefined)}
@@ -301,19 +326,18 @@ const DepartmentModal: React.FC<{
                                     <option key={s.id} value={s.id}>{s.name}</option>
                                 ))}
                             </select>
-                            <small className="text-muted" style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                            <small className="text-muted text-xxs">
                                 Este turno se aplicará automáticamente a todos los empleados del departamento que no tengan una asignación individual.
                             </small>
                         </div>
                     )}
 
-                    <div className="flex-row gap-2" style={{ marginTop: '10px', justifyContent: 'flex-end' }}>
+                    <div className="flex-row gap-2 mt-3 flex-end">
                         <button onClick={onClose} disabled={saving}>Cancelar</button>
                         <button className="primary" disabled={saving} onClick={async () => {
                             setSaving(true);
                             try {
-                                // Save only API fields to avoid sending tree metadata
-                                await onSave({ id: department?.id, name, code, parent_id: parentId });
+                                await onSave({ id: department?.id, name, code, company: companyId, parent_id: parentId });
                                 // Then save shift assignment if department exists and shift selected
                                 if (department?.id && selectedShiftId && selectedShiftId !== currentAssignment?.shift_id) {
                                     await onShiftAssign(department.id, selectedShiftId);

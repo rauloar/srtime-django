@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "C:\Proyectos\srtime-django\tests\test_import.py", line 10, in <module>
+    from backend import models
+ModuleNotFoundError: No module named 'backend'
+Got an error creating the test database: la base de datos ½test_srtimeweb╗ ya existe
+
+
+Importing models...
+FAILED to import: No module named 'backend'
+Type 'yes' if you would like to try deleting the test database 'test_srtimeweb', or 'no' to cancel: 

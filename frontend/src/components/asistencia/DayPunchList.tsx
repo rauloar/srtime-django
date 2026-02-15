@@ -32,7 +32,6 @@ export const DayPunchList: React.FC<DayPunchListProps> = ({ employeeId, date }) 
                 setPunches(result.results || []);
                 setError(null);
             } catch (err: any) {
-                console.error('Error loading punches:', err);
                 setError('No se pudieron cargar las fichadas');
             } finally {
                 setLoading(false);
@@ -48,7 +47,7 @@ export const DayPunchList: React.FC<DayPunchListProps> = ({ employeeId, date }) 
     };
 
     const getStatusColor = (status: number) => {
-        return status === 0 ? '#2196f3' : status === 1 ? '#f44336' : '#9e9e9e';
+        return status === 0 ? 'var(--status-info)' : status === 1 ? 'var(--status-error)' : 'var(--status-offline)';
     };
 
     const formatTimeWithSeconds = (timestamp: string) => {
@@ -86,7 +85,7 @@ export const DayPunchList: React.FC<DayPunchListProps> = ({ employeeId, date }) 
         return (
             <div className="card" style={{ padding: '20px' }}>
                 <h3 style={{ margin: '0 0 16px 0' }}>📋 Detalle de Fichadas</h3>
-                <div style={{ textAlign: 'center', color: '#666', padding: '20px' }}>
+                <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
                     Cargando fichadas...
                 </div>
             </div>
@@ -97,7 +96,7 @@ export const DayPunchList: React.FC<DayPunchListProps> = ({ employeeId, date }) 
         return (
             <div className="card" style={{ padding: '20px' }}>
                 <h3 style={{ margin: '0 0 16px 0' }}>📋 Detalle de Fichadas</h3>
-                <div style={{ textAlign: 'center', color: '#c62828', padding: '20px' }}>
+                <div style={{ textAlign: 'center', color: 'var(--status-error)', padding: '20px' }}>
                     ⚠️ {error}
                 </div>
             </div>
@@ -111,12 +110,12 @@ export const DayPunchList: React.FC<DayPunchListProps> = ({ employeeId, date }) 
                 <div style={{
                     textAlign: 'center',
                     padding: '40px',
-                    background: '#f5f5f5',
+                    background: 'var(--bg-secondary)',
                     borderRadius: '8px',
-                    border: '1px dashed #ccc'
+                    border: '1px dashed var(--border-color)'
                 }}>
                     <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.5 }}>⏸️</div>
-                    <div style={{ color: '#666', fontWeight: 500 }}>
+                    <div style={{ color: 'var(--text-muted)', fontWeight: 500 }}>
                         Sin fichadas registradas para este día
                     </div>
                 </div>
@@ -136,8 +135,8 @@ export const DayPunchList: React.FC<DayPunchListProps> = ({ employeeId, date }) 
                     📋 Detalle de Fichadas
                 </h3>
                 <span style={{ 
-                    background: '#e3f2fd', 
-                    color: '#1565c0',
+                    background: 'var(--bg-highlight)', 
+                    color: 'var(--primary)',
                     padding: '4px 12px',
                     borderRadius: '12px',
                     fontSize: '13px',
@@ -164,10 +163,10 @@ export const DayPunchList: React.FC<DayPunchListProps> = ({ employeeId, date }) 
                             gap: '12px',
                             padding: '10px 14px',
                             background: hasWarning 
-                                ? '#fff3e0' 
+                                ? 'var(--bg-highlight)' 
                                 : (index % 2 === 0 ? 'var(--bg-secondary)' : 'transparent'),
                             borderRadius: '4px',
-                            borderLeft: hasWarning ? '3px solid #ff9800' : '3px solid transparent'
+                            borderLeft: hasWarning ? '3px solid var(--status-warning)' : '3px solid transparent'
                         }}>
                             <div style={{ 
                                 fontSize: '28px',
@@ -184,12 +183,12 @@ export const DayPunchList: React.FC<DayPunchListProps> = ({ employeeId, date }) 
                                 <div style={{
                                     fontWeight: 600,
                                     fontSize: '15px',
-                                    color: '#212121',
+                                    color: 'var(--text-main)',
                                     marginBottom: '2px'
                                 }}>
                                     {punch.status_label || `Estado ${punch.status}`}
                                 </div>
-                                <div style={{ fontSize: '12px', color: '#999' }}>
+                                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                                     {punch.punch_source || 'Terminal'}
                                 </div>
                             </div>

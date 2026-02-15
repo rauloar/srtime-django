@@ -44,7 +44,6 @@ export function MessageConsole() {
                         return newLogs;
                     });
                 } catch (e) {
-                    console.error("WS Parse error", e);
                 }
             };
         };
