@@ -13,11 +13,16 @@ from typing import Callable
 
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.utils import timezone
+from django.conf import settings
 
 from core.forensic.context import forensic_context_from_request
 
 
 logger = logging.getLogger('forensic.middleware')
+
+
+def _normalized_prefix(prefix: str) -> str:
+    return '/' + prefix.strip('/') + '/'
 
 
 class ForensicRequestMiddleware:
@@ -38,6 +43,7 @@ class ForensicRequestMiddleware:
         self.get_response = get_response
     
     def __call__(self, request: HttpRequest) -> HttpResponse:
+        forensic_prefix = _normalized_prefix(settings.FORENSIC_API_PREFIX)
         # Extract forensic context from request
         forensic_meta = forensic_context_from_request(request)
         
@@ -47,7 +53,7 @@ class ForensicRequestMiddleware:
         request.idempotency_key = forensic_meta['idempotency_key']
         
         # Log request (for forensic endpoints)
-        if request.path.startswith('/api/forensic/'):
+        if request.path.startswith(forensic_prefix):
             logger.info(
                 f"Forensic request: {request.method} {request.path} "
                 f"correlation_id={forensic_meta['correlation_id']} "
@@ -75,22 +81,23 @@ class IdempotencyKeyRequiredMiddleware:
     Returns 400 Bad Request if missing.
     """
     
-    FORENSIC_WRITE_PATHS = [
-        '/api/forensic/shadow/review/start',
-        '/api/forensic/shadow/review/decision',
-        '/api/forensic/shadow/review/close',
-        '/api/forensic/shadow/export',
-    ]
-    
     WRITE_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE']
     
     def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]):
         self.get_response = get_response
     
     def __call__(self, request: HttpRequest) -> HttpResponse:
+        forensic_prefix = _normalized_prefix(settings.FORENSIC_API_PREFIX)
+        forensic_write_paths = [
+            f"{forensic_prefix}shadow/review/start",
+            f"{forensic_prefix}shadow/review/decision",
+            f"{forensic_prefix}shadow/review/close",
+            f"{forensic_prefix}shadow/export",
+        ]
+
         # Check if this is a forensic write operation
         if request.method in self.WRITE_METHODS:
-            for path in self.FORENSIC_WRITE_PATHS:
+            for path in forensic_write_paths:
                 if request.path.startswith(path):
                     # Require idempotency key
                     idempotency_key = (
@@ -134,8 +141,9 @@ class ForensicAuditMiddleware:
         self.get_response = get_response
     
     def __call__(self, request: HttpRequest) -> HttpResponse:
+        forensic_prefix = _normalized_prefix(settings.FORENSIC_API_PREFIX)
         # Only process forensic endpoints
-        if not request.path.startswith('/api/forensic/'):
+        if not request.path.startswith(forensic_prefix):
             return self.get_response(request)
         
         start_time = timezone.now()

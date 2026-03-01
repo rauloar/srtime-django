@@ -16,7 +16,10 @@ export const DayHeader: React.FC<DayHeaderProps> = ({ employeeId, date }) => {
             try {
                 setLoading(true);
                 const results = await getDailyReportsV2(date, date);
-                const employeeData = results.find((r: DailyAttendanceV2) => r.identity.employee_id.toString() === employeeId);
+                const employeeData = results.find((r: DailyAttendanceV2) =>
+                    String(r.employee.id) === String(employeeId) ||
+                    String(r.identity.user_id) === String(employeeId)
+                );
 
                 if (employeeData) {
                     setData(employeeData);

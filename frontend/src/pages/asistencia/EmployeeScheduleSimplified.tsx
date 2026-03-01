@@ -19,7 +19,7 @@ import { PageToolbar } from '../../components/ui/PageToolbar';
 
 export function EmployeeScheduleSimplified() {
     const [currentMonth, setCurrentMonth] = useState(new Date());
-    const [selectedCell, setSelectedCell] = useState<{ empId: number, date: string } | null>(null);
+    const [selectedCell, setSelectedCell] = useState<{ employeeId: number, date: string } | null>(null);
     const [selectedShiftId, setSelectedShiftId] = useState<number | null>(null);
 
     // Get month range
@@ -66,8 +66,8 @@ export function EmployeeScheduleSimplified() {
     };
 
     // Cell click handler
-    const handleCellClick = (empId: number, date: string) => {
-        setSelectedCell({ empId, date });
+    const handleCellClick = (employeeId: number, date: string) => {
+        setSelectedCell({ employeeId, date });
         setSelectedShiftId(null);
     };
 
@@ -77,7 +77,7 @@ export function EmployeeScheduleSimplified() {
 
         try {
             await createScheduleOverrideFromShift({
-                employee_id: selectedCell.empId,
+                employee_id: selectedCell.employeeId,
                 shift_id: selectedShiftId,
                 date: selectedCell.date,
                 start_date: startDate
@@ -149,7 +149,7 @@ export function EmployeeScheduleSimplified() {
                                     const dateStr = day.toISOString().split('T')[0];
 
                                     // O(1) access instead of O(n) .find()
-                                    const schedule = getScheduleFromMap(scheduleMap, employee.id, dateStr);
+                                    const schedule = getScheduleFromMap(scheduleMap, String(employee.id), dateStr);
 
                                     return (
                                         <td

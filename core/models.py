@@ -2,6 +2,7 @@
 from django.db import models
 from django.utils import timezone
 from datetime import date
+from django.core.exceptions import ValidationError
 
 
 class Company(models.Model):
@@ -104,7 +105,7 @@ class Employee(models.Model):
     birthday = models.DateField(null=True, blank=True, verbose_name='Fecha de Nacimiento')
     ssn = models.CharField(max_length=50, null=True, blank=True, verbose_name='DNI/SSN')
     
-    active = models.BooleanField(default=True, verbose_name='Activo')
+    is_active = models.BooleanField(default=True, verbose_name='Activo', db_column='active')
 
     class Meta:
         db_table = 'employees'
@@ -113,8 +114,8 @@ class Employee(models.Model):
         ordering = ['name']
         indexes = [
             models.Index(fields=['user_id']),
-            models.Index(fields=['active']),
-            models.Index(fields=['department', 'active']),
+            models.Index(fields=['is_active']),
+            models.Index(fields=['department', 'is_active']),
         ]
 
     def __str__(self):
@@ -162,6 +163,7 @@ class Device(models.Model):
 class AttendanceLog(models.Model):
     """Log de asistencia/marcación"""
     device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='logs')
+    employee = models.ForeignKey('Employee', on_delete=models.CASCADE, related_name='logs')
     user_id = models.CharField(max_length=50, db_index=True, verbose_name='ID Usuario')
     timestamp = models.DateTimeField(db_index=True, verbose_name='Fecha/Hora')
     status = models.IntegerField(verbose_name='Estado')
@@ -195,6 +197,18 @@ class AttendanceLog(models.Model):
 
     def __str__(self):
         return f"{self.user_id} @ {self.timestamp}"
+
+    def save(self, *args, **kwargs):
+        # Backward compatibility for legacy callers/tests that still pass user_id only.
+        if self.employee_id is None and self.user_id:
+            employee = Employee.objects.filter(user_id=self.user_id).first()
+            if employee is not None:
+                self.employee = employee
+
+        if self.employee_id is None:
+            raise ValidationError("AttendanceLog.employee is required")
+
+        super().save(*args, **kwargs)
 
 
 class ImportBatch(models.Model):
@@ -240,6 +254,9 @@ class User(models.Model):
 
     def __str__(self):
         return f"{self.user_id or self.uid} - {self.name or 'Sin nombre'}"
+
+
+DeviceUser = User
 
 
 class BiometricTemplate(models.Model):
@@ -560,36 +577,8 @@ class Holiday(models.Model):
 
 
 class DailyAttendance(models.Model):
-    """
-    Asistencia diaria calculada.
-    
-    FORENSIC TRACEABILITY:
-    This model now supports full audit trail for legal defensibility:
-    - engine_version: Which version of the engine performed this calculation
-    - policy_snapshot: Exact policy parameters used
-    - calculation_fingerprint: Hash to detect input changes
-    - calculation_state: Whether this is current or superseded
-    - supersedes/superseded_by: Lineage for recalculations
-    
-    CRITICAL RULES:
-    - NEVER modify a record with state=CALCULATED
-    - Recalculations CREATE new records and mark old as SUPERSEDED
-    - The unique constraint allows multiple records per employee/date for lineage
-    """
-    
-    # State choices for calculation lifecycle
-    CALCULATION_STATE_CHOICES = [
-        ('PENDING', 'Pendiente'),
-        ('CALCULATED', 'Calculado'),
-        ('SUPERSEDED', 'Reemplazado'),
-    ]
-    
-    CALCULATION_MODE_CHOICES = [
-        ('FLEXIBLE', 'Jornada Flexible'),
-        ('STRUCTURED', 'Horario Fijo'),
-        ('UNKNOWN', 'Desconocido'),
-    ]
-    
+    """Asistencia diaria calculada por el motor de asistencia."""
+
     STATUS_CHOICES = [
         ('Normal', 'Normal'),
         ('Late', 'Tardío'),
@@ -615,15 +604,15 @@ class DailyAttendance(models.Model):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='daily_attendance')
     date = models.DateField(db_index=True, verbose_name='Fecha')
     timetable = models.ForeignKey(Timetable, on_delete=models.SET_NULL, null=True, blank=True, related_name='daily_attendance')
-    
+
     # === TIMESTAMPS ===
     check_in = models.DateTimeField(null=True, blank=True, verbose_name='Entrada')
     check_out = models.DateTimeField(null=True, blank=True, verbose_name='Salida')
-    
+
     # === SCHEDULE CONTEXT ===
     on_duty = models.CharField(max_length=10, null=True, blank=True, verbose_name='Hora Esperada Entrada')
     off_duty = models.CharField(max_length=10, null=True, blank=True, verbose_name='Hora Esperada Salida')
-    
+
     # === TIME METRICS ===
     late_minutes = models.IntegerField(default=0, verbose_name='Minutos de Tardanza')
     early_minutes = models.IntegerField(default=0, verbose_name='Minutos de Salida Temprana')
@@ -633,20 +622,23 @@ class DailyAttendance(models.Model):
     net_worked_minutes = models.IntegerField(default=0, verbose_name='Minutos Netos Trabajados')
     regular_minutes = models.IntegerField(default=0, verbose_name='Minutos Regulares')
     night_minutes = models.IntegerField(default=0, verbose_name='Minutos Nocturnos')
-    
-    # === STATUS ===
-    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Absent', verbose_name='Estado')
-    exception_reason = models.CharField(max_length=100, null=True, blank=True, verbose_name='Razón de Excepción')
-    
+
     # === STATUS ===
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Absent', verbose_name='Estado')
     exception_reason = models.CharField(max_length=100, null=True, blank=True, verbose_name='Razón de Excepción')
     is_absent = models.BooleanField(default=True, verbose_name='Ausente')
 
+    # === AUDIT / CALCULATION CONTEXT ===
+    source_logs_count = models.IntegerField(default=0, verbose_name='Cantidad de Logs Fuente')
+    schedule_type = models.CharField(max_length=20, default='NONE', verbose_name='Tipo de Horario')
+
     class Meta:
         db_table = 'att_daily_attendance'
         verbose_name = 'Asistencia Diaria'
         verbose_name_plural = 'Asistencias Diarias'
+        constraints = [
+            models.UniqueConstraint(fields=['employee', 'date'], name='uix_daily_attendance_employee_date')
+        ]
         indexes = [
             models.Index(fields=['date', 'employee']),
             models.Index(fields=['status']),
@@ -658,9 +650,3 @@ class DailyAttendance(models.Model):
         return f"{self.employee.name} - {self.date} - {self.status}"
 
 
-# Import shadow models to make them discoverable by Django migrations
-# These models are for V1 vs V2 engine comparison and analysis
-from core.models_shadow import (  # noqa: F401, E402
-    ShadowCalculation,
-    DifferenceType,
-)

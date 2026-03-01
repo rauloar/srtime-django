@@ -23,13 +23,14 @@ class ScheduleCalendarView(APIView):
     Query params:
         - start_date (required): YYYY-MM-DD
         - end_date (required): YYYY-MM-DD
-        - employee_ids (optional): comma-separated IDs
+        - user_ids (optional): comma-separated string IDs
     
     Returns:
         {
             "employees": [
                 {
                     "id": 1,
+                    "user_id": "EMP01",
                     "name": "Juan",
                     "schedule": [...]
                 }
@@ -59,12 +60,25 @@ class ScheduleCalendarView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Parse employee_ids (optional)
+        # Parse user_ids (optional)
+        user_ids = None
+        user_ids_str = request.query_params.get('user_ids')
+        legacy_employee_ids_str = request.query_params.get('employee_ids')
+        warning_headers = {}
+        
         employee_ids = None
-        employee_ids_str = request.query_params.get('employee_ids')
-        if employee_ids_str:
+        
+        if user_ids_str:
+            from core.models import Employee
+            user_ids = [x.strip() for x in user_ids_str.split(',')]
+            emps = Employee.objects.filter(user_id__in=user_ids)
+            employee_ids = [emp.id for emp in emps]
+        elif legacy_employee_ids_str:
             try:
-                employee_ids = [int(x.strip()) for x in employee_ids_str.split(',')]
+                employee_ids = [int(x.strip()) for x in legacy_employee_ids_str.split(',')]
+                warning_headers['X-API-Deprecated'] = 'employee_ids will be removed. Use user_ids instead.'
+                import logging
+                logging.getLogger('api').warning(f"DEPRECATED: Numeric employee_ids {legacy_employee_ids_str} used.")
             except ValueError:
                 return Response(
                     {"error": "Invalid employee_ids format"},
@@ -74,7 +88,7 @@ class ScheduleCalendarView(APIView):
         # Call service
         try:
             data = get_schedule_calendar(start_date, end_date, employee_ids)
-            return Response(data)
+            return Response(data, headers=warning_headers if warning_headers else None)
         except ValueError as e:
             return Response(
                 {"error": str(e)},

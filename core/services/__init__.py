@@ -4,6 +4,7 @@ Services Package - Business Logic Layer
 from .day_context import DayContext
 from .obligation import ObligationResolver, ObligationResult
 from .zk import ZKService, get_zk_service
+from .device_adapter_factory import get_device_adapter
 from .jobs import JobManager
 from .attendance_engine import (
     resolve_schedule,
@@ -19,6 +20,7 @@ __all__ = [
     'ObligationResult',
     'ZKService',
     'get_zk_service',
+    'get_device_adapter',
     'JobManager',
     'resolve_schedule',
     'calculate_day',

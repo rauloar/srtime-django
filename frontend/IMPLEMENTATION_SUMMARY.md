@@ -371,21 +371,23 @@ src/
 ## 🔍 CÓMO VERIFICAR LOS CAMBIOS
 
 ### En el navegador:
-1. Abre `http://localhost:3000/personnel/employees`
+1. Abre `/personnel/employees`
 2. Verifica que la tabla tenga:
    - ✅ Borde azul alrededor
    - ✅ Header azul oscuro (no gris)
    - ✅ Filas alternadas de color
    - ✅ Hover con fondo azul suave
 
-3. Abre `http://localhost:3000/personnel/departments`
+3. Abre `/personnel/departments`
 4. Repite verificación
 
-5. Abre `http://localhost:3000/attendance/shifts`
+5. Abre `/attendance/shifts`
 6. Repite verificación
 
-7. Abre `http://localhost:3000/attendance/timetables`
+7. Abre `/attendance/timetables`
 8. Repite verificación
+
+> Nota: en este proyecto el frontend es estático y lo sirve Django, por eso los ejemplos de navegación usan rutas relativas.
 
 ### Hoja de verificación visual:
 - [ ] Tablas tienen borde azul (#1e40af)

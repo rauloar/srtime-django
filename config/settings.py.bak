@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables
-load_dotenv(BASE_DIR / '.env')
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 # Quick-start development settings - unsuitable for production
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-me')
@@ -60,11 +60,6 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'config.urls'
-
-# API routing constants (avoid hardcoded prefixes across modules)
-API_VERSION = os.getenv('API_VERSION', 'v1')
-API_PREFIX = os.getenv('API_PREFIX', f'api/{API_VERSION}')
-FORENSIC_API_PREFIX = os.getenv('FORENSIC_API_PREFIX', 'api/forensic')
 
 TEMPLATES = [
     {
@@ -201,6 +196,17 @@ SIMPLE_JWT = {
     'SIGNING_KEY': SECRET_KEY,
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+# ATTENDANCE ENGINE SHADOW MODE
+# Enable dual-engine validation: V1 (production) + V2 (shadow validation)
+# Shadow mode runs V2 in parallel without affecting production data
+ATTENDANCE_SHADOW_ENABLED = os.getenv('ATTENDANCE_SHADOW_ENABLED', 'True').lower() == 'true'
+ATTENDANCE_SHADOW_LOG_LEVEL = os.getenv('ATTENDANCE_SHADOW_LOG_LEVEL', 'WARNING')  # DEBUG, INFO, WARNING, ERROR
+
+# Shadow mode behavior:
+# - V1 (attendance_engine.py) → Production calculations (official record)
+# - V2 (attendance_engine_v2.py) → Validation calculations (shadow)
+# - Both use unified resolver (schedule_resolver.py) → Guaranteed consistency
+# - Differences are logged to 'attendance.shadow.*' loggers
 
 # ============================================================================
 # LOGGING CONFIGURATION
@@ -308,6 +314,11 @@ LOGGING = {
         'attendance': {
             'handlers': ['console', 'file_attendance', 'file_errors'],
             'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'attendance.shadow': {
+            'handlers': ['file_attendance'],
+            'level': ATTENDANCE_SHADOW_LOG_LEVEL,
             'propagate': False,
         },
         'attendance.resolver': {

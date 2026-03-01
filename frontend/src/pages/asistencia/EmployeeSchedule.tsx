@@ -22,7 +22,7 @@ export function EmployeeSchedule() {
     const [batchForm, setBatchForm] = useState({
         targetType: 'DEPARTMENT',
         deptId: '',
-        empId: '',
+        employeeId: '',
         shiftId: '',
         startDate: '',
         endDate: ''
@@ -80,6 +80,7 @@ export function EmployeeSchedule() {
         return assignments.find(a =>
             (
                 (a.employee_id === emp.id) ||
+                (a.user_id === emp.user_id) ||
                 (a.scope === 'DEPARTMENT' && a.department_id === emp.department_id)
             ) &&
             a.start_date <= dateStr &&
@@ -89,17 +90,17 @@ export function EmployeeSchedule() {
 
     const getDayOverride = (emp: Employee, date: Date) => {
         const dateStr = date.toISOString().split('T')[0];
-        return overrides.find(o => o.employee === emp.id && o.date === dateStr);
+        return overrides.find(o => (String(o.employee) === String(emp.id) || String(o.employee) === String(emp.user_id)) && o.date === dateStr);
     };
 
-    const [selectedCell, setSelectedCell] = useState<{ empId: number, date: Date } | null>(null);
+    const [selectedCell, setSelectedCell] = useState<{ employeeId: number, date: Date } | null>(null);
     const [selectedScheduleInfo, setSelectedScheduleInfo] = useState<Employee | null>(null);
 
-    const handleCellClick = async (empId: number, date: Date) => {
-        setSelectedCell({ empId, date });
+    const handleCellClick = async (employeeId: number, date: Date) => {
+        setSelectedCell({ employeeId, date });
         try {
             const dateStr = date.toISOString().split('T')[0];
-            const emp = await getEmployeeByDate(empId, dateStr);
+            const emp = await getEmployeeByDate(employeeId, dateStr);
             setSelectedScheduleInfo(emp);
         } catch (e) {
             setSelectedScheduleInfo(null);
@@ -110,7 +111,7 @@ export function EmployeeSchedule() {
         if (!selectedCell) return;
         try {
             await createScheduleOverrideFromShift({
-                employee_id: selectedCell.empId,
+                employee_id: selectedCell.employeeId,
                 shift_id: shiftId,
                 date: selectedCell.date.toISOString().split('T')[0]
             });
@@ -130,7 +131,7 @@ export function EmployeeSchedule() {
         if (!batchForm.shiftId || !batchForm.startDate) return alert("Complete los campos requeridos");
 
         if (batchForm.targetType === 'DEPARTMENT' && !batchForm.deptId) return alert("Seleccione un Departamento");
-        if (batchForm.targetType === 'EMPLOYEE' && !batchForm.empId) return alert("Seleccione un Empleado");
+        if (batchForm.targetType === 'EMPLOYEE' && !batchForm.employeeId) return alert("Seleccione un Empleado");
 
         try {
             const payload: any = {
@@ -143,7 +144,7 @@ export function EmployeeSchedule() {
             if (batchForm.targetType === 'DEPARTMENT') {
                 payload.department_id = parseInt(batchForm.deptId);
             } else {
-                payload.employee_id = parseInt(batchForm.empId);
+                payload.employee_id = parseInt(batchForm.employeeId);
             }
 
             await assignShift(payload);
@@ -160,14 +161,14 @@ export function EmployeeSchedule() {
     };
 
     // Multi-selection handlers
-    const toggleEmployee = (empId: number) => {
+    const toggleEmployee = (employeeId: number) => {
         setSelectedEmployees(prev =>
-            prev.includes(empId) ? prev.filter(id => id !== empId) : [...prev, empId]
+            prev.includes(employeeId) ? prev.filter(id => id !== employeeId) : [...prev, employeeId]
         );
     };
 
     const toggleDepartment = (deptId: number) => {
-        const deptEmps = employees.filter(e => e.department_id === deptId).map(e => e.id!);
+        const deptEmps = employees.filter(e => e.department_id === deptId && !!e.id).map(e => e.id as number);
         const allSelected = deptEmps.every(id => selectedEmployees.includes(id));
 
         if (allSelected) {
@@ -181,7 +182,7 @@ export function EmployeeSchedule() {
         if (selectedEmployees.length === employees.length) {
             setSelectedEmployees([]);
         } else {
-            setSelectedEmployees(employees.map(e => e.id!));
+            setSelectedEmployees(employees.filter(e => !!e.id).map(e => e.id as number));
         }
     };
 
@@ -207,7 +208,7 @@ export function EmployeeSchedule() {
 
     // Filter displayed employees
     const displayedEmployees = selectedEmployees.length > 0
-        ? employees.filter(e => selectedEmployees.includes(e.id!))
+        ? employees.filter(e => !!e.id && selectedEmployees.includes(e.id))
         : employees;
 
     // Month name
@@ -250,7 +251,7 @@ export function EmployeeSchedule() {
                             const deptEmps = employees.filter(e => e.department_id === dept.id);
                             if (deptEmps.length === 0) return null;
                             const isExpanded = expandedDepts.includes(dept.id!);
-                            const allDeptSelected = deptEmps.every(e => selectedEmployees.includes(e.id!));
+                            const allDeptSelected = deptEmps.every(e => !!e.id && selectedEmployees.includes(e.id));
 
                             return (
                                 <div key={dept.id} style={{ marginBottom: '8px' }}>
@@ -270,11 +271,11 @@ export function EmployeeSchedule() {
                                     </div>
 
                                     {isExpanded && deptEmps.map(emp => (
-                                        <div key={emp.id} className="flex-row gap-2" style={{ paddingLeft: '24px', padding: '2px 2px 2px 24px' }}>
+                                        <div key={emp.id ?? emp.user_id} className="flex-row gap-2" style={{ paddingLeft: '24px', padding: '2px 2px 2px 24px' }}>
                                             <input
                                                 type="checkbox"
-                                                checked={selectedEmployees.includes(emp.id!)}
-                                                onChange={() => toggleEmployee(emp.id!)}
+                                                checked={!!emp.id && selectedEmployees.includes(emp.id)}
+                                                onChange={() => emp.id && toggleEmployee(emp.id)}
                                             />
                                             <label style={{ fontSize: '13px' }}>{emp.name} ({emp.user_id})</label>
                                         </div>
@@ -323,7 +324,7 @@ export function EmployeeSchedule() {
                             </thead>
                             <tbody>
                                 {displayedEmployees.map(emp => (
-                                    <tr key={emp.id}>
+                                    <tr key={emp.id ?? emp.user_id}>
                                         <td className="month-employee-cell" style={{ position: 'sticky', left: 0, zIndex: 10, background: 'var(--bg-card)' }}>
                                             <div className="month-employee-name">{emp.name}</div>
                                             <div className="month-employee-id">{emp.user_id}</div>
@@ -340,7 +341,7 @@ export function EmployeeSchedule() {
                                                 <td
                                                     key={day.toISOString()}
                                                     className={`month-data-cell ${isFiltered ? 'filtered-out' : ''}`}
-                                                    onClick={() => handleCellClick(emp.id!, day)}
+                                                    onClick={() => emp.id && handleCellClick(emp.id, day)}
                                                     title={shiftName || 'Sin asignar'}
                                                 >
                                                     {shiftName ? (
@@ -435,11 +436,11 @@ export function EmployeeSchedule() {
                                 <label className="form-label">Empleado</label>
                                 <select
                                     className="form-control w-full"
-                                    value={batchForm.empId}
-                                    onChange={e => setBatchForm({ ...batchForm, empId: e.target.value })}
+                                    value={batchForm.employeeId}
+                                    onChange={e => setBatchForm({ ...batchForm, employeeId: e.target.value })}
                                 >
                                     <option value="">Seleccionar Empleado</option>
-                                    {employees.map(e => <option key={e.id} value={e.id}>{e.name} ({e.user_id})</option>)}
+                                    {employees.filter(e => !!e.id).map(e => <option key={e.id} value={e.id}>{e.name} ({e.user_id})</option>)}
                                 </select>
                             </div>
                         )}

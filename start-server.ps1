@@ -1,5 +1,5 @@
 # start-server.ps1
-# Script para iniciar el servidor Django en localhost:9000 por defecto
+# Script para iniciar el servidor Django en localhost:8000 por defecto
 
 $env:DJANGO_SETTINGS_MODULE = "config.settings"
 $pythonPath = ".venv/Scripts/python.exe"
@@ -12,5 +12,5 @@ if (-Not (Test-Path $pythonPath)) {
 Write-Host "[INFO] Activando entorno virtual..." -ForegroundColor Cyan
 . .venv/Scripts/Activate.ps1
 
-Write-Host "[INFO] Iniciando servidor Django en http://localhost:9000 ..." -ForegroundColor Green
-python manage.py runserver localhost:9000
+Write-Host "[INFO] Iniciando servidor Django en http://localhost:8000 ..." -ForegroundColor Green
+python manage.py runserver localhost:8000

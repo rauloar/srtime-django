@@ -54,6 +54,7 @@ export const SearchBar: React.FC = () => {
     }, []);
 
     const handleSelectEmployee = (employee: Employee) => {
+        if (!employee.id) return;
         // Navigate to employee's last 7 days
         const today = new Date().toISOString().split('T')[0];
         navigate(`/asistencia/empleado/${employee.id}/dia/${today}`);
@@ -151,7 +152,7 @@ export const SearchBar: React.FC = () => {
 
                     {!loading && results.length > 0 && results.map((employee) => (
                         <div
-                            key={employee.id}
+                            key={employee.id ?? employee.user_id}
                             onClick={() => handleSelectEmployee(employee)}
                             style={{
                                 padding: '12px 16px',

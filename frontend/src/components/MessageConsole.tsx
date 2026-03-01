@@ -13,7 +13,8 @@ interface LogMessage {
     ts: string;
 }
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/logs';
+const defaultWsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/logs`;
+const WS_URL = import.meta.env.VITE_WS_URL || defaultWsUrl;
 
 export function MessageConsole() {
     const [logs, setLogs] = useState<LogMessage[]>([]);

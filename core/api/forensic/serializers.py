@@ -19,10 +19,15 @@ from datetime import date
 class CalculateAttendanceInputSerializer(serializers.Serializer):
     """Input for attendance calculation request."""
     
+    user_id = serializers.CharField(
+        required=False,
+        max_length=100,
+        help_text='User ID del empleado'
+    )
     employee_id = serializers.IntegerField(
-        required=True,
+        required=False,
         min_value=1,
-        help_text='ID del empleado'
+        help_text='(Deprecated) ID numérico'
     )
     date = serializers.DateField(
         required=True,
@@ -42,6 +47,11 @@ class CalculateAttendanceInputSerializer(serializers.Serializer):
     
     def validate(self, attrs):
         """Validate that reason is provided when forcing."""
+        if not attrs.get('user_id') and not attrs.get('employee_id'):
+            raise serializers.ValidationError({
+                'user_id': 'user_id is required'
+            })
+            
         if attrs.get('force') and not attrs.get('reason'):
             raise serializers.ValidationError({
                 'reason': 'Reason is required when force=true'
@@ -87,7 +97,8 @@ class CalculateAttendanceOutputSerializer(serializers.Serializer):
 class AttendanceDetailSerializer(serializers.Serializer):
     """Output for attendance detail view."""
     
-    employee_id = serializers.IntegerField()
+    user_id = serializers.CharField(required=False, allow_null=True)
+    employee_id = serializers.IntegerField(required=False)
     date = serializers.DateField()
     status = serializers.CharField()
     
@@ -119,7 +130,8 @@ class ShadowDifferenceListSerializer(serializers.Serializer):
     """Output for shadow difference list."""
     
     id = serializers.IntegerField(source='analysis_id')
-    employee_id = serializers.IntegerField()
+    user_id = serializers.CharField(required=False, allow_null=True)
+    employee_id = serializers.IntegerField(required=False)
     employee_name = serializers.CharField(required=False)
     date = serializers.DateField()
     
@@ -143,7 +155,8 @@ class ShadowAnalysisDetailSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     
     # Identity
-    employee_id = serializers.IntegerField()
+    user_id = serializers.CharField(required=False, allow_null=True)
+    employee_id = serializers.IntegerField(required=False)
     employee_name = serializers.CharField(required=False)
     date = serializers.DateField()
     

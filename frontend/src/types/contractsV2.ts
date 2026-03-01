@@ -34,7 +34,7 @@ export type StatusCode =
  */
 export interface Identity {
   id: number;
-  employee_id: number;
+  user_id: number;
   date: string; // YYYY-MM-DD
 }
 
@@ -83,6 +83,7 @@ export interface Schedule {
  * department_name puede ser null
  */
 export interface Employee {
+  id: number;
   name: string;
   user_id: string;
   department_name: string | null;
@@ -93,7 +94,7 @@ export interface Employee {
  * 
  * ESTRUCTURA GARANTIZADA:
  * {
- *   "identity": { "id", "employee_id", "date" },
+ *   "identity": { "id", "user_id", "date" },
  *   "status": { "code", "label", "color" },
  *   "metrics": { "worked_minutes", "late_minutes", "early_minutes", "overtime_minutes" },
  *   "schedule": { "check_in", "check_out" },

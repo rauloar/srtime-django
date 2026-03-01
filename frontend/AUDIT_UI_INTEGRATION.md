@@ -47,18 +47,21 @@
 - Styling inconsistente
 
 **Endpoints disponibles en Backend:**
+
+> Convención de este repo: el frontend es estático y lo sirve Django; usar endpoints relativos con `API_PREFIX` configurable (default: `/api/v1`).
+
 ```
-GET /api/v1/companies/
-GET /api/v1/positions/
-GET /api/v1/zones/
-GET /api/v1/departments/
-GET /api/v1/employees/
-GET /api/v1/devices/
-GET /api/v1/shifts/
-GET /api/v1/timetables/
-GET /api/v1/leaves/
-GET /api/v1/holidays/
-GET /api/v1/daily-attendance/
+GET {API_PREFIX}/companies/
+GET {API_PREFIX}/positions/
+GET {API_PREFIX}/zones/
+GET {API_PREFIX}/departments/
+GET {API_PREFIX}/employees/
+GET {API_PREFIX}/devices/
+GET {API_PREFIX}/shifts/
+GET {API_PREFIX}/timetables/
+GET {API_PREFIX}/leaves/
+GET {API_PREFIX}/holidays/
+GET {API_PREFIX}/daily-attendance/
 ```
 
 ---

@@ -9,7 +9,7 @@ from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from core import models
-from core.services import get_zk_service, JobManager
+from core.services import get_device_adapter, JobManager
 from core.serializers import UserSerializer
 
 logger = logging.getLogger(__name__)
@@ -73,7 +73,7 @@ def test_connection_sync(request, device_id):
     device = get_object_or_404(models.Device, id=device_id)
     
     try:
-        zk_service = get_zk_service(device.ip, device.port, timeout=5)
+        zk_service = get_device_adapter(device, timeout=5)
         result = zk_service.test_connection()
         return Response(result)
     except Exception as e:
@@ -224,7 +224,7 @@ def all_devices_status(request):
     
     for device in devices:
         try:
-            zk_service = get_zk_service(device.ip, device.port, timeout=3)
+            zk_service = get_device_adapter(device, timeout=3)
             result = zk_service.test_connection()
             status_list.append({
                 "device_id": device.id,
@@ -253,7 +253,7 @@ def restart_device(request, device_id):
     """
     device = get_object_or_404(models.Device, id=device_id)
     try:
-        zk_service = get_zk_service(device.ip, device.port, timeout=5)
+        zk_service = get_device_adapter(device, timeout=5)
         result = zk_service.restart_device()
         return Response(result)
     except Exception as e:
@@ -268,7 +268,7 @@ def poweroff_device(request, device_id):
     """
     device = get_object_or_404(models.Device, id=device_id)
     try:
-        zk_service = get_zk_service(device.ip, device.port, timeout=5)
+        zk_service = get_device_adapter(device, timeout=5)
         result = zk_service.poweroff_device()
         return Response(result)
     except Exception as e:
@@ -283,7 +283,7 @@ def sync_time(request, device_id):
     """
     device = get_object_or_404(models.Device, id=device_id)
     try:
-        zk_service = get_zk_service(device.ip, device.port, timeout=5)
+        zk_service = get_device_adapter(device, timeout=5)
         result = zk_service.sync_time()
         return Response(result)
     except Exception as e:
@@ -300,7 +300,7 @@ def test_voice(request, device_id):
     device = get_object_or_404(models.Device, id=device_id)
     voice_index = int(request.query_params.get('voice_index', 0))
     try:
-        zk_service = get_zk_service(device.ip, device.port, timeout=5)
+        zk_service = get_device_adapter(device, timeout=5)
         result = zk_service.test_voice(voice_index)
         return Response(result)
     except Exception as e:
@@ -315,7 +315,7 @@ def get_memory_info(request, device_id):
     """
     device = get_object_or_404(models.Device, id=device_id)
     try:
-        zk_service = get_zk_service(device.ip, device.port, timeout=5)
+        zk_service = get_device_adapter(device, timeout=5)
         result = zk_service.get_memory_info()
         return Response(result)
     except Exception as e:
@@ -332,7 +332,7 @@ def get_recent_attendance(request, device_id):
     device = get_object_or_404(models.Device, id=device_id)
     limit = int(request.query_params.get('limit', 50))
     try:
-        zk_service = get_zk_service(device.ip, device.port, timeout=10)
+        zk_service = get_device_adapter(device, timeout=10)
         result = zk_service.get_recent_attendance(limit=limit)
         return Response(result)
     except Exception as e:
@@ -374,7 +374,7 @@ def get_device_templates(request, device_id):
     """
     device = get_object_or_404(models.Device, id=device_id)
     try:
-        zk_service = get_zk_service(device.ip, device.port, timeout=10)
+        zk_service = get_device_adapter(device, timeout=10)
         templates = zk_service.get_templates()
         
         saved_count = 0
@@ -384,7 +384,7 @@ def get_device_templates(request, device_id):
         for t in templates:
             try:
                 # Find user by uid AND device to ensure correct association
-                user = models.User.objects.filter(device_id=device_id, uid=t.uid).first()
+                user = models.DeviceUser.objects.filter(device_id=device_id, uid=t.uid).first()
                 if not user:
                     # P0 GAP FIX: Explicit logging when User not found (contract compliance)
                     logger.warning(
@@ -438,7 +438,7 @@ def get_device_info(request, device_id):
     """
     device = get_object_or_404(models.Device, id=device_id)
     try:
-        zk_service = get_zk_service(device.ip, device.port, timeout=5)
+        zk_service = get_device_adapter(device, timeout=5)
         result = zk_service.get_info()
         return Response(result)
     except Exception as e:
@@ -451,7 +451,7 @@ def get_device_users(request, device_id):
         # Check if device exists
         device = get_object_or_404(models.Device, pk=device_id)
         # Filter users for this device
-        users = models.User.objects.filter(device=device)
+        users = models.DeviceUser.objects.filter(device=device)
         serializer = UserSerializer(users, many=True)
         return Response(serializer.data)
     except Exception as e:

@@ -1,0 +1,26 @@
+
+> frontend@0.0.0 build
+> tsc -b && vite build
+
+src/components/layout/SearchBar.tsx(59,51): error TS2339: Property 'id' does not exist on type 'Employee'.
+src/components/layout/SearchBar.tsx(154,43): error TS2339: Property 'id' does not exist on type 'Employee'.
+src/pages/asistencia/Absences.tsx(69,43): error TS2339: Property 'id' does not exist on type 'Employee'.
+src/pages/asistencia/Absences.tsx(232,48): error TS2339: Property 'id' does not exist on type 'Employee'.
+src/pages/asistencia/Absences.tsx(232,61): error TS2339: Property 'id' does not exist on type 'Employee'.
+src/pages/asistencia/EmployeeSchedule.tsx(92,36): error TS2367: This comparison appears to be unintentional because the types 'number' and 'string' have no overlap.
+src/pages/asistencia/EmployeeSchedule.tsx(102,49): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/pages/asistencia/EmployeeSchedule.tsx(113,17): error TS2322: Type 'number' is not assignable to type 'string'.
+src/pages/asistencia/EmployeeSchedule.tsx(170,87): error TS2339: Property 'id' does not exist on type 'Employee'.
+src/pages/asistencia/EmployeeSchedule.tsx(184,55): error TS2339: Property 'id' does not exist on type 'Employee'.
+src/pages/asistencia/EmployeeSchedule.tsx(210,62): error TS2339: Property 'id' does not exist on type 'Employee'.
+src/pages/asistencia/EmployeeSchedule.tsx(253,102): error TS2339: Property 'id' does not exist on type 'Employee'.
+src/pages/asistencia/EmployeeSchedule.tsx(276,85): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+src/pages/asistencia/EmployeeSchedule.tsx(277,80): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+src/pages/asistencia/EmployeeSchedule.tsx(343,84): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+src/pages/asistencia/EmployeeSchedule.tsx(442,72): error TS2339: Property 'id' does not exist on type 'Employee'.
+src/pages/asistencia/EmployeeSchedule.tsx(442,85): error TS2339: Property 'id' does not exist on type 'Employee'.
+src/pages/asistencia/EmployeeScheduleSimplified.tsx(80,17): error TS2322: Type 'number' is not assignable to type 'string'.
+src/pages/personnel/Employees.tsx(75,34): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/pages/personnel/Employees.tsx(183,93): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+src/utils/scheduleMap.ts(2,10): error TS1484: 'EmployeeSchedule' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/utils/scheduleMap.ts(2,28): error TS1484: 'ScheduleDay' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.

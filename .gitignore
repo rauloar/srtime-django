@@ -61,3 +61,15 @@ celerybeat.pid
 # Large SQL backup files
 caso_real_sql/
 *.backup.sql
+
+# Project cleanup policy
+# Ignore all tests
+tests/
+tests_legacy/
+
+# Ignore documentation except README
+docs/
+!docs/README.md
+
+# Keep root README versioned
+!README.md

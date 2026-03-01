@@ -84,17 +84,24 @@ urlpatterns = [
     path('csrf/', get_csrf_token, name='get_csrf_token'),
     
     # Auth endpoints compatibles con frontend React
-    path('auth/login', auth_login, name='auth_login'),
-    path('auth/server-info', server_info, name='server_info'),
-    path('auth/me', auth_me, name='auth_me'),
-    path('auth/users', auth_users_list, name='auth_users_list'),
-    path('auth/users/<int:user_id>', auth_user_delete, name='auth_user_delete'),
-    path('auth/users/<int:user_id>/password', auth_user_password_update, name='auth_user_password_update'),
+    path('auth/login/', auth_login, name='auth_login'),
+    path('auth/server-info/', server_info, name='server_info'),
+    path('auth/me/', auth_me, name='auth_me'),
+    path('auth/users/', auth_users_list, name='auth_users_list'),
+    path('auth/users/<int:user_id>/', auth_user_delete, name='auth_user_delete'),
+    path('auth/users/<int:user_id>/password/', auth_user_password_update, name='auth_user_password_update'),
+    # Legacy aliases (no trailing slash)
+    path('auth/login', auth_login, name='auth_login_legacy'),
+    path('auth/server-info', server_info, name='server_info_legacy'),
+    path('auth/me', auth_me, name='auth_me_legacy'),
+    path('auth/users', auth_users_list, name='auth_users_list_legacy'),
+    path('auth/users/<int:user_id>', auth_user_delete, name='auth_user_delete_legacy'),
+    path('auth/users/<int:user_id>/password', auth_user_password_update, name='auth_user_password_update_legacy'),
     
     # Attendance Calculation Endpoints
     path('attendance/calculate/', calculate_attendance, name='calculate_attendance'),
     path('attendance/calculate/detailed/', calculate_attendance_detailed, name='calculate_attendance_detailed'),
-    path('attendance/calculate/<int:employee_id>/', calculate_single_day, name='calculate_single_day'),
+    path('attendance/calculate/<str:user_id>/', calculate_single_day, name='calculate_single_day'),
     path('attendance/reports/daily/', daily_reports, name='daily_reports'),
     path('attendance/reports/daily/v2/', daily_reports_v2, name='daily_reports_v2'),
     
@@ -122,13 +129,18 @@ urlpatterns = [
     path('devices/<int:device_id>/test_connection_sync', test_connection_sync, name='test_connection_sync_alias'),
     
     # New Device Operations
-    path('devices/<int:device_id>/restart', restart_device, name='restart_device'),
-    path('devices/<int:device_id>/poweroff', poweroff_device, name='poweroff_device'),
+    path('devices/<int:device_id>/restart/', restart_device, name='restart_device'),
+    path('devices/<int:device_id>/poweroff/', poweroff_device, name='poweroff_device'),
     path('devices/<int:device_id>/sync-time', sync_time, name='sync_time'),
     path('devices/<int:device_id>/test-voice', test_voice, name='test_voice'),
     path('devices/<int:device_id>/memory', get_memory_info, name='get_memory_info'),
     path('devices/<int:device_id>/attendance/recent', get_recent_attendance, name='get_recent_attendance'),
     path('devices/<int:device_id>/templates', get_device_templates, name='get_device_templates'),
+    path('devices/<int:device_id>/sync-time/', sync_time, name='sync_time_slash'),
+    path('devices/<int:device_id>/test-voice/', test_voice, name='test_voice_slash'),
+    path('devices/<int:device_id>/memory/', get_memory_info, name='get_memory_info_slash'),
+    path('devices/<int:device_id>/attendance/recent/', get_recent_attendance, name='get_recent_attendance_slash'),
+    path('devices/<int:device_id>/templates/', get_device_templates, name='get_device_templates_slash'),
     path('devices/<int:device_id>/users/', get_device_users, name='get_device_users'),
     path('devices/<int:device_id>/info/', get_device_info, name='get_device_info'),
     
@@ -137,11 +149,17 @@ urlpatterns = [
     path('jobs/<int:job_id>/logs/', get_job_logs, name='get_job_logs'),
     
     # System Database Endpoints
-    path('system/database/backup', database_backup, name='database_backup'),
-    path('system/database/backups', list_backups, name='list_backups'),
-    path('system/database/restore', database_restore, name='database_restore'),
-    path('system/database/test', database_test, name='database_test'),
-    path('system/database/import', database_import, name='database_import'),
+    path('system/database/backup/', database_backup, name='database_backup'),
+    path('system/database/backups/', list_backups, name='list_backups'),
+    path('system/database/restore/', database_restore, name='database_restore'),
+    path('system/database/test/', database_test, name='database_test'),
+    path('system/database/import/', database_import, name='database_import'),
+    # Legacy aliases (no trailing slash)
+    path('system/database/backup', database_backup, name='database_backup_legacy'),
+    path('system/database/backups', list_backups, name='list_backups_legacy'),
+    path('system/database/restore', database_restore, name='database_restore_legacy'),
+    path('system/database/test', database_test, name='database_test_legacy'),
+    path('system/database/import', database_import, name='database_import_legacy'),
     
     # Alias para endpoints compatibles con FastAPI (frontend espera estos paths)
     path('attendance/', AttendanceLogViewSet.as_view({'get': 'list'}), name='attendance_list_alias'),
@@ -160,8 +178,8 @@ urlpatterns = [
     # Attendance Logs with Validation (FASE 4)
     path('attendance/logs-validated/', get_logs_with_validation, name='logs_validated'),
     # Day View Stubs (DEV MODE - Frontend compatibility)
-    path('attendance/<int:employee_id>/timeline/<str:date>/', stub_timeline, name='stub_timeline'),
-    path('attendance/<int:employee_id>/explanation/<str:date>/', stub_explanation, name='stub_explanation'),
+    path('attendance/<str:user_id>/timeline/<str:date>/', stub_timeline, name='stub_timeline'),
+    path('attendance/<str:user_id>/explanation/<str:date>/', stub_explanation, name='stub_explanation'),
     
     # Endpoints de compatibilidad (Alias)
     path('attendance/absences/', get_all_absences, name='attendance_absences_alias'),

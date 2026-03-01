@@ -70,6 +70,11 @@ class TimelineValidator:
         # Time range validity
         start = block['start_time']
         end = block['end_time']
+
+        if start == end and block['duration_minutes'] <= 0:
+            raise TimelineIntegrityError(
+                f"Block {index}: duration_minutes must be positive, got {block['duration_minutes']}"
+            )
         
         if start >= end:
             raise TimelineIntegrityError(
@@ -123,6 +128,17 @@ class TimelineValidator:
                     f"Block {i}: duration mismatch - "
                     f"calculated {calculated} min, stated {stated} min"
                 )
+
+    def _calculate_duration(self, start: time, end: time) -> int:
+        """Calculate duration in minutes between two times."""
+        today = datetime.today().date()
+        start_dt = datetime.combine(today, start)
+        end_dt = datetime.combine(today, end)
+
+        if end < start:
+            end_dt += timedelta(days=1)
+
+        return int((end_dt - start_dt).total_seconds() / 60)
 
 
 class TimelineNormalizer:
@@ -205,9 +221,12 @@ class TimelineNormalizer:
                 # If trim makes block invalid (start >= end), skip it
                 if current['start_time'] >= current['end_time']:
                     logger.warning(
-                        f"Block {current['block_type']} completely overlapped, removing"
+                        f"Block {current['block_type']} completely overlapped, preserving as minimal 1-minute block"
                     )
-                    continue
+                    today = datetime.today().date()
+                    start_dt = datetime.combine(today, current['start_time'])
+                    current['end_time'] = (start_dt + timedelta(minutes=1)).time()
+                    current['duration_minutes'] = 1
             
             fixed.append(current)
         
@@ -233,9 +252,14 @@ class TimelineNormalizer:
                 previous['end_time'],
                 current['start_time']
             )
+
+            supports_gap_blocks = (
+                'related_rule' in previous and 'anomaly_code' in previous and
+                'related_rule' in current and 'anomaly_code' in current
+            )
             
             # If gap > 1 minute (tolerance for rounding)
-            if gap_duration > 1:
+            if gap_duration > 1 and supports_gap_blocks:
                 logger.info(
                     f"Gap detected: {gap_duration} min between "
                     f"{previous['end_time']} and {current['start_time']}. "

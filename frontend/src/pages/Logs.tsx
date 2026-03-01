@@ -24,7 +24,7 @@ export function Logs() {
     
     const [filters, setFilters] = useState({
         device_id: '',
-        user_id: '',
+        employee_id: '',
         name: '',
         from_date: '',
         to_date: ''
@@ -43,7 +43,7 @@ export function Logs() {
             setCurrentPage(page);
             const params: any = { page, page_size: pageSize };
             if (filters.device_id) params.device_id = parseInt(filters.device_id);
-            if (filters.user_id) params.user_id = filters.user_id;
+            if (filters.employee_id) params.employee_id = parseInt(filters.employee_id);
             if (filters.from_date) params.from_date = new Date(filters.from_date).toISOString();
             if (filters.to_date) params.to_date = new Date(filters.to_date).toISOString();
             // Use search param for name (handled by backend via search_fields)
@@ -132,7 +132,7 @@ export function Logs() {
         const rows = logs.map(log => [
             log.id,
             getDeviceName(log.device_id),
-            `${log.user_id} - ${log.user_name || '-'}`,
+            `${log.employee || '-'} | ${log.user_id} - ${log.user_name || '-'}`,
             formatDate(log.timestamp),
             formatTime(log.timestamp),
             log.status_label || `Estado ${log.status}`,
@@ -159,7 +159,7 @@ export function Logs() {
         const rows = logs.map(log => [
             log.id,
             getDeviceName(log.device_id),
-            `${log.user_id} - ${log.user_name || '-'}`,
+            `${log.employee || '-'} | ${log.user_id} - ${log.user_name || '-'}`,
             formatDate(log.timestamp),
             formatTime(log.timestamp),
             log.status_label || `Estado ${log.status}`,
@@ -186,7 +186,7 @@ export function Logs() {
             <tr>
                 <td>${escapeHtml(String(log.id ?? ''))}</td>
                 <td>${escapeHtml(String(getDeviceName(log.device_id)))}</td>
-                <td>${escapeHtml(`${String(log.user_id ?? '')} - ${String(log.user_name || '-')}`)}</td>
+                <td>${escapeHtml(`${String(log.employee ?? '-')} | ${String(log.user_id ?? '')} - ${String(log.user_name || '-')}`)}</td>
                 <td>${escapeHtml(formatDate(log.timestamp))}</td>
                 <td>${escapeHtml(formatTime(log.timestamp))}</td>
                 <td>${escapeHtml(log.status_label || `Estado ${log.status}`)}</td>
@@ -238,7 +238,7 @@ export function Logs() {
             width: '180px',
             render: log => (
                 <div style={{ fontSize: '14px' }}>
-                    <div style={{ fontWeight: 500 }}>{log.user_id}</div>
+                    <div style={{ fontWeight: 500 }}>#{log.employee ?? '-'} · {log.user_id}</div>
                     <small style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{log.user_name || '-'}</small>
                 </div>
             )
@@ -279,12 +279,12 @@ export function Logs() {
                     </select>
                 </div>
                 <div>
-                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: '500' }}>User ID</label>
+                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: '500' }}>Employee ID</label>
                     <input 
                         type="text" 
-                        value={filters.user_id} 
-                        onChange={e => handleFilterChange('user_id', e.target.value)} 
-                        placeholder="ej: 909"
+                        value={filters.employee_id} 
+                        onChange={e => handleFilterChange('employee_id', e.target.value)} 
+                        placeholder="ej: 123"
                         style={{ width: '120px' }} 
                     />
                 </div>
@@ -299,7 +299,7 @@ export function Logs() {
                 </div>
                 <button className="primary" onClick={handleFilter}>Filtrar</button>
                 <button onClick={() => {
-                    setFilters({ device_id: '', user_id: '', name: '', from_date: '', to_date: '' });
+                    setFilters({ device_id: '', employee_id: '', name: '', from_date: '', to_date: '' });
                     loadLogs(1);
                 }}>Limpiar</button>
             </div>

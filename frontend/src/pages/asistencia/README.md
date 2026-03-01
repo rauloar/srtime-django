@@ -22,7 +22,7 @@ El módulo de Visualización de Asistencia es una interfaz React que conecta con
 
 **Endpoint consumido**:
 ```
-GET /api/v1/employees/?skip=0&limit=100
+GET {API_PREFIX}/employees/?skip=0&limit=100
 ```
 
 ---
@@ -39,7 +39,7 @@ GET /api/v1/employees/?skip=0&limit=100
 
 **Endpoints consumidos**:
 ```
-GET /api/v1/employees/{id}
+GET {API_PREFIX}/employees/{id}
 ```
 
 ---
@@ -57,8 +57,8 @@ GET /api/v1/employees/{id}
 
 **Endpoints consumidos**:
 ```
-GET /api/v1/employees/{id}
-GET /api/v1/attendance/reports/daily/?from_date={date}&to_date={date}&employee_id={id}
+GET {API_PREFIX}/employees/{id}
+GET {API_PREFIX}/attendance/reports/daily/?from_date={date}&to_date={date}&employee_id={id}
 ```
 
 ---
@@ -77,9 +77,9 @@ GET /api/v1/attendance/reports/daily/?from_date={date}&to_date={date}&employee_i
 
 **Endpoints consumidos**:
 ```
-GET /api/v1/employees/{id}
-GET /api/v1/attendance/{id}/timeline/{date}/ 
-GET /api/v1/attendance/{id}/explanation/{date}/
+GET {API_PREFIX}/employees/{id}
+GET {API_PREFIX}/attendance/{id}/timeline/{date}/
+GET {API_PREFIX}/attendance/{id}/explanation/{date}/
 ```
 
 ---
@@ -229,7 +229,7 @@ import type { Employee } from '../../api';
 ### Acceder al módulo
 
 1. **Desde el Topbar**: Click en "Visualización"
-2. **Desde URL**: Ir a `http://localhost:3000/employees`
+2. **Desde URL**: Ir a `/employees`
 
 ### Flujo típico
 
@@ -281,13 +281,15 @@ En el listado, filtra empleados escribiendo:
 
 ## 🔗 Endpoints Consumidos
 
+> Los endpoints se resuelven contra el prefijo API configurado por Django. En este documento se usa `API_PREFIX` (default: `/api/v1`).
+
 | Método | Endpoint | Componente |
 |--------|----------|-----------|
-| GET | `/api/v1/employees/` | EmployeesList |
-| GET | `/api/v1/employees/{id}` | EmployeeDetail, DayView, TimelineView |
-| GET | `/api/v1/attendance/reports/daily/` | DayView |
-| GET | `/api/v1/attendance/{id}/timeline/{date}/` | TimelineView |
-| GET | `/api/v1/attendance/{id}/explanation/{date}/` | TimelineView |
+| GET | `{API_PREFIX}/employees/` | EmployeesList |
+| GET | `{API_PREFIX}/employees/{id}` | EmployeeDetail, DayView, TimelineView |
+| GET | `{API_PREFIX}/attendance/reports/daily/` | DayView |
+| GET | `{API_PREFIX}/attendance/{id}/timeline/{date}/` | TimelineView |
+| GET | `{API_PREFIX}/attendance/{id}/explanation/{date}/` | TimelineView |
 
 ---
 
@@ -307,7 +309,7 @@ En dispositivos móviles:
 ## 🐛 Troubleshooting
 
 ### "Error cargando empleados"
-- Verificar que el backend está corriendo en `http://127.0.0.1:9000`
+- Verificar que el backend Django está corriendo y sirviendo frontend + API
 - Verificar que hay empleados en la base de datos
 - Revisar la consola del navegador (DevTools → Console)
 
@@ -369,7 +371,7 @@ Las rutas y componentes creados son la base para:
 Si encuentras issues:
 1. Revisa errores en console (DevTools)
 2. Verifica que backend está corriendo
-3. Comprueba connectivity a `/api/v1/employees/`
+3. Comprueba connectivity a `{API_PREFIX}/employees/` (default: `/api/v1/employees/`)
 4. Revisa logs del backend Django
 
 ---

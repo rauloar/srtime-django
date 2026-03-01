@@ -141,6 +141,7 @@ def calculate_flexible_day(
     # =========================================================================
     legal = classify_regular_overtime(net_worked, policy)
     night_result = compute_night_minutes(day_blocks, policy)
+    effective_night_minutes = min(night_result.night_minutes, net_worked)
     is_holiday = check_holiday(target_date, holidays_set)
     
     # =========================================================================
@@ -206,7 +207,7 @@ def calculate_flexible_day(
         # Legal classification
         regular_minutes=legal.regular_minutes,
         overtime_minutes=legal.overtime_minutes,
-        night_minutes=night_result.night_minutes,
+        night_minutes=effective_night_minutes,
         
         # Structured mode fields (NULL in flexible)
         expected_minutes=None,

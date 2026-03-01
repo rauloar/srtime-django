@@ -166,16 +166,23 @@ def _resolve_shift_timetable_for_date(
     if not shift or not shift.cycle_days:
         return None
     
-    # Calculate day index using custom_start or start_date
-    cycle_start = emp_shift.custom_start or emp_shift.start_date
+    # Calculate day index using custom_start when available, fallback to start_date
+    cycle_start = getattr(emp_shift, 'custom_start', None) or emp_shift.start_date
     days_since_start = (target_date - cycle_start).days
     day_index = days_since_start % shift.cycle_days
     
     # Find timetable for this day_index
     # shift.timetables is prefetched ShiftTimetable queryset
-    for shift_tt in shift.timetables.all():
+    shift_timetables = list(shift.timetables.all())
+    for shift_tt in shift_timetables:
         if shift_tt.day_index == day_index and shift_tt.timetable:
             return shift_tt.timetable
+
+    # Compatibility fallback:
+    # Some shifts only define one timetable row (usually day_index=0)
+    # and historically that timetable applies to all days.
+    if shift_timetables and shift_timetables[0].timetable:
+        return shift_timetables[0].timetable
     
     return None
 
@@ -212,10 +219,10 @@ def get_schedule_calendar(
     """
     # Validate range
     if (end_date - start_date).days > 31:
-        raise ValueError("Max range: 31 days")
+        raise ValueError("Max 31 days")
     
     # Build employee queryset
-    employees_qs = models.Employee.objects.filter(active=True)
+    employees_qs = models.Employee.objects.filter(is_active=True)
     if employee_ids:
         employees_qs = employees_qs.filter(id__in=employee_ids)
     

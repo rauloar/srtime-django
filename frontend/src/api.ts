@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { DayViewResponse } from './types/contracts';
 
 // Usar siempre ruta relativa ya que Django sirve el frontend
-const API_URL = '/api/v1';
+const API_URL = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '');
 
 export const api = axios.create({
     baseURL: API_URL,
@@ -95,6 +95,7 @@ export interface Device {
 export interface AttendanceLog {
     id: number;
     device_id: number;
+    employee?: number;
     user_id: string;
     timestamp: string;
     status: number;
@@ -188,7 +189,7 @@ export const testConnection = async (id: number) => (await api.post<JobResponse>
 export const importAttendance = async (id: number) => (await api.post<JobResponse>(`/devices/${id}/import-attendance/`)).data;
 export const clearAttendance = async (id: number) => (await api.post<JobResponse>(`/devices/${id}/clear-attendance/`)).data;
 export const downloadUsers = async (id: number) => (await api.post<JobResponse>(`/devices/${id}/download-users/`)).data;
-export const syncUsers = async (id: number, employeeIds?: number[]) => (await api.post<JobResponse>(`/devices/${id}/sync-users/`, { employee_ids: employeeIds })).data;
+export const syncUsers = async (id: number, userIds?: string[]) => (await api.post<JobResponse>(`/devices/${id}/sync-users/`, { user_ids: userIds })).data;
 
 // New Additional Functions Endpoints
 export const checkDeviceOnline = async (id: number) => (await api.get<CheckOnlineResponse>(`/devices/${id}/test-connection-sync/`)).data;
@@ -204,11 +205,20 @@ export const getNextUid = async (id: number) => (await api.get<{ next_uid: numbe
 
 // Attendance Day View
 export const getDayView = async (
-    employeeId: string,
+    employeeIdOrUserId: number | string,
     date: string
 ): Promise<DayViewResponse> => {
+    const identityParams: any = { date };
+    if (typeof employeeIdOrUserId === 'number') {
+        identityParams.employee_id = employeeIdOrUserId;
+    } else if (/^\d+$/.test(employeeIdOrUserId)) {
+        identityParams.employee_id = Number(employeeIdOrUserId);
+        identityParams.user_id = employeeIdOrUserId;
+    } else {
+        identityParams.user_id = employeeIdOrUserId;
+    }
     return (await api.get<DayViewResponse>('/attendance/day/', {
-        params: { employee_id: employeeId, date }
+        params: identityParams
     })).data;
 };
 
@@ -297,6 +307,7 @@ export interface DeviceUser {
 
 export const getAttendanceLogs = async (params: {
     device_id?: number;
+    employee_id?: number;
     user_id?: string;
     from_date?: string;
     to_date?: string;
@@ -305,7 +316,12 @@ export const getAttendanceLogs = async (params: {
     page?: number;
     page_size?: number;
 }) => {
-    const response = await api.get<{ count: number; next: string | null; previous: string | null; results: AttendanceLog[] }>('/attendance/', { params });
+    const backendParams: any = { ...params };
+    if (backendParams.employee_id) {
+        backendParams.employee = backendParams.employee_id;
+        delete backendParams.employee_id;
+    }
+    const response = await api.get<{ count: number; next: string | null; previous: string | null; results: AttendanceLog[] }>('/attendance/', { params: backendParams });
     return response.data;
 };
 
@@ -350,9 +366,18 @@ export interface LogsWithValidation {
     error?: string;
 }
 
-export const getLogsWithValidation = async (employee_id: number, date: string) => {
+export const getLogsWithValidation = async (employeeIdOrUserId: number | string, date: string) => {
+    const identityParams: any = { date };
+    if (typeof employeeIdOrUserId === 'number') {
+        identityParams.employee_id = employeeIdOrUserId;
+    } else if (/^\d+$/.test(employeeIdOrUserId)) {
+        identityParams.employee_id = Number(employeeIdOrUserId);
+        identityParams.user_id = employeeIdOrUserId;
+    } else {
+        identityParams.user_id = employeeIdOrUserId;
+    }
     const response = await api.get<LogsWithValidation>('/attendance/logs-validated/', {
-        params: { employee_id, date }
+        params: identityParams
     });
     return response.data;
 };
@@ -389,8 +414,8 @@ export interface Company {
 
 export interface Employee {
     id?: number;
-    device?: number; // Device ID (required for updates)
-    uid?: number;    // Internal Device ID (required for updates)
+    device?: number;
+    uid?: number;
     user_id: string; // Global ID
     name?: string;
     email?: string;
@@ -412,6 +437,7 @@ export interface Employee {
     department_id?: number;
     department_name?: string; // Read-only
     privilege?: number;
+    is_active?: boolean;
     active?: boolean;
 
     current_shift?: {
@@ -457,9 +483,9 @@ export const getEmployeesByDate = async (date: string, skip = 0, limit = 100) =>
     await api.get<Employee[]>('/employees/', { params: { skip, limit, date } })
 ).data;
 export const searchEmployees = async (query: string) => (await api.get<Employee[]>('/employees/', { params: { search: query } })).data;
-export const getEmployee = async (id: number) => (await api.get<Employee>(`/employees/${id}/`)).data;
-export const getEmployeeByDate = async (id: number, date: string) => (
-    await api.get<Employee>(`/employees/${id}/`, { params: { date } })
+export const getEmployee = async (employeeId: number | string) => (await api.get<Employee>(`/employees/${employeeId}/`)).data;
+export const getEmployeeByDate = async (employeeId: number | string, date: string) => (
+    await api.get<Employee>(`/employees/${employeeId}/`, { params: { date } })
 ).data;
 const serializeEmployeePayload = (emp: Employee) => ({
     user_id: emp.user_id,
@@ -469,26 +495,24 @@ const serializeEmployeePayload = (emp: Employee) => ({
     mobile_phone: emp.mobile_phone,
     ssn: emp.ssn,
     department: emp.department_id,
+    position: (emp as { position?: number }).position,
     hire_date: (emp as { hire_date?: string }).hire_date,
     birthday: emp.birthday,
     gender: emp.gender,
-    active: emp.active,
+    is_active: emp.is_active ?? emp.active,
     address: emp.address,
     city: emp.city,
     country: emp.country,
     photo_path: (emp as { photo_path?: string }).photo_path,
-    // Critical fields for UserSerializer
-    device: emp.device,
-    uid: emp.uid,
 });
 
 export const createEmployee = async (emp: Employee) => (
     await api.post<Employee>('/employees/', serializeEmployeePayload(emp))
 ).data;
-export const updateEmployee = async (id: number, emp: Employee) => (
-    await api.put<Employee>(`/employees/${id}/`, serializeEmployeePayload(emp))
+export const updateEmployee = async (employeeId: number, emp: Employee) => (
+    await api.put<Employee>(`/employees/${employeeId}/`, serializeEmployeePayload(emp))
 ).data;
-export const deleteEmployee = async (id: number) => (await api.delete(`/employees/${id}/`)).data;
+export const deleteEmployee = async (employeeId: number) => (await api.delete(`/employees/${employeeId}/`)).data;
 
 export interface ImportResult {
     success: number;
@@ -555,6 +579,7 @@ export const getShiftCycle = async (shiftId: number) => {
 
 export interface AssignShiftRequest {
     employee_id?: number;
+    user_id?: string;
     department_id?: number;
     scope?: 'EMPLOYEE' | 'DEPARTMENT';
     shift_id: number;
@@ -564,7 +589,8 @@ export interface AssignShiftRequest {
 
 export const assignShift = async (data: AssignShiftRequest) => {
     const payload = {
-        employee: data.employee_id,
+        employee_id: data.employee_id,
+        user_id: data.user_id,
         department: data.department_id,
         shift: data.shift_id,
         start_date: data.start_date,
@@ -577,6 +603,7 @@ export const assignShift = async (data: AssignShiftRequest) => {
 export interface ShiftAssignment {
     id: number;
     employee_id?: number;
+    user_id?: string;
     department_id?: number;
     scope?: 'EMPLOYEE' | 'DEPARTMENT';
     shift_id: number;
@@ -593,21 +620,22 @@ export const getAssignments = async (startDate: string, endDate: string, departm
 
 export interface ScheduleOverride {
     id: number;
-    employee: number;
+    employee: number | string;
     employee_name?: string;
     timetable: number;
     timetable_name?: string;
     date: string;
 }
 
-export const getScheduleOverrides = async (startDate: string, endDate: string, employeeId?: number) => {
+export const getScheduleOverrides = async (startDate: string, endDate: string, userId?: string) => {
     const params: any = { 'date__gte': startDate, 'date__lte': endDate };
-    if (employeeId) params.employee = employeeId;
+    if (userId) params.employee__user_id = userId;
     return (await api.get<ScheduleOverride[]>('/schedule-overrides/', { params })).data;
 };
 
 export const createScheduleOverrideFromShift = async (payload: {
-    employee_id: number;
+    employee_id?: number;
+    user_id?: string;
     shift_id: number;
     date: string;
     start_date?: string;
@@ -702,7 +730,8 @@ export const getDailyReportsV2 = async (
 // Absences
 export interface Absence {
     id?: number | string;
-    employee_id: number;
+    employee_id?: number;
+    user_id?: string;
     employee_name?: string; // Read only
     employee_user_id?: string; // From backend
     start_date: string;
@@ -725,7 +754,10 @@ export const getAbsences = async () => {
         return [];
     }
 };
-export const createAbsence = async (abs: Absence) => (await api.post<Absence>('/leaves/', abs)).data;
+export const createAbsence = async (abs: Absence) => {
+    const payload: any = { ...abs };
+    return (await api.post<Absence>('/leaves/', payload)).data;
+};
 export const deleteAbsence = async (id: number) => (await api.delete(`/leaves/${id}/`)).data;
 
 // Auth System
@@ -817,8 +849,8 @@ export interface ExplanationData {
     recommendations: string[];
 }
 
-export const getTimeline = async (employeeId: string, date: string) =>
-    (await api.get<TimelineData>(`/attendance/${employeeId}/timeline/${date}/`)).data;
+export const getTimeline = async (employeeIdOrUserId: number | string, date: string) =>
+    (await api.get<TimelineData>(`/attendance/${employeeIdOrUserId}/timeline/${date}/`)).data;
 
-export const getExplanation = async (employeeId: string, date: string) =>
-    (await api.get<ExplanationData>(`/attendance/${employeeId}/explanation/${date}/`)).data;
+export const getExplanation = async (employeeIdOrUserId: number | string, date: string) =>
+    (await api.get<ExplanationData>(`/attendance/${employeeIdOrUserId}/explanation/${date}/`)).data;

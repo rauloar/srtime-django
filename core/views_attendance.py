@@ -227,7 +227,8 @@ def daily_reports(request):
     """
     from_date_str = request.query_params.get('from_date')
     to_date_str = request.query_params.get('to_date')
-    employee_id = request.query_params.get('employee_id')
+    user_id = request.query_params.get('user_id')
+    legacy_employee_id = request.query_params.get('employee_id')
     department_id = request.query_params.get('department_id')
     user_id_search = request.query_params.get('employee_user_id')
     name_search = request.query_params.get('employee_name')
@@ -254,8 +255,14 @@ def daily_reports(request):
         date__lte=to_date
     )
     
-    if employee_id:
-        query = query.filter(employee_id=employee_id)
+    warning_headers = {}
+    if user_id:
+        query = query.filter(employee__user_id=user_id)
+    elif legacy_employee_id:
+        query = query.filter(employee_id=int(legacy_employee_id))
+        warning_headers['X-API-Deprecated'] = 'employee_id will be removed. Use user_id instead.'
+        import logging
+        logging.getLogger('api').warning(f"DEPRECATED: Numeric employee_id {legacy_employee_id} used.")
     
     if department_id:
         query = query.filter(employee__department_id=department_id)
@@ -270,7 +277,7 @@ def daily_reports(request):
     records = query.select_related('employee', 'timetable').order_by('-date', 'employee')
     serializer = DailyAttendanceSerializer(records, many=True)
     
-    return Response(serializer.data)
+    return Response(serializer.data, headers=warning_headers if warning_headers else None)
 
 
 @api_view(['GET'])
@@ -311,7 +318,8 @@ def daily_reports_v2(request):
     """
     from_date_str = request.query_params.get('from_date')
     to_date_str = request.query_params.get('to_date')
-    employee_id = request.query_params.get('employee_id')
+    user_id = request.query_params.get('user_id')
+    legacy_employee_id = request.query_params.get('employee_id')
     department_id = request.query_params.get('department_id')
     user_id_search = request.query_params.get('employee_user_id')
     name_search = request.query_params.get('employee_name')
@@ -338,8 +346,14 @@ def daily_reports_v2(request):
         date__lte=to_date
     )
     
-    if employee_id:
-        query = query.filter(employee_id=employee_id)
+    warning_headers = {}
+    if user_id:
+        query = query.filter(employee__user_id=user_id)
+    elif legacy_employee_id:
+        query = query.filter(employee_id=legacy_employee_id)
+        warning_headers['X-API-Deprecated'] = 'employee_id will be removed. Use user_id instead.'
+        import logging
+        logging.getLogger('api').warning(f"DEPRECATED: Numeric employee_id {legacy_employee_id} used.")
     
     if department_id:
         query = query.filter(employee__department_id=department_id)
@@ -354,15 +368,15 @@ def daily_reports_v2(request):
     records = query.select_related('employee', 'timetable').order_by('-date', 'employee')
     serializer = DailyAttendanceV2Serializer(records, many=True)
     
-    return Response(serializer.data)
+    return Response(serializer.data, headers=warning_headers if warning_headers else None)
 
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, AttendanceAdminPermission])
-def calculate_single_day(request, employee_id):
+def calculate_single_day(request, user_id):
     """
-    POST /api/v1/attendance/calculate/{employee_id}/
+    POST /api/v1/attendance/calculate/{user_id}/
     Body: {
         "date": "2025-01-15"
     }
@@ -383,47 +397,77 @@ def calculate_single_day(request, employee_id):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    # Verify employee exists
-    employee = get_object_or_404(models.Employee, id=employee_id)
-    
-    # Calculate
-    daily = calculate_day(employee_id, target_date)
+    # Identity & Backward Compatibility Resolution
+    warning_headers = {}
+    try:
+        employee = models.Employee.objects.get(user_id=user_id)
+    except models.Employee.DoesNotExist:
+        # Legacy fallback: user_id is actually a numeric PK
+        if str(user_id).isdigit():
+            employee = get_object_or_404(models.Employee, id=int(user_id))
+            warning_headers['X-API-Deprecated'] = 'employee_id will be removed. Use user_id instead.'
+        else:
+            return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+    # Calculate with internal PK
+    import logging
+    logger = logging.getLogger('attendance')
+    if warning_headers:
+        logger.warning(f"DEPRECATED: Numeric employee_id {user_id} used. Fallback applied.")
+        
+    daily = calculate_day(employee.id, target_date)
     serializer = DailyAttendanceSerializer(daily)
     
-    return Response(serializer.data)
+    headers = warning_headers if warning_headers else None
+    return Response(serializer.data, headers=headers)
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, AttendanceViewPermission])
 def get_simple_day_view(request):
     """
-    GET /api/v1/attendance/day/?employee_id=1&date=2026-02-02
+    GET /api/v1/attendance/day/?user_id=EMP001&date=2026-02-02
     Simplified endpoint for Day View (No scheduling logic).
     """
-    employee_id = request.query_params.get('employee_id')
+    user_id = request.query_params.get('user_id')
+    legacy_employee_id = request.query_params.get('employee_id')
     date_str = request.query_params.get('date')
 
-    if not employee_id or not date_str:
-        return Response({"error": "employee_id and date required"}, status=400)
+    if not date_str or (not user_id and not legacy_employee_id):
+        return Response({"error": "user_id and date required"}, status=400)
 
     try:
         target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
     except ValueError:
         return Response({"error": "Invalid date YYYY-MM-DD"}, status=400)
 
-    # 1. Get Employee (OPCIÓN B: never 404)
-    try:
-        emp = models.Employee.objects.get(id=employee_id)
-    except models.Employee.DoesNotExist:
-        # Return 200 with empty payload (consistent with timeline/explanation)
+    # Identity Resolution
+    warning_headers = {}
+    emp = None
+    
+    if user_id:
+        try:
+            emp = models.Employee.objects.get(user_id=user_id)
+        except models.Employee.DoesNotExist:
+            pass
+    elif legacy_employee_id:
+        try:
+            emp = models.Employee.objects.get(id=int(legacy_employee_id))
+            warning_headers['X-API-Deprecated'] = 'employee_id will be removed. Use user_id instead.'
+            import logging
+            logging.getLogger('api').warning(f"DEPRECATED: Numeric employee_id {legacy_employee_id} used.")
+        except (models.Employee.DoesNotExist, ValueError):
+            pass
+
+    if not emp:
         return Response({
-            "employee_id": employee_id,
+            "user_id": user_id or legacy_employee_id,
             "employee_name": None,
             "date": date_str,
             "status": "NoData",
             "worked_minutes": 0,
             "logs": []
-        })
+        }, headers=warning_headers if warning_headers else None)
 
     emp_name = emp.name or "Unknown"
 
@@ -456,13 +500,13 @@ def get_simple_day_view(request):
             worked_minutes = int(diff.total_seconds() / 60)
 
     return Response({
-        "employee_id": employee_id,
+        "user_id": str(emp.user_id),
         "employee_name": emp_name,
         "date": date_str,
         "status": status,
         "worked_minutes": worked_minutes,
         "logs": logs_data
-    })
+    }, headers=warning_headers if warning_headers else None)
 
 
 @api_view(['GET'])
@@ -489,7 +533,8 @@ def get_all_absences(request):
     # 3. Aplicar filtros query params
     from_date = request.query_params.get('from_date')
     to_date = request.query_params.get('to_date')
-    employee_id = request.query_params.get('employee_id')
+    user_id = request.query_params.get('user_id')
+    legacy_employee_id = request.query_params.get('employee_id')
     employee_user_id = request.query_params.get('employee_user_id')
     employee_name = request.query_params.get('employee_name')
     
@@ -497,9 +542,16 @@ def get_all_absences(request):
         detected_absences = detected_absences.filter(date__gte=from_date)
     if to_date:
         detected_absences = detected_absences.filter(date__lte=to_date)
-    if employee_id:
-        manual_absences = manual_absences.filter(employee_id=int(employee_id))
-        detected_absences = detected_absences.filter(employee_id=int(employee_id))
+    warning_headers = {}
+    if user_id:
+        manual_absences = manual_absences.filter(employee__user_id=user_id)
+        detected_absences = detected_absences.filter(employee__user_id=user_id)
+    elif legacy_employee_id:
+        manual_absences = manual_absences.filter(employee_id=int(legacy_employee_id))
+        detected_absences = detected_absences.filter(employee_id=int(legacy_employee_id))
+        warning_headers['X-API-Deprecated'] = 'employee_id will be removed. Use user_id instead.'
+        import logging
+        logging.getLogger('api').warning(f"DEPRECATED: Numeric employee_id {legacy_employee_id} used.")
     if employee_user_id:
         manual_absences = manual_absences.filter(employee__user_id__icontains=employee_user_id)
         detected_absences = detected_absences.filter(employee__user_id__icontains=employee_user_id)
@@ -543,7 +595,7 @@ def get_all_absences(request):
     all_absences = manual_data + detected_data
     all_absences.sort(key=lambda x: x['start_date'], reverse=True)
     
-    return Response(all_absences)
+    return Response(all_absences, headers=warning_headers if warning_headers else None)
 
 
 @api_view(['GET'])
@@ -590,17 +642,18 @@ def get_logs_with_validation(request):
         }
     }
     """
-    employee_id = request.query_params.get('employee_id')
+    user_id = request.query_params.get('user_id')
+    legacy_employee_id = request.query_params.get('employee_id')
     date_str = request.query_params.get('date')
     
     # Validación de parámetros
-    if not employee_id or not date_str:
+    if not date_str or (not user_id and not legacy_employee_id):
         return Response({
             "employee": None,
             "date": date_str,
             "logs": [],
             "validation": None,
-            "error": "employee_id and date (YYYY-MM-DD) required"
+            "error": "user_id and date (YYYY-MM-DD) required"
         }, status=status.HTTP_200_OK)
     
     # Validación del formato de fecha
@@ -616,16 +669,31 @@ def get_logs_with_validation(request):
         }, status=status.HTTP_200_OK)
     
     # 1. Get Employee (sin 404 - retorna payload vacío)
-    try:
-        emp = models.Employee.objects.get(id=employee_id)
-    except (models.Employee.DoesNotExist, ValueError):
+    emp = None
+    warning_headers = {}
+    
+    if user_id:
+        try:
+            emp = models.Employee.objects.get(user_id=user_id)
+        except models.Employee.DoesNotExist:
+            pass
+    elif legacy_employee_id:
+        try:
+            emp = models.Employee.objects.get(id=int(legacy_employee_id))
+            warning_headers['X-API-Deprecated'] = 'employee_id will be removed. Use user_id instead.'
+            import logging
+            logging.getLogger('api').warning(f"DEPRECATED: Numeric employee_id {legacy_employee_id} used.")
+        except (models.Employee.DoesNotExist, ValueError):
+            pass
+
+    if not emp:
         return Response({
             "employee": None,
             "date": date_str,
             "logs": [],
             "validation": None,
-            "error": f"Employee {employee_id} not found"
-        }, status=status.HTTP_200_OK)
+            "error": f"Employee {user_id or legacy_employee_id} not found"
+        }, headers=warning_headers if warning_headers else None, status=status.HTTP_200_OK)
     
     # 2. Get logs for the day (puede estar vacío, eso es OK)
     logs_qs = models.AttendanceLog.objects.filter(

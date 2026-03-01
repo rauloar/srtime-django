@@ -201,7 +201,7 @@ class Command(BaseCommand):
                 defaults={
                     'name': data['name'],
                     'department': data['department'],
-                    'active': True,
+                    'is_active': True,
                     'email': f"{data['name'].lower().replace(' ', '.')}@empresa-demo.com"
                 }
             )

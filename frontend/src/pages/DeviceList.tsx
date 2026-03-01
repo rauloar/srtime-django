@@ -99,11 +99,17 @@ export const DeviceList: React.FC = () => {
                 const connStatus = deviceId !== undefined ? connectionStatus[deviceId] : undefined;
                 return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
-                        {/* Estado Activo/Inactivo (persistente) */}
-                        <span className={`status-badge ${dev.enabled ? 'status-ok' : 'status-offline'}`}>
-                            {dev.enabled ? '✓ ACTIVO' : '✗ INACTIVO'}
-                        </span>
-                        {/* Estado Conectada/Desconectada (on demand) */}
+                        {/* Estado Activo/Inactivo/Pendiente (basado en enabled + last_seen) */}
+                        {!dev.enabled ? (
+                            <span className="status-badge status-offline">✗ INACTIVO</span>
+                        ) : dev.last_seen ? (
+                            <span className="status-badge status-ok">✓ ACTIVO</span>
+                        ) : (
+                            <span className="status-badge" style={{ backgroundColor: 'var(--status-warning, #f0ad4e)', color: '#fff', fontSize: '12px' }}>
+                                ⏳ PENDIENTE
+                            </span>
+                        )}
+                        {/* Estado Conectada/Desconectada (on demand, solo al verificar) */}
                         {connStatus ? (
                             <span className={`status-badge ${connStatus.connected ? 'status-ok' : 'status-offline'}`} style={{ fontSize: '11px' }}>
                                 {connStatus.connected ? '🟢 CONECTADA' : '🔴 DESCONECTADA'}

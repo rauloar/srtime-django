@@ -148,49 +148,30 @@ def _intersect_with_night_range(
     """
     if start >= end:
         return 0
-    
+
     total_night_minutes = 0
-    current = start
-    
-    while current < end:
-        current_date = current.date()
-        
-        # Night period for this date (night_start today to night_end tomorrow)
-        night_start_today = datetime.combine(current_date, time(night_start_hour, 0))
-        night_end_tomorrow = datetime.combine(
-            current_date + timedelta(days=1), 
-            time(night_end_hour, 0)
-        )
-        
-        # Also check previous night (night_start yesterday to night_end today)
-        night_end_today = datetime.combine(current_date, time(night_end_hour, 0))
-        night_start_yesterday = datetime.combine(
-            current_date - timedelta(days=1),
-            time(night_start_hour, 0)
-        )
-        
-        # Calculate intersection with today's night range
-        if night_start_today < end and night_end_tomorrow > start:
-            range_start = max(start, night_start_today)
-            range_end = min(end, night_end_tomorrow)
-            if range_start < range_end:
-                delta = (range_end - range_start).total_seconds() / 60
-                total_night_minutes += int(delta)
-        
-        # Calculate intersection with morning part of previous night
-        if current.hour < night_end_hour:
-            if night_start_yesterday < end and night_end_today > start:
-                range_start = max(start, current)
-                range_end = min(end, night_end_today)
-                if range_start < range_end and range_start.hour < night_end_hour:
-                    delta = (range_end - range_start).total_seconds() / 60
-                    # Only count if we haven't already counted this in previous iteration
-                    if range_start >= start:
-                        total_night_minutes += int(delta)
-        
-        # Move to next day to avoid double counting
-        current = datetime.combine(current_date + timedelta(days=1), time(0, 0))
-    
+
+    # Start one day before to include early-morning overlaps from previous night's window.
+    current_date = (start - timedelta(days=1)).date()
+    end_date = end.date()
+
+    while current_date <= end_date:
+        night_start = datetime.combine(current_date, time(night_start_hour, 0))
+
+        if night_start_hour < night_end_hour:
+            night_end = datetime.combine(current_date, time(night_end_hour, 0))
+        else:
+            # Overnight night range (e.g., 22:00 -> 06:00 next day)
+            night_end = datetime.combine(current_date + timedelta(days=1), time(night_end_hour, 0))
+
+        overlap_start = max(start, night_start)
+        overlap_end = min(end, night_end)
+
+        if overlap_start < overlap_end:
+            total_night_minutes += int((overlap_end - overlap_start).total_seconds() / 60)
+
+        current_date += timedelta(days=1)
+
     return total_night_minutes
 
 

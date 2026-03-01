@@ -99,13 +99,28 @@ class CalculateAttendanceView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         
+        user_id = data.get('user_id')
+        legacy_employee_id = data.get('employee_id')
+        warning_headers = {}
+        
+        try:
+            if user_id:
+                employee = models.Employee.objects.get(user_id=user_id)
+            elif legacy_employee_id:
+                employee = models.Employee.objects.get(id=int(legacy_employee_id))
+                warning_headers['X-API-Deprecated'] = 'employee_id will be removed. Use user_id instead.'
+            else:
+                raise EmployeeNotFoundError("No employee identifier provided")
+        except models.Employee.DoesNotExist:
+            raise EmployeeNotFoundError(f"Employee {user_id or legacy_employee_id} not found")
+
         # Get service
         service = get_attendance_service()
         
         try:
             # Delegate to service
             result = service.process_daily_attendance(
-                employee_id=data['employee_id'],
+                employee_id=employee.id,
                 target_date=data['date'],
                 actor=request.user,
                 force=data.get('force', False),
@@ -124,7 +139,7 @@ class CalculateAttendanceView(APIView):
                 'fingerprint': getattr(daily, 'calculation_fingerprint', ''),
             })
             
-            return Response(output.data, status=status.HTTP_200_OK)
+            return Response(output.data, status=status.HTTP_200_OK, headers=warning_headers if warning_headers else None)
             
         except models.Employee.DoesNotExist:
             raise EmployeeNotFoundError(
@@ -133,11 +148,11 @@ class CalculateAttendanceView(APIView):
         except ServiceProtectedDayError as e:
             raise ProtectedDayError(
                 str(e),
-                details={'employee_id': data['employee_id'], 'date': str(data['date'])}
+                details={'user_id': user_id or legacy_employee_id, 'date': str(data['date'])}
             )
         except ScheduleNotFoundError as e:
             raise EmployeeNotFoundError(
-                f"No schedule found for employee {data['employee_id']} on {data['date']}"
+                f"No schedule found for employee {user_id or legacy_employee_id} on {data['date']}"
             )
         except AttendanceServiceError as e:
             logger.error(f"Attendance calculation failed: {e}")
@@ -155,9 +170,17 @@ class AttendanceDetailView(APIView):
     """
     permission_classes = [IsAttendanceAdmin]
     
-    def get(self, request, employee_id: int, date: str):
+    def get(self, request, user_id: str, date: str):
         # Get employee
-        employee = get_object_or_404(models.Employee, pk=employee_id)
+        warning_headers = {}
+        try:
+            employee = models.Employee.objects.get(user_id=user_id)
+        except models.Employee.DoesNotExist:
+            if str(user_id).isdigit():
+                employee = get_object_or_404(models.Employee, pk=int(user_id))
+                warning_headers['X-API-Deprecated'] = 'employee_id will be removed. Use user_id instead.'
+            else:
+                raise EmployeeNotFoundError(f"Employee {user_id} not found")
         
         # Parse date
         try:
@@ -176,7 +199,7 @@ class AttendanceDetailView(APIView):
         
         if not daily:
             raise AttendanceNotFoundError(
-                f"No attendance record for employee {employee_id} on {date}"
+                f"No attendance record for employee {user_id} on {date}"
             )
         
         # Build response
@@ -185,6 +208,7 @@ class AttendanceDetailView(APIView):
             policy_hash = daily.policy_snapshot.policy_hash[:16] if hasattr(daily.policy_snapshot, 'policy_hash') else ''
         
         output = AttendanceDetailSerializer({
+            'user_id': employee.user_id,
             'employee_id': daily.employee_id,
             'date': daily.date,
             'status': daily.status,
@@ -201,7 +225,7 @@ class AttendanceDetailView(APIView):
             'created_at': daily.created_at,
         })
         
-        return Response(output.data)
+        return Response(output.data, headers=warning_headers if warning_headers else None)
 
 
 # =============================================================================
@@ -263,6 +287,7 @@ class ShadowDifferenceListView(APIView):
             
             results.append({
                 'analysis_id': analysis.id,
+                'user_id': shadow.employee.user_id if shadow.employee else None,
                 'employee_id': shadow.employee_id,
                 'employee_name': str(shadow.employee) if shadow.employee else '',
                 'date': shadow.date,
@@ -313,6 +338,7 @@ class ShadowAnalysisDetailView(APIView):
         # Build response
         data = {
             'id': analysis.id,
+            'user_id': shadow.employee.user_id if shadow.employee else None,
             'employee_id': shadow.employee_id,
             'employee_name': str(shadow.employee) if shadow.employee else '',
             'date': shadow.date,

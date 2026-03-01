@@ -9,7 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from .models import (
     Company, Position, Zone, Department, Employee,
-    Device, AttendanceLog, ImportBatch, User, BiometricTemplate,
+    Device, AttendanceLog, ImportBatch, DeviceUser, BiometricTemplate,
     Setting, Job, JobLog, Timetable, Shift, ShiftTimetable,
     ScheduleOverride, EmployeeShift, Leave, Holiday, DailyAttendance
 )
@@ -98,17 +98,13 @@ class DepartmentViewSet(SecureModelViewSet):
 
 
 class EmployeeViewSet(SecureModelViewSet):
-    """
-    ViewSet for employees endpoint.
-    NOTE: This queries the 'users' table (User model), not 'employees' table.
-    Reason: Device users are the source of truth for employee data in this system.
-    """
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
+    """ViewSet for canonical HR employees endpoint."""
+    queryset = Employee.objects.all()
+    serializer_class = EmployeeSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['device', 'privilege', 'group_id']
-    search_fields = ['user_id', 'name', 'card']
-    ordering_fields = ['user_id', 'name', 'updated_at']
+    filterset_fields = ['department', 'position', 'is_active']
+    search_fields = ['user_id', 'name', 'email', 'phone']
+    ordering_fields = ['id', 'user_id', 'name', 'hire_date']
     ordering = ['user_id']
     
     def list(self, request, *args, **kwargs):
@@ -132,48 +128,17 @@ class EmployeeViewSet(SecureModelViewSet):
         # Si no, usar paginación normal DRF
         return super().list(request, *args, **kwargs)
 
-    def _sync_hr_data(self, user, data):
-        """Helper to sync HR fields to Employee model"""
-        if not user.user_id:
-            return
-            
-        from .models import Employee
-        
-        # Fields to sync
-        hr_fields = [
-            'name', 'email', 'phone', 'mobile_phone', 'address', 
-            'city', 'country', 'birthday', 'gender', 'ssn', 
-            'photo_path', 'hire_date'
-        ]
-        
-        defaults = {}
-        # Only update fields present in request
-        for f in hr_fields:
-            if f in data:
-                defaults[f] = data[f]
-        
-        # Handle ForeignKeys (nullable)
-        if 'department' in data:
-            defaults['department_id'] = data['department'] or None
-        if 'position' in data:
-            defaults['position_id'] = data['position'] or None
-            
-        if defaults:
-            print(f"DEBUG: Syncing HR data for {user.user_id}: {defaults}")
-            Employee.objects.update_or_create(
-                user_id=user.user_id,
-                defaults=defaults
-            )
-
-    def perform_create(self, serializer):
-        print(f"DEBUG: EmployeeViewSet.create payload: {self.request.data}")
-        user = serializer.save()
-        self._sync_hr_data(user, self.request.data)
-
-    def perform_update(self, serializer):
-        print(f"DEBUG: EmployeeViewSet.update payload: {self.request.data}")
-        user = serializer.save()
-        self._sync_hr_data(user, self.request.data)
+    @action(detail=False, methods=['post'], url_path='import')
+    def import_employees(self, request):
+        """
+        POST /api/v1/employees/import
+        Placeholder: CSV employee import endpoint.
+        Returns 200 until CSV logic is implemented.
+        """
+        return Response(
+            {"message": "Employee import endpoint available. CSV processing not yet implemented."},
+            status=status.HTTP_200_OK
+        )
 
 
 class DeviceViewSet(SecureModelViewSet):
@@ -212,6 +177,7 @@ class AttendanceLogViewSet(SecureModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = {
         'device': ['exact'],
+        'employee': ['exact'],
         'user_id': ['exact', 'icontains'],
         'status': ['exact'],
         'punch': ['exact'],
@@ -219,12 +185,12 @@ class AttendanceLogViewSet(SecureModelViewSet):
         'timestamp': ['gte', 'lte', 'range'],  # Support date range filtering
     }
     search_fields = ['user_id', 'user_name', 'edited_reason', 'edited_by']
-    ordering_fields = ['timestamp', 'user_id']
+    ordering_fields = ['timestamp', 'user_id', 'employee']
     ordering = ['-timestamp']
     
     def get_queryset(self):
         """Optimize queries with select_related and handle custom date filters"""
-        queryset = AttendanceLog.objects.select_related('device')
+        queryset = AttendanceLog.objects.select_related('device', 'employee')
         
         # Handle from_date and to_date query params (frontend compatibility)
         from_date = self.request.query_params.get('from_date')
@@ -282,13 +248,33 @@ class ImportBatchViewSet(SecureModelViewSet):
 
 
 class UserViewSet(SecureModelViewSet):
-    queryset = User.objects.all()
+    queryset = DeviceUser.objects.all()
     serializer_class = UserSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['device', 'privilege', 'group_id']
     search_fields = ['user_id', 'name', 'card']
     ordering_fields = ['user_id', 'name', 'updated_at']
     ordering = ['user_id']
+    lookup_field = 'user_id'
+
+    def get_object(self):
+        queryset = self.filter_queryset(self.get_queryset())
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+        val = self.kwargs[lookup_url_kwarg]
+        
+        obj = queryset.filter(**{self.lookup_field: val}).first()
+        if not obj and str(val).isdigit():
+            obj = queryset.filter(pk=val).first()
+            if obj:
+                import logging
+                logging.getLogger('api').warning(f"DEPRECATED: Numeric employee_id {val} used in UserViewSet.")
+        
+        if not obj:
+            from django.http import Http404
+            raise Http404
+
+        self.check_object_permissions(self.request, obj)
+        return obj
 
 
 class BiometricTemplateViewSet(SecureModelViewSet):
@@ -436,6 +422,7 @@ class ScheduleOverrideViewSet(SecureModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = {
         'employee': ['exact'],
+        'employee__user_id': ['exact'],
         'timetable': ['exact'],
         'date': ['exact', 'gte', 'lte', 'range']
     }
@@ -456,20 +443,23 @@ class ScheduleOverrideViewSet(SecureModelViewSet):
 
         Body:
         {
-          "employee_id": 1,
+          "user_id": "EMP1",
           "shift_id": 2,
           "date": "2026-02-09",
           "start_date": "2026-02-01"  # Optional, required if shift.cycle_days > 0
         }
         """
-        employee_id = request.data.get('employee_id')
+        user_id = request.data.get('user_id')
+        legacy_employee_id = request.data.get('employee_id')
         shift_id = request.data.get('shift_id')
         date_str = request.data.get('date')
         start_date_str = request.data.get('start_date')
+        
+        target_employee = user_id or legacy_employee_id
 
-        if not employee_id or not shift_id or not date_str:
+        if not target_employee or not shift_id or not date_str:
             return Response(
-                {"error": "employee_id, shift_id, and date are required"},
+                {"error": "user_id, shift_id, and date are required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -483,7 +473,10 @@ class ScheduleOverrideViewSet(SecureModelViewSet):
             )
 
         try:
-            employee = Employee.objects.get(id=employee_id)
+            if user_id:
+                employee = Employee.objects.get(user_id=user_id)
+            else:
+                employee = Employee.objects.get(id=int(legacy_employee_id))
             shift = Shift.objects.get(id=shift_id)
         except (Employee.DoesNotExist, Shift.DoesNotExist):
             return Response(
@@ -534,7 +527,7 @@ class EmployeeShiftViewSet(SecureModelViewSet):
     queryset = EmployeeShift.objects.all()
     serializer_class = EmployeeShiftSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['scope', 'employee', 'department', 'shift']
+    filterset_fields = ['scope', 'employee', 'employee__user_id', 'department', 'shift']
     search_fields = []
     ordering_fields = ['start_date', 'end_date']
     ordering = ['-start_date']
@@ -550,7 +543,7 @@ class LeaveViewSet(SecureModelViewSet):
     queryset = Leave.objects.all()
     serializer_class = LeaveSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['employee', 'leave_type', 'status']
+    filterset_fields = ['employee', 'employee__user_id', 'leave_type', 'status']
     search_fields = ['reason']
     ordering_fields = ['start_time', 'end_time', 'status']
     ordering = ['-start_time']
@@ -587,100 +580,14 @@ class DailyAttendanceViewSet(SecureModelViewSet):
     def get_queryset(self):
         """Optimize queries with select_related and handle filters"""
         queryset = DailyAttendance.objects.select_related('employee', 'timetable')
-        
+
         # Support date range via query params
         from_date = self.request.query_params.get('from_date')
         to_date = self.request.query_params.get('to_date')
-        
+
         if from_date:
             queryset = queryset.filter(date__gte=from_date)
         if to_date:
             queryset = queryset.filter(date__lte=to_date)
-            
+
         return queryset
-    
-    def get_permissions(self):
-        """Custom permissions for shadow mode endpoint."""
-        if self.action == 'shadow_comparison':
-            # Allow any authenticated user to view shadow comparisons (for monitoring)
-            return [AllowAny()]
-        return [AllowAny()]
-    
-    @action(detail=False, methods=['get'])
-    def shadow_comparison(self, request):
-        """
-        Get shadow mode comparison for a specific employee and date.
-        
-        Query params:
-            - employee_id: Employee ID
-            - date: Date (YYYY-MM-DD)
-        
-        Returns:
-            Shadow mode comparison result (V1 vs V2)
-        """
-        from rest_framework.response import Response
-        from .services.shadow_mode_service import ShadowModeService
-        from datetime import datetime
-        
-        employee_id = request.query_params.get('employee_id')
-        date_str = request.query_params.get('date')
-        
-        if not employee_id or not date_str:
-            return Response(
-                {'error': 'Missing required parameters: employee_id, date'},
-                status=400
-            )
-        
-        try:
-            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        except ValueError:
-            return Response(
-                {'error': f'Invalid date format: {date_str}. Use YYYY-MM-DD'},
-                status=400
-            )
-        
-        # Get V1 results (if exists)
-        daily = DailyAttendance.objects.filter(
-            employee_id=employee_id,
-            date=target_date
-        ).first()
-        
-        # Run shadow mode comparison
-        shadow = ShadowModeService()
-        comparison = shadow.validate_daily_calculation(
-            employee_id=int(employee_id),
-            target_date=target_date,
-            v1_daily_attendance=daily
-        )
-        
-        if not comparison:
-            return Response(
-                {'error': 'Shadow mode is disabled or failed to generate comparison'},
-                status=503
-            )
-        
-        return Response(
-            {
-                'employee_id': comparison.employee_id,
-                'date': str(comparison.target_date),
-                'v1': {
-                    'status': comparison.v1_status,
-                    'worked_minutes': comparison.v1_worked_minutes,
-                    'late_minutes': comparison.v1_late_minutes,
-                    'early_minutes': comparison.v1_early_minutes,
-                    'error': comparison.v1_error,
-                },
-                'v2': {
-                    'status': comparison.v2_status,
-                    'worked_minutes': comparison.v2_worked_minutes,
-                    'late_minutes': comparison.v2_late_minutes,
-                    'early_minutes': comparison.v2_early_minutes,
-                    'error': comparison.v2_error,
-                },
-                'comparison': {
-                    'matches': not comparison.has_differences,
-                    'differences': comparison.differences,
-                    'timestamp': comparison.comparison_timestamp.isoformat(),
-                },
-            }
-        )

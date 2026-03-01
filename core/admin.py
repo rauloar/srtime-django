@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     Company, Position, Zone, Department, Employee,
-    Device, AttendanceLog, ImportBatch, User, BiometricTemplate,
+    Device, AttendanceLog, ImportBatch, DeviceUser, BiometricTemplate,
     Setting, Job, JobLog, Timetable, Shift, ShiftTimetable,
     ScheduleOverride, EmployeeShift, Leave, Holiday, DailyAttendance
 )
@@ -40,8 +40,8 @@ class DepartmentAdmin(admin.ModelAdmin):
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ['user_id', 'name', 'department', 'position', 'active', 'hire_date']
-    list_filter = ['active', 'department', 'position', 'gender']
+    list_display = ['user_id', 'name', 'department', 'position', 'is_active', 'hire_date']
+    list_filter = ['is_active', 'department', 'position', 'gender']
     search_fields = ['user_id', 'name', 'email', 'phone', 'ssn']
     ordering = ['name']
     date_hierarchy = 'hire_date'
@@ -74,7 +74,7 @@ class ImportBatchAdmin(admin.ModelAdmin):
     date_hierarchy = 'imported_at'
 
 
-@admin.register(User)
+@admin.register(DeviceUser)
 class UserAdmin(admin.ModelAdmin):
     list_display = ['user_id', 'name', 'device', 'privilege', 'face_count', 'finger_count']
     list_filter = ['device', 'privilege']

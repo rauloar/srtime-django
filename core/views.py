@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
+from django.conf import settings
 from .enums import (
     PUNCH_STATUS,
     VERIFY_MODE,
@@ -10,7 +11,7 @@ from .enums import (
     ATTENDANCE_PRESENT_STATUSES,
     ATTENDANCE_ABSENT_STATUS
 )
-from .models import Company, Employee, Department, Shift, Timetable, DailyAttendance, User
+from .models import Company, Employee, Department, Shift, Timetable, DailyAttendance, DeviceUser
 
 
 @api_view(['GET'])
@@ -19,17 +20,24 @@ def api_root(request):
     Raíz de la API config.
     Proporciona información general sobre los endpoints disponibles.
     """
+    api_base_url = f"/{settings.API_PREFIX.rstrip('/')}/"
+    absolute_api_base = request.build_absolute_uri(api_base_url)
+    absolute_admin = request.build_absolute_uri('/admin/')
+    absolute_token = request.build_absolute_uri('/api/token/')
+    absolute_employees = request.build_absolute_uri(f"{api_base_url}employees/")
+
     return Response({
         'message': 'Bienvenido a config API',
         'version': '1.0.0',
-        'documentation': 'http://127.0.0.1:9000/admin/',
+        'documentation': absolute_admin,
         'admin': {
             'url': '/admin/',
             'username': 'admin',
             'note': 'Django Admin panel'
         },
         'api': {
-            'base_url': '/api/v1/',
+            'base_url': api_base_url,
+            'base_url_absolute': absolute_api_base,
             'description': 'REST API con 24 endpoints para gestión de empleados, dispositivos ZKTeco, asistencia y horarios'
         },
         'endpoints': {
@@ -85,10 +93,10 @@ def api_root(request):
             'autenticacion': 'JWT Bearer Token en header Authorization'
         },
         'ejemplos': {
-            'obtener_token': 'curl -X POST http://127.0.0.1:9000/api/token/ -d "username=admin&password=admin123"',
-            'listar_empleados': 'curl -H "Authorization: Bearer <token>" http://127.0.0.1:9000/api/v1/employees/',
-            'filtrar': 'curl -H "Authorization: Bearer <token>" http://127.0.0.1:9000/api/v1/employees/?department=1',
-            'buscar': 'curl -H "Authorization: Bearer <token>" http://127.0.0.1:9000/api/v1/employees/?search=Juan'
+            'obtener_token': f'curl -X POST {absolute_token} -d "username=admin&password=admin123"',
+            'listar_empleados': f'curl -H "Authorization: Bearer <token>" {absolute_employees}',
+            'filtrar': f'curl -H "Authorization: Bearer <token>" {absolute_employees}?department=1',
+            'buscar': f'curl -H "Authorization: Bearer <token>" {absolute_employees}?search=Juan'
         }
     }, status=status.HTTP_200_OK)
 
@@ -202,7 +210,7 @@ def dashboard_summary(request):
         limit = 5
 
     counts = {
-        'employees': User.objects.count(),
+        'employees': DeviceUser.objects.count(),
         'departments': Department.objects.count(),
         'shifts': Shift.objects.count(),
         'timetables': Timetable.objects.count(),

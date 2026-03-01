@@ -6,7 +6,7 @@ from core import models
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
-def stub_timeline(request, employee_id, date):
+def stub_timeline(request, user_id, date):
     """
     Timeline v1: Hechos cronológicos desde AttendanceLog.
     
@@ -16,7 +16,7 @@ def stub_timeline(request, employee_id, date):
     - Tipo: "WORK" = período contínuo de actividad
     - SIN: Horarios, políticas, validaciones, inferencias, reglas de negocio
     
-    GET /api/v1/attendance/{employee_id}/timeline/{date}/
+    GET /api/v1/attendance/{user_id}/timeline/{date}/
     
     Response (200 OK):
     {
@@ -49,10 +49,18 @@ def stub_timeline(request, employee_id, date):
     except ValueError:
         return Response({"blocks": []})
 
-    # Get employee
+    # Get employee with legacy fallback
+    emp = None
     try:
-        emp = models.Employee.objects.get(id=employee_id)
+        emp = models.Employee.objects.get(user_id=user_id)
     except models.Employee.DoesNotExist:
+        if str(user_id).isdigit():
+            try:
+                emp = models.Employee.objects.get(id=int(user_id))
+            except models.Employee.DoesNotExist:
+                pass
+                
+    if not emp:
         return Response({"blocks": []})
 
     # Query logs (same as day view)
@@ -88,7 +96,7 @@ def stub_timeline(request, employee_id, date):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
-def stub_explanation(request, employee_id, date):
+def stub_explanation(request, user_id, date):
     """
     Explanation mínima: narrativa de hechos desde AttendanceLog.
     Reutiliza misma lógica que /attendance/day/
@@ -103,11 +111,20 @@ def stub_explanation(request, employee_id, date):
             "recommendations": []
         })
 
-    # Get employee (same as timeline)
+    # Get employee with legacy fallback
+    emp = None
     try:
-        emp = models.Employee.objects.get(id=employee_id)
+        emp = models.Employee.objects.get(user_id=user_id)
         emp_name = emp.name or "Unknown"
     except models.Employee.DoesNotExist:
+        if str(user_id).isdigit():
+            try:
+                emp = models.Employee.objects.get(id=int(user_id))
+                emp_name = emp.name or "Unknown"
+            except models.Employee.DoesNotExist:
+                pass
+
+    if not emp:
         return Response({
             "summary": "Empleado no encontrado",
             "anomalies": [],

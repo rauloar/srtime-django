@@ -104,7 +104,7 @@ class Command(BaseCommand):
     def test_query_count_no_scaling(self):
         """A2. Verify query count doesn't scale with employees"""
         try:
-            emp_count = Employee.objects.filter(active=True).count()
+            emp_count = Employee.objects.filter(is_active=True).count()
             
             reset_queries()
             settings.DEBUG = True
@@ -133,7 +133,7 @@ class Command(BaseCommand):
         """B1. Employee without shift returns REST"""
         try:
             # Find employee without shifts
-            emp = Employee.objects.filter(active=True).first()
+            emp = Employee.objects.filter(is_active=True).first()
             if not emp:
                 self.test_warning("Employee without shift", "No employees found")
                 return
@@ -196,7 +196,7 @@ class Command(BaseCommand):
             # Find employee in that department
             emp = Employee.objects.filter(
                 department_id=dept_shift.department_id,
-                active=True
+                is_active=True
             ).first()
             
             if emp:
@@ -269,7 +269,7 @@ class Command(BaseCommand):
         """C1. Employee without department"""
         try:
             emp = Employee.objects.filter(
-                active=True,
+                is_active=True,
                 department__isnull=True
             ).first()
             
@@ -347,7 +347,7 @@ class Command(BaseCommand):
             from core.services.schedule_resolver import resolve_schedule_unified
             
             # Try calling it
-            emp = Employee.objects.filter(active=True).first()
+            emp = Employee.objects.filter(is_active=True).first()
             if emp:
                 resolved = resolve_schedule_unified(emp.id, date(2026, 2, 1))
                 self.test_passed("Attendance calculation system intact (resolve_schedule_unified works)")

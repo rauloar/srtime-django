@@ -63,7 +63,7 @@ NEXT STEPS:
         self.stdout.write("-" * 80)
         
         try:
-            employee = Employee.objects.filter(active=True).first()
+            employee = Employee.objects.filter(is_active=True).first()
             
             if not employee:
                 self.stdout.write(self.style.WARNING("(!) No active employees found"))
@@ -161,7 +161,7 @@ NEXT STEPS:
         self.stdout.write("-" * 80)
         
         try:
-            emp_count = Employee.objects.filter(active=True).count()
+            emp_count = Employee.objects.filter(is_active=True).count()
             self.stdout.write(f"Active employees in DB: {emp_count}")
             
             # Reset and enable query logging

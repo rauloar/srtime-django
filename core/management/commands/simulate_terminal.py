@@ -132,6 +132,7 @@ class Command(BaseCommand):
                 # Create a new log with offset timestamp
                 new_log = AttendanceLog(
                     device=device,
+                    employee=log.employee,
                     user_id=log.user_id,
                     timestamp=log.timestamp + timedelta(days=time_offset + repeat_idx * 365),
                     status=log.status,
@@ -162,6 +163,7 @@ class Command(BaseCommand):
                     
                     new_log = AttendanceLog.objects.create(
                         device=device,
+                        employee=log.employee,
                         user_id=log.user_id,
                         timestamp=new_timestamp,
                         status=log.status,

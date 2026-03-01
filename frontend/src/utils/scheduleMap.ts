@@ -1,19 +1,19 @@
 import { useMemo } from 'react';
-import { EmployeeSchedule, ScheduleDay } from '../hooks/useScheduleCalendar';
+import type { EmployeeSchedule, ScheduleDay } from '../hooks/useScheduleCalendar';
 
 /**
  * Schedule map for O(1) access by employee ID and date.
  * 
  * Structure:
  * {
- *   [employeeId]: {
+ *   [employeeKey]: {
  *     [dateStr]: ScheduleDay
  *   }
  * }
  * 
  * This avoids .find() in nested loops which would be O(n²) or O(n³).
  */
-export type ScheduleMap = Record<number, Record<string, ScheduleDay>>;
+export type ScheduleMap = Record<string, Record<string, ScheduleDay>>;
 
 /**
  * Transform schedule calendar data into a map for O(1) access.
@@ -36,10 +36,11 @@ export function buildScheduleMap(employees: EmployeeSchedule[]): ScheduleMap {
     const map: ScheduleMap = {};
 
     for (const employee of employees) {
-        map[employee.id] = {};
+        const employeeKey = String(employee.id);
+        map[employeeKey] = {};
 
         for (const day of employee.schedule) {
-            map[employee.id][day.date] = day;
+            map[employeeKey][day.date] = day;
         }
     }
 
@@ -50,16 +51,16 @@ export function buildScheduleMap(employees: EmployeeSchedule[]): ScheduleMap {
  * Get schedule for a specific employee and date from the map.
  * 
  * @param scheduleMap - Pre-built schedule map
- * @param employeeId - Employee ID
+ * @param employeeKey - Employee key (usually employee.id as string)
  * @param dateStr - Date in YYYY-MM-DD format
  * @returns Schedule day or null if not found
  */
 export function getScheduleFromMap(
     scheduleMap: ScheduleMap,
-    employeeId: number,
+    employeeKey: string,
     dateStr: string
 ): ScheduleDay | null {
-    return scheduleMap[employeeId]?.[dateStr] || null;
+    return scheduleMap[employeeKey]?.[dateStr] || null;
 }
 
 /**

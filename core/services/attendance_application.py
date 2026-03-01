@@ -1,63 +1,20 @@
 """
-Attendance Application Service
-The LEGAL BOUNDARY for attendance calculation.
+Attendance Application Service (RC1 - Simple Mode)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-THIS IS THE ONLY AUTHORIZED ENTRY POINT FOR CALCULATING ATTENDANCE.
-
-Any calculation that bypasses this service:
-- Loses audit trail
-- Loses recalculation protection
-- Creates legal liability
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-ARCHITECTURE:
-    
-    process_daily_attendance()
-           │
-           ├─→ resolve_schedule()      [Context]
-           ├─→ get_logs()              [Context]
-           ├─→ get_policy()            [Context]
-           │
-           ├─→ calculate_day_v2()      [Engine - Pure]
-           │
-           └─→ persist_daily_calculation()  [Persistence - Transactional]
-
-RESPONSIBILITIES:
-    ✅ Coordinates context gathering
-    ✅ Delegates to engine
-    ✅ Delegates to persistence
-    ✅ Handles protection flags
-    ✅ Manages errors
-    
-    ❌ Does NOT calculate anything
-    ❌ Does NOT touch model fields directly
-    ❌ Does NOT bypass persistence service
-
-PROTECTION FLAGS:
-    When a day has:
-    - requires_review = True
-    - OR calculation_confidence != HIGH
-    
-    The system BLOCKS recalculation unless force=True.
-    This ensures human review before overwriting flagged calculations.
+Flow:
+resolve schedule → get logs → calculate → update_or_create
 """
+
 from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum
-from typing import Optional, Tuple, List, Set
+from typing import Optional, Tuple, List
 
 from django.utils import timezone
-
 from core import models
-# NOTE: CalculationAuditLog/AuditEventType were planned for legal audit module but not implemented
-# from core.models_audit import CalculationAuditLog, AuditEventType
-from core.domain.flexible import FlexPolicy, Punch, Confidence
+from core.domain.flexible import FlexPolicy, Punch
 from core.domain.flexible.result import DailyCalculationResult
 
-# Import engine components
 from .attendance_engine_v2 import (
     resolve_schedule,
     get_logs,
@@ -66,73 +23,22 @@ from .attendance_engine_v2 import (
 )
 from .flexible_engine import calculate_flexible_day
 
-# Import persistence service
-from .calculation_persistence import (
-    CalculationPersistenceService,
-    PersistenceResult,
-    get_persistence_service,
-)
-
-# Import shadow comparison service (for V1 vs V2 validation)
-from .shadow_comparison_service import get_shadow_service
-
-
-# =============================================================================
-# EXCEPTIONS
-# =============================================================================
-
-class AttendanceServiceError(Exception):
-    """Base exception for attendance service errors."""
-    pass
-
-
-class ProtectedDayError(AttendanceServiceError):
-    """
-    Raised when attempting to recalculate a protected day without force=True.
-    
-    A day is protected when:
-    - requires_review = True (flagged for human review)
-    - calculation_confidence != HIGH (uncertain calculation)
-    
-    This protection ensures that questionable calculations are not
-    silently overwritten without explicit human authorization.
-    """
-    def __init__(self, employee_id: int, target_date: date, reason: str):
-        self.employee_id = employee_id
-        self.target_date = target_date
-        self.reason = reason
-        super().__init__(
-            f"Day {target_date} for employee {employee_id} is protected: {reason}. "
-            f"Use force=True to override (requires authorization)."
-        )
-
-
-class CalculationError(AttendanceServiceError):
-    """Raised when the calculation engine fails."""
-    pass
-
-
-class PersistenceError(AttendanceServiceError):
-    """Raised when persistence fails."""
-    pass
-
-
-class ScheduleNotFoundError(AttendanceServiceError):
-    """Raised when no schedule context can be resolved."""
-    pass
-
 
 # =============================================================================
 # RESULT TYPES
 # =============================================================================
 
+class PersistenceStatus(Enum):
+    CREATED = "CREATED"
+    UPDATED = "UPDATED"
+    ERROR = "ERROR"
+
+
 @dataclass
 class ProcessingResult:
-    """Result of a daily attendance processing operation."""
     daily_attendance: Optional[models.DailyAttendance]
-    status: PersistenceResult
+    status: PersistenceStatus
     message: str
-    engine_version: str = "2.0.0"
     processed_at: Optional[datetime] = None
 
 
@@ -141,513 +47,150 @@ class ProcessingResult:
 # =============================================================================
 
 class AttendanceApplicationService:
-    """
-    Application service for attendance calculation.
-    
-    THIS IS THE LEGAL BOUNDARY.
-    
-    All attendance calculations MUST go through this service to ensure:
-    1. Full audit trail
-    2. Recalculation protection
-    3. Consistent traceability
-    
-    Usage:
-        service = AttendanceApplicationService()
-        result = service.process_daily_attendance(
-            employee_id=123,
-            target_date=date(2025, 1, 15),
-            actor=request.user,
-        )
-        
-        if result.status == PersistenceResult.CREATED:
-            print("New calculation created")
-        elif result.status == PersistenceResult.NO_CHANGE:
-            print("Same as existing, skipped")
-        elif result.status == PersistenceResult.RECALCULATED:
-            print("Recalculated, previous superseded")
-    """
-    
-    ENGINE_VERSION = "2.0.0"
-    SHADOW_MODE_ENABLED = True  # Toggle for shadow comparison
-    
-    def __init__(
-        self, 
-        persistence_service: Optional[CalculationPersistenceService] = None,
-        enable_shadow: bool = True,
-    ):
-        """
-        Initialize with optional custom persistence service.
-        
-        Args:
-            persistence_service: Custom service for testing. If None, uses singleton.
-            enable_shadow: If True, run V2 shadow comparison after each calculation.
-        """
-        self._persistence = persistence_service or get_persistence_service()
-        self._shadow_enabled = enable_shadow and self.SHADOW_MODE_ENABLED
-    
-    # =========================================================================
-    # PUBLIC API
-    # =========================================================================
-    
+
     def process_daily_attendance(
         self,
         employee_id: int,
         target_date: date,
-        actor: Optional[models.User] = None,
-        force: bool = False,
-        recalculation_reason: Optional[str] = None,
     ) -> ProcessingResult:
-        """
-        Process attendance for a single employee/date.
-        
-        This is the ONLY authorized method for calculating attendance.
-        
-        Args:
-            employee_id: Employee to calculate
-            target_date: Date to calculate
-            actor: User performing the action (for audit)
-            force: If True, override protection flags
-            recalculation_reason: Required when force=True
-        
-        Returns:
-            ProcessingResult with status and daily attendance
-        
-        Raises:
-            ProtectedDayError: If day is protected and force=False
-            ScheduleNotFoundError: If no schedule can be resolved
-            CalculationError: If engine fails
-            PersistenceError: If persistence fails
-        """
+
         now = timezone.now()
-        
-        try:
-            # Step 1: Get employee
-            employee = self._get_employee(employee_id)
-            
-            # Step 2: Check protection (before any calculation)
-            self._check_protection(employee_id, target_date, force)
-            
-            # Step 3: Gather context
-            context = self._gather_context(employee, target_date)
-            
-            # Step 4: Execute calculation
-            result = self._execute_calculation(context)
-            
-            # Step 5: Persist with traceability
-            daily, persistence_status = self._persist_result(
-                employee=employee,
-                target_date=target_date,
-                context=context,
-                result=result,
-                actor=actor,
-                recalculation_reason=recalculation_reason,
-            )
-            
-            # Step 6: Run shadow comparison (OUTSIDE transaction, error-isolated)
-            # This compares V1 (just persisted) with V2 for pre-migration validation
-            if self._shadow_enabled and daily is not None:
-                self._run_shadow_comparison(employee, target_date, daily)
-            
-            return ProcessingResult(
-                daily_attendance=daily,
-                status=persistence_status,
-                message=self._build_message(persistence_status),
-                engine_version=self.ENGINE_VERSION,
-                processed_at=now,
-            )
-            
-        except (ProtectedDayError, ScheduleNotFoundError):
-            raise
-        except Exception as e:
-            # Log error to audit trail
-            self._log_error(employee_id, target_date, str(e), actor)
-            raise AttendanceServiceError(f"Processing failed: {e}") from e
-    
-    def process_period(
-        self,
-        start_date: date,
-        end_date: date,
-        department_id: Optional[int] = None,
-        actor: Optional[models.User] = None,
-        skip_protected: bool = True,
-    ) -> List[ProcessingResult]:
-        """
-        Process attendance for multiple days/employees.
-        
-        Args:
-            start_date: Start of period
-            end_date: End of period (inclusive)
-            department_id: Optional filter by department
-            actor: User performing the action
-            skip_protected: If True, skip protected days instead of failing
-        
-        Returns:
-            List of ProcessingResult for each employee/date
-        """
-        from datetime import timedelta
-        
-        employees = models.Employee.objects.filter(is_active=True)
-        if department_id:
-            employees = employees.filter(department_id=department_id)
-        
-        results = []
-        current = start_date
-        
-        while current <= end_date:
-            for emp in employees:
-                try:
-                    result = self.process_daily_attendance(
-                        employee_id=emp.id,
-                        target_date=current,
-                        actor=actor,
-                        force=False,
-                    )
-                    results.append(result)
-                except ProtectedDayError:
-                    if skip_protected:
-                        results.append(ProcessingResult(
-                            daily_attendance=None,
-                            status=PersistenceResult.ERROR,
-                            message="Protected day skipped",
-                            processed_at=timezone.now(),
-                        ))
-                    else:
-                        raise
-                except Exception as e:
-                    results.append(ProcessingResult(
-                        daily_attendance=None,
-                        status=PersistenceResult.ERROR,
-                        message=str(e),
-                        processed_at=timezone.now(),
-                    ))
-            
-            current += timedelta(days=1)
-        
-        return results
-    
-    # =========================================================================
-    # PRIVATE - CONTEXT GATHERING
-    # =========================================================================
-    
-    def _get_employee(self, employee_id: int) -> models.Employee:
-        """Get employee or raise error."""
+
         employee = models.Employee.objects.filter(id=employee_id).first()
         if not employee:
-            raise AttendanceServiceError(f"Employee {employee_id} not found")
-        return employee
-    
+            return ProcessingResult(
+                daily_attendance=None,
+                status=PersistenceStatus.ERROR,
+                message="Employee not found",
+                processed_at=now,
+            )
+
+        context = self._gather_context(employee, target_date)
+        result = self._execute_calculation(context)
+
+        daily, created = models.DailyAttendance.objects.update_or_create(
+            employee=employee,
+            date=target_date,
+            defaults={
+                "check_in": result.check_in,
+                "check_out": result.check_out,
+                "worked_minutes": result.worked_minutes,
+                "break_minutes": result.break_minutes,
+                "net_worked_minutes": result.net_worked_minutes,
+                "regular_minutes": result.regular_minutes,
+                "overtime_minutes": result.overtime_minutes,
+                "night_minutes": result.night_minutes,
+                "late_minutes": result.late_minutes or 0,
+                "early_minutes": result.early_out_minutes or 0,
+                "status": result.status,
+                "is_absent": result.status == "Absent",
+                "timetable_id": result.timetable_id,
+            },
+        )
+
+        status = PersistenceStatus.CREATED if created else PersistenceStatus.UPDATED
+
+        return ProcessingResult(
+            daily_attendance=daily,
+            status=status,
+            message=status.value,
+            processed_at=now,
+        )
+
+    # =========================================================================
+
     def _gather_context(self, employee: models.Employee, target_date: date) -> dict:
-        """
-        Gather all context needed for calculation.
-        
-        This does NOT access the engine - only prepares data.
-        """
-        # Resolve schedule
+
         schedule_ctx = resolve_schedule(employee.id, target_date)
-        
+
         if not schedule_ctx.is_valid:
-            # No schedule = implicit rest day
             return {
-                'has_schedule': False,
-                'is_rest_day': True,
-                'timetable': None,
-                'logs': [],
-                'holidays': set(),
-                'has_leave': False,
-                'policy': FlexPolicy(),
+                "has_schedule": False,
+                "is_rest_day": True,
+                "timetable": None,
+                "logs": [],
+                "holidays": set(),
+                "has_leave": False,
+                "policy": FlexPolicy(),
             }
-        
+
         tt = schedule_ctx.timetable
-        
-        # Get logs
+
         logs = []
-        if employee.user_id:
-            logs = get_logs(employee.user_id, schedule_ctx.search_start, schedule_ctx.search_end)
-        
-        # Get holidays
+        if employee.user_id and schedule_ctx.search_start and schedule_ctx.search_end:
+            logs = get_logs(
+                employee.user_id,
+                schedule_ctx.search_start,
+                schedule_ctx.search_end,
+            )
+
         holidays = get_holidays(target_date)
-        
-        # Check leave
         has_leave = check_employee_leave(employee.id, target_date)
-        
-        # Build policy from timetable
-        policy = self._build_policy_from_timetable(tt)
-        
-        return {
-            'has_schedule': True,
-            'is_rest_day': False,
-            'timetable': tt,
-            'logs': logs,
-            'holidays': holidays,
-            'has_leave': has_leave,
-            'policy': policy,
-            'schedule_ctx': schedule_ctx,
-        }
-    
-    def _build_policy_from_timetable(self, tt: models.Timetable) -> FlexPolicy:
-        """Build FlexPolicy from timetable settings."""
-        return FlexPolicy(
+
+        policy = FlexPolicy(
             break_threshold_minutes=360,
             break_duration_minutes=tt.break_minutes or 30,
             daily_regular_minutes=tt.required_minutes or 480,
             daily_max_minutes=720,
         )
-    
+
+        return {
+            "has_schedule": True,
+            "is_rest_day": False,
+            "timetable": tt,
+            "logs": logs,
+            "holidays": holidays,
+            "has_leave": has_leave,
+            "policy": policy,
+        }
+
     # =========================================================================
-    # PRIVATE - PROTECTION
-    # =========================================================================
-    
-    def _check_protection(
-        self,
-        employee_id: int,
-        target_date: date,
-        force: bool,
-    ) -> None:
-        """
-        Check if day is protected from recalculation.
-        
-        Protection triggers:
-        - requires_review = True
-        - calculation_confidence != HIGH
-        
-        Protected days require force=True to recalculate.
-        """
-        existing = models.DailyAttendance.objects.filter(
-            employee_id=employee_id,
-            date=target_date,
-            calculation_state='CALCULATED',
-        ).first()
-        
-        if not existing:
-            return  # No existing record, no protection needed
-        
-        reasons = []
-        
-        if existing.requires_review:
-            reasons.append("requires human review")
-        
-        # Check confidence if stored (may need to parse from metadata)
-        # For now, we check requires_review as primary protection
-        
-        if reasons and not force:
-            raise ProtectedDayError(
-                employee_id=employee_id,
-                target_date=target_date,
-                reason=", ".join(reasons),
-            )
-    
-    # =========================================================================
-    # PRIVATE - CALCULATION
-    # =========================================================================
-    
+
     def _execute_calculation(self, context: dict) -> DailyCalculationResult:
-        """
-        Execute the calculation engine.
-        
-        This method ONLY calls the engine, it does NOT modify any data.
-        """
-        if not context['has_schedule']:
-            # No schedule = create empty result
+
+        if not context["has_schedule"]:
             return DailyCalculationResult(
-                employee_id=0,  # Will be set by caller
-                target_date=date.today(),
-                calculation_mode="FLEXIBLE",
-                status="RestDay" if context['is_rest_day'] else "Absent",
-            )
-        
-        tt = context['timetable']
-        logs = context['logs']
-        policy = context['policy']
-        holidays = context['holidays']
-        has_leave = context['has_leave']
-        
-        # Convert logs to punches
-        punches = self._convert_logs_to_punches(logs)
-        
-        # Execute engine
-        if tt.is_flexible:
-            result = calculate_flexible_day(
-                employee_id=0,  # Will be overwritten
-                target_date=date.today(),  # Will be overwritten
-                punches=punches,
-                policy=policy,
-                holidays=list(holidays),
-                has_leave=has_leave,
-                is_rest_day=False,
-            )
-        else:
-            # For structured schedules, use flexible engine with structured post-processing
-            # In future, this would use StructuredProcessor
-            result = calculate_flexible_day(
                 employee_id=0,
                 target_date=date.today(),
-                punches=punches,
-                policy=policy,
-                holidays=list(holidays),
-                has_leave=has_leave,
-                is_rest_day=False,
+                calculation_mode="FLEXIBLE",
+                status="RestDay" if context["is_rest_day"] else "Absent",
             )
-        
-        return result
-    
-    def _convert_logs_to_punches(self, logs: List) -> List[Punch]:
-        """Convert AttendanceLog objects to Punch domain objects."""
-        punches = []
-        
-        for log in logs:
-            state = int(log.punch) if log.punch is not None else 0
-            is_valid = state in [0, 1, 4, 5, 8, 9]
-            
-            if is_valid and log.timestamp:
-                punches.append(Punch(
-                    id=log.id,
-                    timestamp=log.timestamp,
-                    device_id=str(log.device_id) if log.device_id else "UNKNOWN",
-                ))
-        
-        return punches
-    
-    # =========================================================================
-    # PRIVATE - PERSISTENCE
-    # =========================================================================
-    
-    def _persist_result(
-        self,
-        employee: models.Employee,
-        target_date: date,
-        context: dict,
-        result: DailyCalculationResult,
-        actor: Optional[models.User],
-        recalculation_reason: Optional[str],
-    ) -> Tuple[models.DailyAttendance, PersistenceResult]:
-        """
-        Persist calculation result using the persistence service.
-        
-        This method delegates ALL persistence logic to the service.
-        """
-        policy = context['policy']
-        logs = context.get('logs', [])
-        
-        # Extract punch IDs for fingerprint
-        punch_ids = [log.id for log in logs]
-        
-        # Serialize policy for snapshot
-        policy_dict = {
-            'daily_regular_minutes': policy.daily_regular_minutes,
-            'daily_max_minutes': policy.daily_max_minutes,
-            'break_threshold_minutes': policy.break_threshold_minutes,
-            'break_duration_minutes': policy.break_duration_minutes,
-            'night_start_hour': policy.night_start_hour,
-            'night_end_hour': policy.night_end_hour,
-        }
-        
-        # Delegate to persistence service
-        daily, status = self._persistence.persist_daily_calculation(
-            employee=employee,
-            target_date=target_date,
-            engine_version=self.ENGINE_VERSION,
-            policy_dict=policy_dict,
-            punch_ids=punch_ids,
-            result=result,
-            actor=actor,
-            recalculation_reason=recalculation_reason,
+
+        tt = context["timetable"]
+        logs = context["logs"]
+        policy = context["policy"]
+        holidays = context["holidays"]
+        has_leave = context["has_leave"]
+
+        punches = [
+            Punch(
+                id=log.id,
+                timestamp=log.timestamp,
+                device_id=str(log.device_id) if log.device_id else "UNKNOWN",
+            )
+            for log in logs
+            if log.timestamp
+        ]
+
+        return calculate_flexible_day(
+            employee_id=0,
+            target_date=date.today(),
+            punches=punches,
+            policy=policy,
+            holidays=list(holidays),
+            has_leave=has_leave,
+            is_rest_day=False,
         )
-        
-        if status == PersistenceResult.ERROR:
-            raise PersistenceError("Failed to persist calculation result")
-        
-        return daily, status
-    
-    # =========================================================================
-    # PRIVATE - ERROR HANDLING
-    # =========================================================================
-    
-    def _log_error(
-        self,
-        employee_id: int,
-        target_date: date,
-        error_message: str,
-        actor: Optional[models.User],
-    ) -> None:
-        """Log error to audit trail if possible."""
-        try:
-            # Try to find existing record to attach error
-            existing = models.DailyAttendance.objects.filter(
-                employee_id=employee_id,
-                date=target_date,
-            ).first()
-            
-            # NOTE: CalculationAuditLog disabled - legal audit module not implemented
-            # if existing:
-            #     CalculationAuditLog.objects.create(
-            #         daily_attendance=existing,
-            #         event_type='CREATED',  # Closest available type
-            #         engine_version=self.ENGINE_VERSION,
-            #         metadata={
-            #             'error': error_message,
-            #             'error_type': 'PROCESSING_ERROR',
-            #         },
-            #         actor=actor,
-            #     )
-        except Exception:
-            pass  # Don't fail on error logging
-    
-    def _build_message(self, status: PersistenceResult) -> str:
-        """Build human-readable message from status."""
-        messages = {
-            PersistenceResult.CREATED: "Calculation created successfully",
-            PersistenceResult.RECALCULATED: "Recalculation completed, previous record superseded",
-            PersistenceResult.NO_CHANGE: "No changes detected, calculation skipped",
-            PersistenceResult.ERROR: "Calculation failed",
-        }
-        return messages.get(status, "Unknown status")
-    
-    # =========================================================================
-    # PRIVATE - SHADOW MODE (V1 vs V2 Comparison)
-    # =========================================================================
-    
-    def _run_shadow_comparison(
-        self,
-        employee: models.Employee,
-        target_date: date,
-        v1_daily: models.DailyAttendance,
-    ) -> None:
-        """
-        Run V2 calculation in shadow mode for comparison.
-        
-        CRITICAL: This is error-isolated and runs OUTSIDE the main transaction.
-        Failures here do NOT affect production data.
-        
-        Args:
-            employee: Employee being calculated
-            target_date: Date being calculated
-            v1_daily: The V1 result that was just persisted
-        """
-        try:
-            shadow_service = get_shadow_service()
-            shadow_service.run_shadow_for_day(
-                employee=employee,
-                target_date=target_date,
-                v1_daily_attendance=v1_daily,
-            )
-        except Exception as e:
-            # CRITICAL: Never let shadow failures affect production
-            # Log and continue - shadow is for analysis only
-            import logging
-            logging.getLogger(__name__).warning(
-                f"Shadow comparison failed for {employee.id} @ {target_date}: {e}"
-            )
 
 
 # =============================================================================
-# SINGLETON ACCESS
+# SINGLETON
 # =============================================================================
 
 _application_service: Optional[AttendanceApplicationService] = None
 
 
 def get_attendance_service() -> AttendanceApplicationService:
-    """Get singleton application service instance."""
     global _application_service
     if _application_service is None:
         _application_service = AttendanceApplicationService()

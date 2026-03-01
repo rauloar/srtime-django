@@ -65,26 +65,26 @@ export const Absences: React.FC = () => {
         }
     };
 
-    const getEmployeeName = (id: number) => {
-        const emp = employees.find(e => e.id === id);
-        return emp?.name || String(id);
+    const getEmployeeName = (absence: Absence) => {
+        const emp = employees.find(e => (absence.employee_id && e.id === absence.employee_id) || (absence.user_id && e.user_id === absence.user_id));
+        return emp?.name || absence.employee_name || absence.employee_user_id || '-';
     };
 
     const filteredAbsences = absences.filter(a =>
         a.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (a.employee_name && a.employee_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (a.employee_user_id && a.employee_user_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        getEmployeeName(a.employee_id).toLowerCase().includes(searchTerm.toLowerCase())
+        getEmployeeName(a).toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const columns: Column<Absence>[] = [
         {
-            field: 'employee_id',
+            field: 'user_id',
             header: 'Empleado',
             render: (a) => (
                 <div>
-                    <div style={{ fontWeight: 600, fontSize: '14px' }}>{a.employee_user_id || getEmployeeName(a.employee_id)}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{a.employee_name || getEmployeeName(a.employee_id)}</div>
+                    <div style={{ fontWeight: 600, fontSize: '14px' }}>{a.employee_user_id || getEmployeeName(a)}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{a.employee_name || getEmployeeName(a)}</div>
                 </div>
             )
         },
@@ -94,19 +94,19 @@ export const Absences: React.FC = () => {
             render: (a) => (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     {a.source === 'Detected' ? (
-                        <span style={{ 
-                            padding: '2px 8px', 
-                            borderRadius: '4px', 
-                            backgroundColor: 'var(--status-warning-bg)', 
+                        <span style={{
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            backgroundColor: 'var(--status-warning-bg)',
                             color: 'var(--status-warning)',
                             fontSize: '11px',
                             fontWeight: 600
                         }}>AUTO</span>
                     ) : (
-                        <span style={{ 
-                            padding: '2px 8px', 
-                            borderRadius: '4px', 
-                            backgroundColor: 'var(--status-info-bg)', 
+                        <span style={{
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            backgroundColor: 'var(--status-info-bg)',
                             color: 'var(--status-info)',
                             fontSize: '11px',
                             fontWeight: 600
@@ -209,7 +209,7 @@ const AbsenceModal: React.FC<{
     onClose: () => void,
     onSave: (abs: Absence) => void
 }> = ({ employees, onClose, onSave }) => {
-    const [empId, setEmpId] = useState<number | ''>('');
+    const [employeeId, setEmployeeId] = useState<string>('');
     const [type, setType] = useState('Vacaciones');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
@@ -226,9 +226,9 @@ const AbsenceModal: React.FC<{
                 <div className="flex-col gap-4">
                     <div className="flex-col gap-2">
                         <label className="text-muted" style={{ fontSize: '12px' }}>Empleado</label>
-                        <select className="form-control" value={empId} onChange={e => setEmpId(Number(e.target.value))}>
+                        <select className="form-control" value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
                             <option value="">-- Seleccionar --</option>
-                            {employees.map(e => (
+                            {employees.filter(e => !!e.id).map(e => (
                                 <option key={e.id} value={e.id}>{e.name} ({e.user_id})</option>
                             ))}
                         </select>
@@ -264,9 +264,9 @@ const AbsenceModal: React.FC<{
                         <button onClick={onClose} className="secondary">Cancelar</button>
                         <button
                             className="primary"
-                            disabled={!empId || !startDate || !endDate}
+                            disabled={!employeeId || !startDate || !endDate}
                             onClick={() => onSave({
-                                employee_id: Number(empId),
+                                employee_id: Number(employeeId),
                                 type,
                                 start_date: startDate,
                                 end_date: endDate,

@@ -8,6 +8,7 @@ to ensure consistency between V1 and V2 engines.
 from datetime import date, datetime, timedelta, time
 from typing import List, Optional
 import logging
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from core import models
@@ -160,230 +161,212 @@ def resolve_schedule(employee_id: int, target_date: date) -> DayContext:
     )
 
 
-def get_logs(user_id: str, start: datetime, end: datetime) -> List[models.AttendanceLog]:
-    return list(models.AttendanceLog.objects.filter(
-        user_id=user_id,
+def get_logs(employee: models.Employee, start: datetime, end: datetime) -> List[models.AttendanceLog]:
+    query = models.AttendanceLog.objects.filter(
         timestamp__gte=start,
-        timestamp__lte=end
-    ).order_by('timestamp'))
+        timestamp__lte=end,
+    )
+
+    if employee and employee.pk:
+        query = query.filter(Q(employee_id=employee.pk) | Q(user_id=employee.user_id))
+    else:
+        query = query.none()
+
+    return list(query.order_by('timestamp'))
 
 
 def calculate_day(employee_id: int, target_date: date) -> models.DailyAttendance:
     """
     Calcula la asistencia diaria para un empleado en una fecha específica.
     Soporta horarios fijos y flexibles.
+
+    Patrón: compute → persist once
+    - get_or_create fetches or creates the row (no values written yet)
+    - All fields reset in memory
+    - All calculations performed in memory
+    - Single daily.save() at the end of each code path
+    - Wrapped in transaction.atomic() to prevent partial writes
     """
-    # 0. Prep Result (Get or Create)
-    daily, created = models.DailyAttendance.objects.get_or_create(
-        employee_id=employee_id,
-        date=target_date
-    )
-    
-    # Reset values
-    daily.status = "Absent"
-    daily.worked_minutes = 0
-    daily.late_minutes = 0
-    daily.early_minutes = 0
-    daily.overtime_minutes = 0
-    daily.check_in = None
-    daily.check_out = None
-    daily.timetable_id = None
-    daily.on_duty = None
-    daily.off_duty = None
-    daily.exception_reason = None
-    # Audit
-    daily.source_logs_count = 0 
-    daily.schedule_type = "NONE"
+    with transaction.atomic():
+        # 0. Get or create the row — no DB field writes yet
+        daily, created = models.DailyAttendance.objects.get_or_create(
+            employee_id=employee_id,
+            date=target_date
+        )
 
-    DAILY_TYPE_MAP = {
-        "FIXED": "FIXED",
-        "FLEX": "FLEX"
-    }
-    
-    # 1. Resolve Schedule
-    ctx = resolve_schedule(employee_id, target_date)
-    
-    if not ctx.is_valid:
-        # Schedule resolution failed - capture reason
-        daily.status = "Absent"
-        daily.schedule_type = "NONE"
+        # --- In-memory reset of ALL 18 calculated fields ---
+        daily.status = 'Absent'
+        daily.worked_minutes = 0
+        daily.late_minutes = 0
+        daily.early_minutes = 0
+        daily.overtime_minutes = 0
+        daily.net_worked_minutes = 0
+        daily.break_minutes = 0
+        daily.regular_minutes = 0
+        daily.night_minutes = 0
+        daily.check_in = None
+        daily.check_out = None
+        daily.timetable_id = None
+        daily.on_duty = None
+        daily.off_duty = None
+        daily.exception_reason = None
+        daily.source_logs_count = 0
+        daily.schedule_type = 'NONE'
         daily.is_absent = True
-        
-        # Track reason for absence in exception_reason
-        reason_map = {
-            "IMPLICIT_REST": "No schedule configured for this date",
-            "SHIFT_NO_TIMETABLES": "Shift assigned but has no timetable hours configured",
-            "SHIFT_TIMETABLE_MISSING_DAY": "Shift has no timetable for this day of week"
-        }
-        daily.exception_reason = reason_map.get(ctx.source, f"Schedule error: {ctx.source}")
-        daily.save()
-        return daily
+        # ------------------------------------------------
 
-    tt = ctx.timetable
-    # Safe guard if timetable is None but valid (should not happen with current constructor)
-    if not tt: 
-        daily.is_absent = True
-        daily.exception_reason = "File processing error: timetable lost during resolution"
-        daily.save()
-        return daily
+        # 1. Resolve Schedule
+        ctx = resolve_schedule(employee_id, target_date)
 
-    daily.timetable_id = tt.id
-    if tt.is_flexible:
-        daily.on_duty = None  # Aligned with ZKTime.Net flexible schedule model
-        daily.off_duty = None  # Aligned with ZKTime.Net flexible schedule model
-    else:
-        daily.on_duty = tt.on_duty_time
-        daily.off_duty = tt.off_duty_time
-    
-    # Audit: Set schedule_type based on Source + Flexible
-    # e.g. OVERRIDE, DEPARTMENT, SHIFT-FLEX, SHIFT-FIXED
-    base_type = "FLEX" if tt.is_flexible else "FIXED"
-    
-    if ctx.source == "OVERRIDE":
-        daily.schedule_type = "OVERRIDE"
-    elif ctx.source == "DEPARTMENT":
-        daily.schedule_type = "DEPT"
-    else:
-        daily.schedule_type = base_type
+        if not ctx.is_valid:
+            reason_map = {
+                "IMPLICIT_REST": "No schedule configured for this date",
+                "SHIFT_NO_TIMETABLES": "Shift assigned but has no timetable hours configured",
+                "SHIFT_TIMETABLE_MISSING_DAY": "Shift has no timetable for this day of week"
+            }
+            daily.exception_reason = reason_map.get(ctx.source, f"Schedule error: {ctx.source}")
+            daily.save()
+            return daily
 
-    # 2. Get Raw Data
-    emp = models.Employee.objects.filter(id=employee_id).first()
-    if not emp or not emp.user_id:
-        daily.is_absent = True
-        daily.save()
-        return daily
+        tt = ctx.timetable
+        if not tt:
+            daily.exception_reason = "File processing error: timetable lost during resolution"
+            daily.save()
+            return daily
 
-    logs = get_logs(emp.user_id, ctx.search_start, ctx.search_end)
-    daily.source_logs_count = len(logs)
-    
-    if not logs:
+        daily.timetable_id = tt.id
         if tt.is_flexible:
-            daily.status = "Incomplete"  # Aligned with ZKTime.Net flexible schedule model
-            daily.is_absent = False  # Aligned with ZKTime.Net flexible schedule model
+            daily.on_duty = None
+            daily.off_duty = None
         else:
+            daily.on_duty = tt.on_duty_time
+            daily.off_duty = tt.off_duty_time
+
+        # Audit: Set schedule_type based on source + flexibility
+        if ctx.source == "OVERRIDE":
+            daily.schedule_type = "OVERRIDE"
+        elif ctx.source == "DEPARTMENT":
+            daily.schedule_type = "DEPT"
+        else:
+            daily.schedule_type = "FLEX" if tt.is_flexible else "FIXED"
+
+        # 2. Get Raw Data
+        emp = models.Employee.objects.filter(id=employee_id).first()
+        if not emp or not emp.user_id:
             daily.is_absent = True
+            daily.save()
+            return daily
+
+        logs = get_logs(emp, ctx.search_start, ctx.search_end)
+        daily.source_logs_count = len(logs)
+
+        if not logs:
+            if tt.is_flexible:
+                daily.status = "Incomplete"
+                daily.is_absent = False
+            else:
+                daily.is_absent = True
+            daily.save()
+            return daily
+
+        daily.is_absent = False
+
+        # 3. Apply Rules
+        if tt.is_flexible:
+            daily.status = "Incomplete"
+            total_worked = 0
+            current_in = None
+
+            for log in logs:
+                state = int(log.punch) if log.punch is not None else 0
+                is_in = state in [0, 4, 8]
+                is_out = state in [1, 5, 9]
+
+                if is_in:
+                    if current_in is None:
+                        current_in = log.timestamp
+                        if not daily.check_in:
+                            daily.check_in = current_in
+                elif is_out:
+                    if current_in:
+                        duration = (log.timestamp - current_in).total_seconds() / 60
+                        total_worked += duration
+                        daily.check_out = log.timestamp
+                        current_in = None
+
+            daily.worked_minutes = int(total_worked)
+            daily.overtime_minutes = 0
+            if daily.worked_minutes > 0:
+                daily.status = "Worked"
+
+        else:
+            # Fixed schedule logic
+            daily.status = "Normal"
+
+            # Find Check-in (first in-punch)
+            for log in logs:
+                state = int(log.punch) if log.punch is not None else 0
+                if state in [0, 4, 8]:
+                    daily.check_in = log.timestamp
+                    break
+
+            # Find Check-out (last out-punch)
+            for log in reversed(logs):
+                state = int(log.punch) if log.punch is not None else 0
+                if state in [1, 5, 9]:
+                    daily.check_out = log.timestamp
+                    break
+
+            # Apply rounding
+            if daily.check_in and tt.rounding_rule and tt.rounding_rule != "none":
+                daily.check_in = round_time(daily.check_in, tt.rounding_rule, True)
+            if daily.check_out and tt.rounding_rule and tt.rounding_rule != "none":
+                daily.check_out = round_time(daily.check_out, tt.rounding_rule, False)
+
+            # Calculate Late
+            if daily.check_in and ctx.on_duty_dt:
+                if daily.check_in > ctx.on_duty_dt:
+                    late_delta = (daily.check_in - ctx.on_duty_dt).total_seconds() / 60
+                    daily.late_minutes = int(late_delta)
+                    if tt.late_allow_minutes:
+                        daily.late_minutes = max(0, daily.late_minutes - tt.late_allow_minutes)
+                    if daily.late_minutes > 0:
+                        daily.status = "Late"
+
+            # Calculate Early Leave
+            if daily.check_out and ctx.off_duty_dt:
+                if daily.check_out < ctx.off_duty_dt:
+                    early_delta = (ctx.off_duty_dt - daily.check_out).total_seconds() / 60
+                    daily.early_minutes = int(early_delta)
+                    if tt.early_leave_allow_minutes:
+                        daily.early_minutes = max(0, daily.early_minutes - tt.early_leave_allow_minutes)
+                    if daily.early_minutes > 0:
+                        if daily.status == "Late":
+                            daily.status = "Late, Early Leave"
+                        else:
+                            daily.status = "Early Leave"
+
+            # Calculate Worked Time
+            if daily.check_in and daily.check_out:
+                worked_delta = (daily.check_out - daily.check_in).total_seconds() / 60
+                if tt.break_minutes:
+                    worked_delta = max(0, worked_delta - tt.break_minutes)
+                daily.worked_minutes = int(worked_delta)
+
+            # Calculate Overtime
+            if daily.check_out and ctx.off_duty_dt:
+                if daily.check_out > ctx.off_duty_dt:
+                    overtime_delta = (daily.check_out - ctx.off_duty_dt).total_seconds() / 60
+                    daily.overtime_minutes = int(overtime_delta)
+                    if tt.overtime_threshold_minutes and daily.overtime_minutes < tt.overtime_threshold_minutes:
+                        daily.overtime_minutes = 0
+                    if daily.overtime_minutes > 0:
+                        if "Normal" in daily.status:
+                            daily.status = "Normal, Overtime"
+
+        # 4. Persist once — single save on happy path
         daily.save()
         return daily
-
-    daily.is_absent = False
-
-    # 3. Apply Rules
-    if tt.is_flexible:
-        daily.status = "Incomplete"  # Aligned with ZKTime.Net flexible schedule model
-        total_worked = 0
-        current_in = None
-        
-        for log in logs:
-            state = int(log.punch) if log.punch is not None else 0
-            is_in = state in [0, 4, 8]
-            is_out = state in [1, 5, 9]
-            
-            if is_in:
-                if current_in is None: 
-                    current_in = log.timestamp
-                    if not daily.check_in: daily.check_in = current_in
-            elif is_out:
-                if current_in:
-                    duration = (log.timestamp - current_in).total_seconds() / 60
-                    total_worked += duration
-                    daily.check_out = log.timestamp 
-                    current_in = None
-        
-        daily.worked_minutes = int(total_worked)  # Aligned with ZKTime.Net flexible schedule model
-        daily.overtime_minutes = 0  # Aligned with ZKTime.Net flexible schedule model
-        if daily.worked_minutes > 0:
-            daily.status = "Worked"  # Aligned with ZKTime.Net flexible schedule model
-        
-    else:
-        # Fixed schedule logic
-        daily.status = "Normal"
-        
-        # Find Check-in
-        for log in logs:
-            state = int(log.punch) if log.punch is not None else 0
-            if state in [0, 4, 8]:  # Check-in states
-                daily.check_in = log.timestamp
-                break
-        
-        # Find Check-out
-        for log in reversed(logs):
-            state = int(log.punch) if log.punch is not None else 0
-            if state in [1, 5, 9]:  # Check-out states
-                daily.check_out = log.timestamp
-                break
-        
-        # Apply rounding if configured
-        if daily.check_in and tt.rounding_rule and tt.rounding_rule != "none":
-            daily.check_in = round_time(daily.check_in, tt.rounding_rule, True)
-        
-        if daily.check_out and tt.rounding_rule and tt.rounding_rule != "none":
-            daily.check_out = round_time(daily.check_out, tt.rounding_rule, False)
-        
-        # Calculate Late
-        if daily.check_in and ctx.on_duty_dt:
-            if daily.check_in > ctx.on_duty_dt:
-                late_delta = (daily.check_in - ctx.on_duty_dt).total_seconds() / 60
-                daily.late_minutes = int(late_delta)
-                
-                # Apply tolerance - subtract allowance from late minutes
-                if tt.late_allow_minutes:
-                    daily.late_minutes = max(0, daily.late_minutes - tt.late_allow_minutes)
-                
-                if daily.late_minutes > 0:
-                    daily.status = "Late"
-        
-        # Calculate Early Leave
-        if daily.check_out and ctx.off_duty_dt:
-            if daily.check_out < ctx.off_duty_dt:
-                early_delta = (ctx.off_duty_dt - daily.check_out).total_seconds() / 60
-                daily.early_minutes = int(early_delta)
-                
-                # Apply tolerance - subtract allowance from early minutes
-                if tt.early_leave_allow_minutes:
-                    daily.early_minutes = max(0, daily.early_minutes - tt.early_leave_allow_minutes)
-                
-                if daily.early_minutes > 0:
-                    if daily.status == "Late":
-                        daily.status = "Late, Early Leave"
-                    else:
-                        daily.status = "Early Leave"
-        
-        # Calculate Worked Time
-        if daily.check_in and daily.check_out:
-            worked_delta = (daily.check_out - daily.check_in).total_seconds() / 60
-            
-            # Subtract break
-            if tt.break_minutes:
-                worked_delta = max(0, worked_delta - tt.break_minutes)
-            
-            daily.worked_minutes = int(worked_delta)
-        
-        # Calculate Overtime
-        if daily.check_out and ctx.off_duty_dt:
-            if daily.check_out > ctx.off_duty_dt:
-                overtime_delta = (daily.check_out - ctx.off_duty_dt).total_seconds() / 60
-                daily.overtime_minutes = int(overtime_delta)
-                
-                # Apply overtime threshold - only count if >= threshold
-                if tt.overtime_threshold_minutes and daily.overtime_minutes < tt.overtime_threshold_minutes:
-                    daily.overtime_minutes = 0
-                
-                if daily.overtime_minutes > 0:
-                    if "Normal" in daily.status:
-                        daily.status = "Normal, Overtime"
-            
-    daily.save()
-    
-    # Run shadow mode validation (if enabled)
-    try:
-        from .shadow_mode_service import ShadowModeService
-        shadow = ShadowModeService()
-        shadow.validate_daily_calculation(employee_id, target_date, daily)
-    except Exception as e:
-        # Shadow mode errors never affect production
-        logger.warning(f"Shadow mode validation error: {e}", exc_info=False)
-    
-    return daily
 
 
 def calculate_period(start_date: date, end_date: date, department_id: Optional[int] = None):
@@ -398,7 +381,7 @@ def calculate_period(start_date: date, end_date: date, department_id: Optional[i
     Returns:
         tuple: (results, skipped_employees_report)
     """
-    employees = models.Employee.objects.filter(active=True)
+    employees = models.Employee.objects.filter(is_active=True)
     
     if department_id:
         employees = employees.filter(department_id=department_id)

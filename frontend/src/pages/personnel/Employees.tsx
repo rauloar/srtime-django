@@ -295,26 +295,13 @@ const EmployeeModal: React.FC<{
     const [ssn, setSsn] = useState(employee?.ssn || '');
 
     const handleSaveClick = () => {
-        if (!deviceId) {
-            alert("Debe seleccionar una terminal.");
-            return;
-        }
         if (!userId) {
             alert("El ID de Usuario es obligatorio.");
-            return;
-        }
-        // UID 0 is valid? Yes. undefined/null is not.
-        if (uid === undefined || uid === null) {
-            alert("El UID es obligatorio (seleccione terminal para auto-asignar o ingrese valor).");
             return;
         }
 
         onSave({
             ...employee,
-            // Ensure mandatory fields for UserSerializer are present
-            device: deviceId,
-            uid: uid,
-
             user_id: userId,
             name,
             card,

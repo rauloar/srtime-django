@@ -15,12 +15,7 @@ def main():
             "available on your PYTHONPATH environment variable? Did you "
             "forget to activate a virtual environment?"
         ) from exc
-    # Si el comando es 'runserver' y no se especifica puerto, usar 9000 por defecto
-    if len(sys.argv) > 1 and sys.argv[1] == 'runserver':
-        # Buscar si ya hay un argumento de host:puerto
-        has_port = any(':' in arg or arg.isdigit() for arg in sys.argv[2:])
-        if not has_port:
-            sys.argv.append('9000')
+    # Standard Django entry point without custom port logic
     execute_from_command_line(sys.argv)
 
 

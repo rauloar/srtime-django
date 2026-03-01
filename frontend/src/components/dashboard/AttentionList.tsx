@@ -10,6 +10,7 @@ interface AttentionListProps {
 
 interface AttentionItem {
     employee_id: number;
+    user_id: string;
     employee_name: string;
     date: string;
     status: string;
@@ -45,7 +46,8 @@ export const AttentionList: React.FC<AttentionListProps> = ({
 
                 // Transform to AttentionItem format
                 const attentionItems: AttentionItem[] = problematic.map((d: DailyAttendanceV2) => ({
-                    employee_id: d.identity.employee_id,
+                    employee_id: d.employee.id,
+                    user_id: d.employee.user_id,
                     employee_name: d.employee.name || 'Sin nombre',
                     date: d.identity.date,
                     status: d.status.code,

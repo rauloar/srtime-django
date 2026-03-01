@@ -448,7 +448,7 @@ class Command(BaseCommand):
                         "city": safe_str(row.get("emp_city")) or None,
                         "country": safe_str(row.get("emp_country")) or None,
                         "ssn": safe_str(row.get("emp_ssn")) or None,
-                        "active": active,
+                        "is_active": active,
                     },
                 )
 

@@ -50,7 +50,7 @@ export interface StatusInfo {
  * BACKEND: core/serializers.py → DailyAttendanceSerializer
  * 
  * CAMPOS CRÍTICOS:
- * - id, employee_id, date: Identificación obligatoria
+ * - id, user_id, date: Identificación obligatoria
  * - worked_minutes, late_minutes, early_minutes, overtime_minutes: Numéricos SIEMPRE (0 si no hay)
  * - status: String actual del backend (mantener compatibilidad)
  * - status_info: Metadata opcional (backend puede no enviar en cálculos parciales)
@@ -63,7 +63,7 @@ export interface StatusInfo {
 export interface DailyAttendance {
     // Identificación
     id: number;
-    employee_id: number;
+    user_id: number;
     date: string; // YYYY-MM-DD
 
     // Estado
@@ -104,7 +104,7 @@ export interface DailyAttendance {
  * USO: Ver detalles de un empleado en un día específico
  */
 export interface DayViewResponse {
-    employee_id: string;
+    user_id: string;
     employee_name: string;
     date: string;
     status: string;

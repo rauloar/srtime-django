@@ -27,7 +27,7 @@ urlpatterns = [
         name='calculate-attendance'
     ),
     path(
-        'attendance/<int:employee_id>/<str:date>/',
+        'attendance/<str:user_id>/<str:date>/',
         AttendanceDetailView.as_view(),
         name='attendance-detail'
     ),

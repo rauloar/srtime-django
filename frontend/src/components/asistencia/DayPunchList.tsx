@@ -25,7 +25,7 @@ export const DayPunchList: React.FC<DayPunchListProps> = ({ employeeId, date }) 
             try {
                 setLoading(true);
                 const result = await getAttendanceLogs({
-                    user_id: employeeId,
+                    employee_id: Number(employeeId),
                     from_date: new Date(date).toISOString(),
                     to_date: new Date(date).toISOString(),
                 });

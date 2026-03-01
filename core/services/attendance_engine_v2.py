@@ -126,13 +126,19 @@ def resolve_schedule(employee_id: int, target_date: date) -> DayContext:
 # DATA RETRIEVAL
 # =============================================================================
 
-def get_logs(user_id: str, start: datetime, end: datetime) -> List[models.AttendanceLog]:
-    """Get attendance logs for a user in a time range."""
-    return list(models.AttendanceLog.objects.filter(
-        user_id=user_id,
+def get_logs(employee: models.Employee, start: datetime, end: datetime) -> List[models.AttendanceLog]:
+    """Get attendance logs for an employee in a time range."""
+    query = models.AttendanceLog.objects.filter(
         timestamp__gte=start,
-        timestamp__lt=end
-    ).order_by('timestamp'))
+        timestamp__lt=end,
+    )
+
+    if employee and employee.pk:
+        query = query.filter(Q(employee_id=employee.pk) | Q(user_id=employee.user_id))
+    else:
+        query = query.none()
+
+    return list(query.order_by('timestamp'))
 
 
 def get_holidays(target_date: date) -> Set[date]:
@@ -239,7 +245,7 @@ def calculate_day_v2(
         _maybe_save(daily)
         return daily
     
-    logs = get_logs(emp.user_id, ctx.search_start, ctx.search_end)
+    logs = get_logs(emp, ctx.search_start, ctx.search_end)
     
     # 5. Get external data
     holidays = get_holidays(target_date)

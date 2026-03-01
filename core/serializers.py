@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Company, Position, Zone, Department, Employee,
-    Device, AttendanceLog, ImportBatch, User, BiometricTemplate,
+    Device, AttendanceLog, ImportBatch, DeviceUser, BiometricTemplate,
     Setting, Job, JobLog, Timetable, Shift, ShiftTimetable,
     ScheduleOverride, EmployeeShift, Leave, Holiday, DailyAttendance
 )
@@ -38,6 +38,7 @@ class DepartmentSerializer(serializers.ModelSerializer):
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
+    active = serializers.BooleanField(source='is_active', required=False)
     department_name = serializers.CharField(source='department.name', read_only=True)
     position_name = serializers.CharField(source='position.name', read_only=True)
     current_shift = serializers.SerializerMethodField(read_only=True)
@@ -49,7 +50,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'user_id', 'name', 'email', 'phone', 'mobile_phone', 'ssn',
             'department', 'department_name', 'position', 'position_name',
-            'hire_date', 'birthday', 'gender', 'active',
+            'hire_date', 'birthday', 'gender', 'is_active', 'active',
             'address', 'city', 'country', 'photo_path',
             'current_shift', 'current_timetable', 'schedule_source'
         ]
@@ -189,7 +190,10 @@ class AttendanceLogSerializer(serializers.ModelSerializer):
         return get_verify_mode_label(obj.verify_mode)
     
     def get_user_name(self, obj):
-        """Get user name from Employee model by user_id"""
+        """Get employee name from FK, fallback to lookup by user_id."""
+        if getattr(obj, 'employee', None):
+            return obj.employee.name
+
         try:
             from core.models import Employee
             employee = Employee.objects.get(user_id=obj.user_id)
@@ -198,16 +202,18 @@ class AttendanceLogSerializer(serializers.ModelSerializer):
             return None
     
     def validate(self, data):
-        """
-        Validate that user_id exists in Employee table.
-        
-        HR System is source of truth for employee data.
-        Device sync and imports should only create attendance for valid employees.
-        """
-        user_id = data.get('user_id')
-        if user_id:
-            from core.models import Employee
-            if not Employee.objects.filter(user_id=user_id).exists():
+        """Resolve employee FK from payload and keep user_id synchronized."""
+        from core.models import Employee
+
+        current_employee = getattr(self.instance, 'employee', None) if self.instance else None
+        current_user_id = getattr(self.instance, 'user_id', None) if self.instance else None
+
+        employee = data.get('employee', current_employee)
+        user_id = data.get('user_id', current_user_id)
+
+        if employee is None and user_id:
+            employee = Employee.objects.filter(user_id=user_id).first()
+            if employee is None:
                 raise serializers.ValidationError({
                     'user_id': (
                         f"Employee with user_id '{user_id}' does not exist in HR system. "
@@ -215,6 +221,14 @@ class AttendanceLogSerializer(serializers.ModelSerializer):
                         f"Please sync device users to HR system first."
                     )
                 })
+
+        if employee is None:
+            raise serializers.ValidationError({
+                'employee': 'Employee is required for attendance logs.'
+            })
+
+        data['employee'] = employee
+        data['user_id'] = employee.user_id
         return data
 
 
@@ -230,8 +244,8 @@ class UserSerializer(serializers.ModelSerializer):
     device_name = serializers.CharField(source='device.name', read_only=True)
     
     class Meta:
-        model = User
-        fields = '__all__'
+        model = DeviceUser
+        exclude = ['id']
 
     def to_representation(self, instance):
         """Merge HR Employee data into the response"""
@@ -373,20 +387,46 @@ class ShiftTimetableSerializer(serializers.ModelSerializer):
 class ScheduleOverrideSerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source='employee.name', read_only=True)
     timetable_name = serializers.CharField(source='timetable.name', read_only=True)
+    employee_id = serializers.PrimaryKeyRelatedField(
+        source='employee',
+        queryset=Employee.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    user_id = serializers.SlugRelatedField(
+        source='employee',
+        slug_field='user_id',
+        queryset=Employee.objects.all(),
+        required=False,
+        allow_null=True
+    )
     
     class Meta:
         model = ScheduleOverride
-        fields = '__all__'
+        exclude = ['employee']
 
 
 class EmployeeShiftSerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source='employee.name', read_only=True)
     department_name = serializers.CharField(source='department.name', read_only=True)
     shift_name = serializers.CharField(source='shift.name', read_only=True)
+    employee_id = serializers.PrimaryKeyRelatedField(
+        source='employee',
+        queryset=Employee.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    user_id = serializers.SlugRelatedField(
+        source='employee',
+        slug_field='user_id',
+        queryset=Employee.objects.all(),
+        allow_null=True,
+        required=False
+    )
     
     class Meta:
         model = EmployeeShift
-        fields = '__all__'
+        exclude = ['employee']
     
     def validate(self, data):
         """
@@ -412,10 +452,23 @@ class EmployeeShiftSerializer(serializers.ModelSerializer):
 
 class LeaveSerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source='employee.name', read_only=True)
+    employee_id = serializers.PrimaryKeyRelatedField(
+        source='employee',
+        queryset=Employee.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    user_id = serializers.SlugRelatedField(
+        source='employee',
+        slug_field='user_id',
+        queryset=Employee.objects.all(),
+        required=False,
+        allow_null=True
+    )
     
     class Meta:
         model = Leave
-        fields = '__all__'
+        exclude = ['employee']
 
 
 class HolidaySerializer(serializers.ModelSerializer):
@@ -427,12 +480,13 @@ class HolidaySerializer(serializers.ModelSerializer):
 class DailyAttendanceSerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source='employee.name', read_only=True)
     employee_user_id = serializers.CharField(source='employee.user_id', read_only=True)
+    user_id = serializers.CharField(source='employee.user_id', read_only=True)
     timetable_name = serializers.CharField(source='timetable.name', read_only=True)
     status_info = serializers.SerializerMethodField()
     
     class Meta:
         model = DailyAttendance
-        fields = '__all__'
+        exclude = ['employee']
     
     def get_status_info(self, obj):
         """
@@ -448,7 +502,7 @@ class DailyAttendanceV2Serializer(serializers.ModelSerializer):
     
     Estructura de respuesta EXACTA y GARANTIZADA:
     {
-      "identity": { "id", "employee_id", "date" },
+      "identity": { "id", "user_id", "date" },
       "status": { "code", "label", "color" },
       "metrics": { "worked_minutes", "late_minutes", "early_minutes", "overtime_minutes" },
       "schedule": { "check_in", "check_out" },
@@ -478,7 +532,7 @@ class DailyAttendanceV2Serializer(serializers.ModelSerializer):
         """Identidad del registro"""
         return {
             'id': obj.id,
-            'employee_id': obj.employee_id,
+            'user_id': obj.employee.user_id if obj.employee else None,
             'date': obj.date.isoformat()
         }
     
@@ -531,6 +585,7 @@ class DailyAttendanceV2Serializer(serializers.ModelSerializer):
     def get_employee(self, obj):
         """Información del empleado - GARANTIZADA completa"""
         return {
+                'id': obj.employee.id if obj.employee else None,
             'name': obj.employee.name if obj.employee else '',
             'user_id': obj.employee.user_id if obj.employee else '',
             'department_name': obj.employee.department.name if obj.employee and obj.employee.department else None

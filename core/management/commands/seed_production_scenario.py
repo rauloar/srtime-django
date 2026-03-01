@@ -328,7 +328,7 @@ class Command(BaseCommand):
                 user_id=f'A{i:03d}',
                 name=name,
                 department=dept_admin,
-                active=True,
+                is_active=True,
                 email=f"{name.lower().replace(' ', '.')}@empresaproductiva.com.ar"
             )
             # Individual shift assignment
@@ -351,7 +351,7 @@ class Command(BaseCommand):
                 user_id=f'FAB{i:03d}',
                 name=name,
                 department=dept_fabrica,
-                active=True,
+                is_active=True,
                 email=f"operario.{i}@empresaproductiva.com.ar"
             )
             # Individual shift assignment - ALL use rotative shift
@@ -372,7 +372,7 @@ class Command(BaseCommand):
                 user_id=f'TI{i:03d}',
                 name=name,
                 department=dept_ti,
-                active=True,
+                is_active=True,
                 email=f"{name.lower().replace(' ', '.')}@empresaproductiva.com.ar"
             )
             # Individual shift assignment
@@ -447,6 +447,7 @@ class Command(BaseCommand):
                 in_dt = timezone.make_aware(datetime.combine(current_date, in_time))
                 AttendanceLog.objects.create(
                     device=device,
+                    employee=emp,
                     user_id=emp.user_id,
                     timestamp=in_dt,
                     status=0,
@@ -463,6 +464,7 @@ class Command(BaseCommand):
                 out_dt = timezone.make_aware(datetime.combine(current_date, out_time))
                 AttendanceLog.objects.create(
                     device=device,
+                    employee=emp,
                     user_id=emp.user_id,
                     timestamp=out_dt,
                     status=0,
