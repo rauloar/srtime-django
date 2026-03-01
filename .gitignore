@@ -45,10 +45,8 @@ Thumbs.db
 htmlcov/
 .pytest_cache/
 .tox/
-tests/*.py          # Exclude test files
-!tests/__init__.py   # But include init (documentation)
-!tests/README.md     # Include test documentation
-tests_*.py
+tests/
+tests_legacy/
 
 # Celery
 celerybeat-schedule
@@ -66,9 +64,15 @@ caso_real_sql/
 *.ps1
 
 # Project cleanup policy
-# Ignore all tests
-tests/
-tests_legacy/
+# Ignore loose scripts and local helpers
+scripts/
+/check_*.py
+/debug_*.py
+/fix_*.py
+/list_*.py
+/test_*.py
+/validation_*.py
+/test_output*.txt
 
 # Ignore documentation except README
 docs/
