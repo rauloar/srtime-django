@@ -62,6 +62,9 @@ celerybeat.pid
 caso_real_sql/
 *.backup.sql
 
+# PowerShell scripts
+*.ps1
+
 # Project cleanup policy
 # Ignore all tests
 tests/
